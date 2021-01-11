@@ -1,11 +1,11 @@
-package main
+package arc_test
 
 import (
 	"fmt"
 	"math"
 )
 
-func main() {
+func Example(){	
 
 	// # Define tolerance
 	tol := 1.0e-12
@@ -61,6 +61,7 @@ func main() {
 		df[0][0] = 1 - (1.-math.Pow(math.Sin(y), 2.0))/(math.Pow(bb, 1.5))
 		// # Inverse of Tangent Matrix
 		dfinv[0][0] = 1.0 / df[0][0] // TODO: np.linalg.inv(df)
+		// TODO: divide by zero
 		return df, dfinv
 	}
 
@@ -123,8 +124,10 @@ func main() {
 				}
 			}
 			fmt.Printf("%15.8f %15.8f\n", a, al)
-			fmt.Println("Newton increment", i, "completed successfully")
+			fmt.Println("Newton increment", i, "completed successfully and use" ,iters,"steps")
 		}
 	}
 	fmt.Println("The program completed successfully")
+
+	// Output:
 }
