@@ -5,11 +5,62 @@ import (
 	"math"
 )
 
+func nplinalginv(df [][]float64) (dfinv [][]float64) {
+	size := len(df)
+	dfinv = npzerosm(size)
+	switch size {
+	case 1:
+		dfinv[0][0] = 1.0 / df[0][0] // TODO:
+	case 2:
+		// TODO: np.linalg.inv(df)
+		panic("")
+	default:
+		panic("")
+	}
+	// TODO: divide by zero
+	return dfinv
+}
+
+func nplinalgdet(df [][]float64) (det float64) {
+	panic("")
+	// TODO
+}
+
+func nproots(a, b, c float64) (x []float64) {
+	panic("")
+	// TODO
+}
+
+func nplinalgnorm(v []float64) (res float64) {
+	return math.Sqrt(npdot(v, v))
+}
+
+func npsign(x float64) bool {
+	return math.Signbit(x)
+}
+
+func summa(a, da []float64) []float64 {
+	size := len(a)
+	res := npzeros(size)
+	for i := 0; i < size; i++ {
+		res[i] = a[i] + da[i]
+	}
+	return res
+}
+
 func summ(a, da []float64) {
 	size := len(a)
 	for i := 0; i < size; i++ {
 		a[i] += da[i]
 	}
+}
+
+func mult(v1, v2 []float64) (res float64) {
+	ndof := len(v1)
+	for i := 0; i < ndof; i++ {
+		res += v1[i] * v2[i]
+	}
+	return
 }
 
 func npdot(v1, v2 []float64) (res float64) {
@@ -52,10 +103,10 @@ func scale(f float64, v []float64) (res []float64) {
 	return
 }
 
-func ExampleNewton() {
+// # Define tolerance
+const tol = 1.0e-12
 
-	// # Define tolerance
-	tol := 1.0e-12
+func ExampleNewton() {
 
 	// # Input of user defined parameters
 	th0 := math.Pi / 3.0
@@ -86,6 +137,7 @@ func ExampleNewton() {
 	b := func(x, y float64) float64 {
 		return 1. + x*x - 2.0*x*math.Sin(y)
 	}
+
 	// # Define the system of equations in the form F(u)=0
 	fcn := func(x []float64, y, z float64) []float64 {
 		bb := b(x[0], y)
@@ -96,21 +148,18 @@ func ExampleNewton() {
 	// # Define the tangent matrix (stiffness matrix)
 	// # It contains the derivatives of the equations w.r.t the variables
 	// # The function returns both the matrix as df as well as it's inverse as dfinv
-
 	dfcn := func(x []float64, y, z float64) (_ [][]float64) {
 		bb := b(x[0], y)
 		//      # Tangent Matrix
 		df[0][0] = 1 - (1.-math.Pow(math.Sin(y), 2.0))/(math.Pow(bb, 1.5))
 		// # Inverse of Tangent Matrix
-		dfinv[0][0] = 1.0 / df[0][0] // TODO: np.linalg.inv(df)
-		// TODO: divide by zero
+		dfinv := nplinalginv(df)
 		return dfinv
 	}
 
-
-       // # Define the maximum number of Riks increments
-       newton := 10000
-       maxiter := 100
+	// # Define the maximum number of Riks increments
+	newton := 10000
+	maxiter := 100
 
 	for i := 0; i < newton; i++ {
 		if a[0] >= 2.5 {
@@ -122,7 +171,7 @@ func ExampleNewton() {
 		// TODO strange summ(&a, &da)
 		al += dl
 		f = fcn(a, th0, al)
-		fcheck := math.Sqrt(npdot(f, f))
+		fcheck := nplinalgnorm(f)
 
 		iters := 0
 		for fcheck > tol {
@@ -132,7 +181,7 @@ func ExampleNewton() {
 			da = scale(-1., npdotm(dfinv, f))
 			summ(a, da)
 			f = fcn(a, th0, al)
-			fcheck = math.Sqrt(npdot(f, f))
+			fcheck = nplinalgnorm(f)
 
 			if iters > maxiter {
 				panic(fmt.Errorf("iter : %d. fcheck: %e", iters, fcheck))
