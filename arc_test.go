@@ -231,7 +231,7 @@ func ExampleArc() {
 
 	// # Define the maximum number of Riks increments
 	riks := 20000
-	maxiter := 10
+	maxiter := 100
 
 	for i := 0; i < riks; i++ {
 		if a[1] >= 3.5 {
@@ -354,7 +354,7 @@ func ExampleArc() {
 			}
 
 			if iters > maxiter {
-				panic("")
+				panic("Max iteration error")
 			}
 
 			a = summa(a, dalfa)
