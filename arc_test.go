@@ -205,7 +205,7 @@ func ExampleArc() {
 	arc := func(da, dab, dat []float64, dl float64, iq []float64) (ddl1, ddl2 float64) {
 		// 	#Arc Length Parameters
 		psi := 1.0
-		dll := 1.e-3
+		dll := 1.e-3 // TODO : radius
 
 		// 	# Calculate the coefficients of the polynomial
 		c1 := npdot(dat, dat) +
