@@ -6,6 +6,7 @@ import (
 )
 
 func nplinalginv(df [][]float64) (dfinv [][]float64) {
+	// TODO: try to ignore that function
 	size := len(df)
 	dfinv = npzerosm(size)
 	switch size {
@@ -32,6 +33,7 @@ func nplinalginv(df [][]float64) (dfinv [][]float64) {
 }
 
 func nplinalgdet(df [][]float64) (det float64) {
+	// TODO: try to ignore that function
 	size := len(df)
 	// df = npzerosm(size)
 	switch size {
@@ -50,6 +52,7 @@ func nplinalgdet(df [][]float64) (det float64) {
 }
 
 func nproots(a, b, c float64) (x []float64) {
+	// TODO add more information and errors
 	D := b*b - 4*a*c
 	x = append(x, (-b-math.Sqrt(D))/(2*a))
 	x = append(x, (-b+math.Sqrt(D))/(2*a))
@@ -61,6 +64,7 @@ func nplinalgnorm(v []float64) (res float64) {
 }
 
 func npsign(x float64) int {
+	// TODO : compare with math.Signbit
 	if x > 0 {
 		return 1
 	}
@@ -134,10 +138,51 @@ func scale(f float64, v []float64) (res []float64) {
 	return
 }
 
+// # The arc length function solves the 2nd order equation w.r.t. ddl
+// # Returns two values as ddl1 and ddl2
+func arc(da, dab, dat []float64, dl float64, iq []float64) (ddl1, ddl2 float64) {
+	// 	#Arc Length Parameters
+	var (
+		psi = 1.0   // TODO: hyperellipsoid ratio - input data
+		dll = 1.e-3 // TODO : radius
+	)
+
+	// TODO: add comments for each variable
+	// TODO: rename in according to arc documentation
+
+	// 	# Calculate the coefficients of the polynomial
+	var (
+		c1 = npdot(dat, dat) +
+			math.Pow(psi, 2.0)*npdot(iq, iq)
+		c2 = 2. * (npdot(summa(da, dab), dat) +
+			dl*math.Pow(psi, 2)*npdot(iq, iq))
+		c3 = npdot(summa(da, dab), summa(da, dab)) +
+			math.Pow(dl, 2.0)*math.Pow(psi, 2.0)*npdot(iq, iq) -
+			math.Pow(dll, 2)
+	)
+
+	// TODO : why if change ddl1 and ddl2 algorithm are fail??
+	if c2*c2-4.*c1*c3 > 0. { // TODO: this is determinant
+		// # dls will store the 2 solutions from the 2nd order polynomial w.r.t. ddl
+		dls := nproots(c1, c2, c3)
+		ddl1 = dls[0]
+		ddl2 = dls[1]
+	} else {
+		ddl1 = -c2 / 2 * c1
+		ddl2 = -c2 / 2 * c1
+		// TODO : check coverage for that part of code
+		fmt.Println("Possible issue in Arc Length equation")
+	}
+
+	return //  ddl1,ddl2
+}
+
 // # Define tolerance
 const tol = 1.0e-12
 
 func ExampleArc() {
+	// TODO: one simple initialization for all input templorary allocations for reusing
+
 	// # Input of user defined parameters
 	th0 := math.Pi / 3
 	w := 0.25
@@ -163,9 +208,6 @@ func ExampleArc() {
 	// # df elements need to be defined explicitly in function dfcn
 	df := npzerosm(ndof)
 	dfinv := npzerosm(ndof)
-
-	// # dls will store the 2 solutions from the 2nd order polynomial w.r.t. ddl
-	dls := npzeros(2)
 
 	// # dao is an araay that stores the last converged ``displacement correction''
 	dao := npzeros(ndof)
@@ -200,65 +242,43 @@ func ExampleArc() {
 		return df, dfinv
 	}
 
-	// # The arc length function solves the 2nd order equation w.r.t. ddl
-	// # Returns two values as ddl1 and ddl2
-	arc := func(da, dab, dat []float64, dl float64, iq []float64) (ddl1, ddl2 float64) {
-		// 	#Arc Length Parameters
-		psi := 1.0
-		dll := 1.e-3 // TODO : radius
-
-		// 	# Calculate the coefficients of the polynomial
-		c1 := npdot(dat, dat) +
-			math.Pow(psi, 2.0)*npdot(iq, iq)
-		c2 := 2. * (npdot(summa(da, dab), dat) +
-			dl*math.Pow(psi, 2)*npdot(iq, iq))
-		c3 := npdot(summa(da, dab), summa(da, dab)) +
-			math.Pow(dl, 2.0)*math.Pow(psi, 2.0)*npdot(iq, iq) -
-			math.Pow(dll, 2)
-
-		if c2*c2-4.*c1*c3 > 0. {
-			dls = nproots(c1, c2, c3)
-			ddl1 = dls[0]
-			ddl2 = dls[1]
-		} else {
-			ddl1 = -c2 / 2 * c1
-			ddl2 = -c2 / 2 * c1
-			fmt.Println("Possible issue in Arc Length equation")
-		}
-
-		return //  ddl1,ddl2
-	}
-
 	// # Define the maximum number of Riks increments
-	riks := 20000
-	maxiter := 100
+	var ( // TODO: input data
+		riks    = 20000
+		maxiter = 100
+	)
 
 	for i := 0; i < riks; i++ {
+		// TODO: add stop factors
 		if a[1] >= 3.5 {
 			break
 		}
 		// 	# Increment starts; Set all variations=0
-		da := npzeros(ndof)
-		dab := npzeros(ndof)
-		dat := npzeros(ndof)
-		dda1 := npzeros(ndof)
-		dda2 := npzeros(ndof)
-		dda := npzeros(ndof)
-		dalfa := npzeros(ndof)
-		dl := 0.
+		var ( // TODO : minimaze allocations
+			da    = npzeros(ndof)
+			dab   = npzeros(ndof)
+			dat   = npzeros(ndof)
+			dda1  = npzeros(ndof)
+			dda2  = npzeros(ndof)
+			dda   = npzeros(ndof)
+			dalfa = npzeros(ndof)
+			dl    = 0.0
+			ddl   = 0.0
+		)
 
 		df, dfinv = dfcn(summa(a, da), th0, al+dl, w)
+		// TODO: simplify : like that : df, dfinv = dfcn(a, th0, al, w)
+
 		dat = npdotm(dfinv, iq)
 
-		ddl1, ddl2 := arc(da, dab, dat, dl, iq)
+		ddl1, ddl2 := arc(da, dab, dat, dl, iq) // TODO: why?? generally values are zeros
 
 		dda1 = summa(dab, scale(ddl1, dat))
 		dda2 = summa(dab, scale(ddl2, dat))
 
 		det := nplinalgdet(df)
 
-		var ddl float64
-
+		// TODO : some code are repeat - try to minimaze code
 		if npsign(det) == npsign(ddl1) {
 			dda = dda1
 			ddl = ddl1
@@ -268,7 +288,7 @@ func ExampleArc() {
 		}
 
 		dalfa = summa(da, dda)
-		dlamda := dl + ddl
+		dlamda := dl + ddl // TODO: is it zero always??
 
 		f := fcn(summa(a, dalfa), th0, (al + dlamda), w)
 
@@ -277,91 +297,91 @@ func ExampleArc() {
 		// var iloop int
 		iters := 0
 
-		if fcheck < tol {
-			a = summa(a, dalfa)
-			al = al + dlamda
-			// iout.write(str(a[1]) + ' ' + str(al) + "\n")
-			// fmt.Println("A:", a, al)
-			// dao = dalfa
+		//	if fcheck < tol {
+		// 			a = summa(a, dalfa)
+		// 			al = al + dlamda
+		// iout.write(str(a[1]) + ' ' + str(al) + "\n")
+		// fmt.Println("A:", a, al)
+		// dao = dalfa
 
-			// dlo = dlamda
-			//iloop = 0
-		} else {
-			for fcheck > tol {
+		// dlo = dlamda
+		//iloop = 0
+		//} else {
+		for fcheck > tol {
 
-				iters += 1
-				da = dalfa
-				dl = dlamda
+			iters += 1
+			da = dalfa
+			dl = dlamda
 
-				f = fcn(summa(a, da), th0, (al + dl), w)
-				df, dfinv = dfcn(summa(a, da), th0, (al + dl), w)
+			f = fcn(summa(a, da), th0, (al + dl), w)
+			df, dfinv = dfcn(summa(a, da), th0, (al + dl), w)
 
-				dab = scale(-1, npdotm(dfinv, f))
-				dat = npdotm(dfinv, iq)
+			dab = scale(-1, npdotm(dfinv, f))
+			dat = npdotm(dfinv, iq)
 
-				ddl1, ddl2 = arc(da, dab, dat, dl, iq)
+			ddl1, ddl2 = arc(da, dab, dat, dl, iq)
 
-				dda1 = summa(dab, scale(ddl1, dat))
-				dda2 = summa(dab, scale(ddl2, dat))
+			dda1 = summa(dab, scale(ddl1, dat))
+			dda2 = summa(dab, scale(ddl2, dat))
 
-				det = nplinalgdet(df)
+			det = nplinalgdet(df)
 
-				daomag := npdot(dao, dao)
+			daomag := npdot(dao, dao)
 
-				if daomag == 0. {
-					if npsign(dl+ddl1) == npsign(det) {
-						dda = dda1
-						ddl = ddl1
-					} else {
-						dda = dda2
-						ddl = ddl2
-					}
-				} else {
-					aux1 := npdot(summa(da, dda1), dao)
-					aux2 := npdot(summa(da, dda2), dao)
-
-					aux3 := dlamda * (dl + ddl1) * npdot(iq, iq)
-					aux4 := dlamda * (dl + ddl2) * npdot(iq, iq)
-
-					dot1 := aux1 + math.Pow(psi, 2)*aux3
-					dot2 := aux2 + math.Pow(psi, 2)*aux4
-
-					if dot1 > dot2 {
-						dda = dda1
-						ddl = ddl1
-					} else {
-						dda = dda2
-						ddl = ddl2
-					}
-				}
-
-				if ddl1 == ddl2 {
+			if daomag == 0. {
+				if npsign(dl+ddl1) == npsign(det) {
 					dda = dda1
 					ddl = ddl1
+				} else {
+					dda = dda2
+					ddl = ddl2
 				}
+			} else {
+				aux1 := npdot(summa(da, dda1), dao)
+				aux2 := npdot(summa(da, dda2), dao)
 
-				dalfa = summa(da, dda)
-				dlamda = dl + ddl
+				aux3 := dlamda * (dl + ddl1) * npdot(iq, iq)
+				aux4 := dlamda * (dl + ddl2) * npdot(iq, iq)
 
-				f = fcn(summa(a, dalfa), th0, (al + dlamda), w)
+				dot1 := aux1 + math.Pow(psi, 2)*aux3
+				dot2 := aux2 + math.Pow(psi, 2)*aux4
 
-				fcheck = nplinalgnorm(f)
-
-				if iters > maxiter {
-					iters = maxiter + 1
-					break
+				if dot1 > dot2 {
+					dda = dda1
+					ddl = ddl1
+				} else {
+					dda = dda2
+					ddl = ddl2
 				}
 			}
+
+			if ddl1 == ddl2 {
+				dda = dda1
+				ddl = ddl1
+			}
+
+			dalfa = summa(da, dda)
+			dlamda = dl + ddl
+
+			f = fcn(summa(a, dalfa), th0, (al + dlamda), w)
+
+			fcheck = nplinalgnorm(f)
 
 			if iters > maxiter {
-				panic("Max iteration error")
+				// iters = maxiter + 1// TODO: why ??
+				break
 			}
-
-			a = summa(a, dalfa)
-			al += dlamda
 		}
 
-		// fmt.Println("Q:", i, iters, a, al)
+		if iters > maxiter {
+			panic("Max iteration error")
+		}
+
+		a = summa(a, dalfa)
+		al += dlamda
+		//}
+
+		// TODO: add recorder for each step
 		fmt.Printf(
 			"Arc %3d(steps %3d). Coordinate: %.15f",
 			i, iters, al,
@@ -375,6 +395,8 @@ func ExampleArc() {
 		// dlo = dlamda
 
 	}
+
+	// TODO : remove output data to specific file
 
 	// Output:
 	// Arc   0(steps   1). Coordinate: 0.000178959729216 0.000238637638 0.000954476555
