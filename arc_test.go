@@ -5,13 +5,13 @@ import (
 	"math"
 )
 
-func nplinalginv(df [][]float64) (dfinv [][]float64) {
+func nplinalginv(df [][]float64) (inv [][]float64) {
 	// TODO: try to ignore that function
 	size := len(df)
-	dfinv = npzerosm(size)
+	inv = npzerosm(size)
 	switch size {
 	case 1:
-		dfinv[0][0] = 1.0 / df[0][0] // TODO:
+		inv[0][0] = 1.0 / df[0][0] // TODO:
 	case 2:
 		// TODO: np.linalg.inv(df)
 		var (
@@ -21,15 +21,15 @@ func nplinalginv(df [][]float64) (dfinv [][]float64) {
 			d = df[1][1]
 		)
 		det := 1. / (a*d - b*c)
-		dfinv[0][0] = det * d
-		dfinv[0][1] = det * (-b)
-		dfinv[1][0] = det * (-c)
-		dfinv[1][1] = det * a
+		inv[0][0] = det * d
+		inv[0][1] = det * (-b)
+		inv[1][0] = det * (-c)
+		inv[1][1] = det * a
 	default:
 		panic("")
 	}
 	// TODO: divide by zero
-	return dfinv
+	return
 }
 
 func nplinalgdet(df [][]float64) (det float64) {
@@ -194,14 +194,13 @@ func ExampleArc() {
 
 	// # Iq is the force distribution vector (needs to be defined explicitly)
 	iq := npzeros(ndof)
+	// TODO: strange vector. What happen if ndof more 2
 	iq[0] = 0.
 	iq[1] = 1.
 
 	// # a is the dimensionless ``displacement'' vector (no need to define)
+	// TODO: change to some dimention, not dimensionless
 	a := npzeros(ndof)
-
-	// # f is the system of equations (They need to be defined explicitly) [See Function fcn]
-	f := npzeros(ndof)
 
 	// # df is the tangent matrix to the system of equations (Contains derivatives)
 	// # dfinv is the inverse of df
@@ -215,16 +214,22 @@ func ExampleArc() {
 	al := 0.0
 
 	// # Define the b function needed for calculations
-	b := func(x, y float64) float64 {
-		return 1. + x*x - 2.0*x*math.Sin(y)
+	b := func(a1, th0 float64) float64 {
+		// TODO see formula (3.11)
+		// B(a1, th0) = 1.0 - 2*a1*sin(th0)+a1*a1
+		return 1.0 + a1*a1 - 2.0*a1*math.Sin(th0) // TODO: use formula
 	}
 
 	// # Define the system of equations in the form F(u)=0
-	fcn := func(x []float64, y, z, w float64) []float64 {
+	fcn := func(x []float64, y, z, w float64) (f []float64) {
+		// # f is the system of equations (They need to be defined explicitly) [See Function fcn]
+		f = npzeros(ndof)
+
 		bb := b(x[0], y)
-		f[0] = -w*(x[1]-x[0]) + (1./math.Sqrt(bb)-1.0)*(math.Sin(y)-x[0])
-		f[1] = w*(x[1]-x[0]) - z
-		return f
+		// TODO: use correct name of variables
+		f[0] = -w*(x[1]-x[0]) + (1./math.Sqrt(bb)-1.0)*(math.Sin(y)-x[0]) // TODO formula (3.12)
+		f[1] = w*(x[1]-x[0]) - z                                          // TODO formula (3.13)
+		return
 	}
 
 	// # Define the tangent matrix (stiffness matrix)
@@ -233,12 +238,13 @@ func ExampleArc() {
 	dfcn := func(x []float64, y float64, z, w float64) (_, _ [][]float64) {
 		bb := b(x[0], y)
 		//      # Tangent Matrix
+		// TODO: look like https://en.wikipedia.org/wiki/Jacobian_matrix_and_determinant#Example_1
 		df[0][0] = (1 + w) - (1.-math.Pow(math.Sin(y), 2.0))/(math.Pow(bb, 1.5))
 		df[0][1] = -w
 		df[1][0] = -w
 		df[1][1] = w
 		// # Inverse of Tangent Matrix
-		dfinv := nplinalginv(df)
+		dfinv := nplinalginv(df) // TODO : move to separate function for FEM calcs
 		return df, dfinv
 	}
 
@@ -267,12 +273,9 @@ func ExampleArc() {
 		)
 
 		df, dfinv = dfcn(summa(a, da), th0, al+dl, w)
-		// TODO: simplify : like that : df, dfinv = dfcn(a, th0, al, w)
-
 		dat = npdotm(dfinv, iq)
 
 		ddl1, ddl2 := arc(da, dab, dat, dl, iq) // TODO: why?? generally values are zeros
-
 		dda1 = summa(dab, scale(ddl1, dat))
 		dda2 = summa(dab, scale(ddl2, dat))
 
@@ -295,7 +298,7 @@ func ExampleArc() {
 		fcheck := nplinalgnorm(f) // math.Sqrt(npdot(f, f))
 		// var dlo float64
 		// var iloop int
-		iters := 0
+		var iters int = 0 // TODO: in my point of view - it is 1
 
 		//	if fcheck < tol {
 		// 			a = summa(a, dalfa)
@@ -307,20 +310,25 @@ func ExampleArc() {
 		// dlo = dlamda
 		//iloop = 0
 		//} else {
-		for fcheck > tol {
+		for ; fcheck > tol && iters <= maxiter; iters++ {
 
-			iters += 1
+			// TODO: relocate that case
+			// if iters > maxiter {
+			// 	// iters = maxiter + 1// TODO: why ??
+			// 	break
+			// }
+
 			da = dalfa
 			dl = dlamda
 
 			f = fcn(summa(a, da), th0, (al + dl), w)
-			df, dfinv = dfcn(summa(a, da), th0, (al + dl), w)
 
-			dab = scale(-1, npdotm(dfinv, f))
+			df, dfinv = dfcn(summa(a, da), th0, (al + dl), w)
 			dat = npdotm(dfinv, iq)
 
-			ddl1, ddl2 = arc(da, dab, dat, dl, iq)
+			dab = scale(-1, npdotm(dfinv, f))
 
+			ddl1, ddl2 = arc(da, dab, dat, dl, iq)
 			dda1 = summa(dab, scale(ddl1, dat))
 			dda2 = summa(dab, scale(ddl2, dat))
 
@@ -366,21 +374,20 @@ func ExampleArc() {
 			f = fcn(summa(a, dalfa), th0, (al + dlamda), w)
 
 			fcheck = nplinalgnorm(f)
-
-			if iters > maxiter {
-				// iters = maxiter + 1// TODO: why ??
-				break
-			}
 		}
 
 		if iters > maxiter {
+			// TODO: create error description
 			panic("Max iteration error")
 		}
 
 		a = summa(a, dalfa)
 		al += dlamda
 		//}
+		dao = dalfa
+		// dlo = dlamda
 
+		// TODO: add visualization for steps and substeps
 		// TODO: add recorder for each step
 		fmt.Printf(
 			"Arc %3d(steps %3d). Coordinate: %.15f",
@@ -390,10 +397,6 @@ func ExampleArc() {
 			fmt.Printf(" %.12f", a[i])
 		}
 		fmt.Printf("\n")
-
-		dao = dalfa
-		// dlo = dlamda
-
 	}
 
 	// TODO : remove output data to specific file
