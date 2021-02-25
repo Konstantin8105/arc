@@ -73,8 +73,8 @@ func ExampleNewton2() {
 			solve(dfcn(a), &da, f)
 			a -= da
 			f = fcn(a, lambda)
-			// fcheck = norm2(f)
-			fcheck = norm2(da)
+			fcheck = norm2(f)
+			// fcheck = norm2(da)
 		}
 		fmt.Printf("Newton: %.5f %.12f\n", lambda, a)
 	}
