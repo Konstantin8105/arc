@@ -66,6 +66,7 @@ func ExampleArc2() {
 
 	// # Iq is the force distribution vector (needs to be defined explicitly)
 	iq := npzeros(ndof)
+	// TODO : KI : FORCE on each direction
 	// TODO: strange vector. What happen if ndof more 2
 	iq[0] = 0.
 	iq[1] = 1.
@@ -74,13 +75,15 @@ func ExampleArc2() {
 	// TODO: change to some dimention, not dimensionless
 	a := npzeros(ndof)
 
-	// # df is the tangent matrix to the system of equations (Contains derivatives)
+	// # df is the tangent matrix to the system of equations
+	// (Contains derivatives)
 	// # dfinv is the inverse of df
 	// # df elements need to be defined explicitly in function dfcn
 	// df := npzerosm(ndof)
 	// dfinv := npzerosm(ndof)
 
-	// # dao is an araay that stores the last converged ``displacement correction''
+	// # dao is an araay that stores the last converged ``displacement
+	//  correction''
 	dao := npzeros(ndof)
 	// # al is the dimensionless ``load'' vector
 	al := 0.0
@@ -110,7 +113,8 @@ func ExampleArc2() {
 
 	// # Define the tangent matrix (stiffness matrix)
 	// # It contains the derivatives of the equations w.r.t the variables
-	// # The function returns both the matrix as df as well as it's inverse as dfinv
+	// # The function returns both the matrix as df
+	// as well as it's inverse as dfinv
 	dfcn := func(x []float64 /* y float64, z, , w float64*/) (df [][]float64) {
 		// (df, dfinv [][]float64) {
 		df = npzerosm(ndof)
@@ -126,7 +130,8 @@ func ExampleArc2() {
 		df[1][0] = -w
 		df[1][1] = w
 		// # Inverse of Tangent Matrix
-		//dfinv = nplinalginv(df) // TODO : move to separate function for FEM calcs
+		//dfinv = nplinalginv(df)
+		// TODO : move to separate function for FEM calcs
 		return df // , dfinv
 	}
 
@@ -176,7 +181,7 @@ func ExampleArc2() {
 		dalfa = summa(da, dda)
 		dlamda := dl + ddl // TODO: is it zero always??
 
-		f := fcn(summa(a, dalfa) /* th0, */, (al + dlamda)/*, w*/)
+		f := fcn(summa(a, dalfa) /* th0, */, (al + dlamda) /*, w*/)
 
 		fcheck := nplinalgnorm(f) // math.Sqrt(npdot(f, f))
 		// var dlo float64
@@ -204,7 +209,7 @@ func ExampleArc2() {
 			da = dalfa
 			dl = dlamda
 
-			f = fcn(summa(a, da) /* th0, */, (al + dl)/*, w*/)
+			f = fcn(summa(a, da) /* th0, */, (al + dl) /*, w*/)
 
 			df /*, dfinv */ := dfcn(summa(a, da) /* th0,  (al + dl),, w*/)
 			dat = SolveLinear(df, iq) // = npdotm(dfinv, iq)
