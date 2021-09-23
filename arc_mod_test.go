@@ -72,7 +72,7 @@ func ExampleArc2() {
 
 	// # Input of user defined parameters
 	th0 := math.Pi / 3
-	last_w := 0.25
+	last_w := 0.25 // w = β/k , see page 24
 	psi := 1.0
 	//dll := 2.5e-4
 
@@ -85,6 +85,8 @@ func ExampleArc2() {
 	// TODO: strange vector. What happen if ndof more 2
 	iq[0] = 0.
 	iq[1] = 1.
+	// [0] - rotation
+	// [1] - vertical displacement
 
 	// # a is the dimensionless ``displacement'' vector (no need to define)
 	// TODO: change to some dimention, not dimensionless
@@ -100,6 +102,7 @@ func ExampleArc2() {
 	// # dao is an araay that stores the last converged ``displacement
 	//  correction''
 	dao := npzeros(ndof)
+
 	// # al is the dimensionless ``load'' vector
 	al := 0.0
 
@@ -111,17 +114,21 @@ func ExampleArc2() {
 	}
 
 	// # Define the system of equations in the form F(u)=0
-	fcn := func(x []float64 /* y, */, z /*, w */ float64) (f []float64) {
+	fcn := func(a []float64 /* y, */, λ /*, w */ float64) (f []float64) {
 		// # f is the system of equations (They need to be defined explicitly)
 		// [See Function fcn]
 		w := last_w
 		f = npzeros(ndof)
-		y := th0
-		bb := b(x[0] /*, y*/)
+		bb := b(a[0] /*, y*/)
+
+		// by formula (3.4):
+		// a = u/Lo
+		// λ = P/(2*k*Lo)
+
 		// TODO: use correct name of variables
-		f[0] = -w*(x[1]-x[0]) + (1./math.Sqrt(bb)-1.0)*(math.Sin(y)-x[0])
+		f[0] = (1./math.Sqrt(bb)-1.0)*(math.Sin(th0)-a[0]) - w*(a[1]-a[0])
 		// TODO formula (3.12)
-		f[1] = w*(x[1]-x[0]) - z
+		f[1] = w*(a[1]-a[0]) - λ
 		// TODO formula (3.13)
 		return
 	}
