@@ -10,23 +10,28 @@ import (
 //
 // Formula (2.15)
 //
-//	δu        is dat
 //	𝜓         is psi
 //	𝐪         is iq
-//	Δu        is da
+//	Δu        is da, dao
 //	δu~ (δů)  is dab
-//	Δλ        is dl
+//	δu        is dat, dda
+//	δu1       is dda1
+//	δu2       is dda2
+//	δλ        is ddl
+//	δλ1       is ddl1
+//	δλ2       is ddl2
+//	Δλ        is dl, dlamda
 //	Δl        is dll
 //	𝛼1        is c1
 //	𝛼2        is c2
 //	𝛼3        is c3
-func square_root(da, dab, dat []float64, dl float64, iq []float64) (
-	ddl1, ddl2 float64) {
+func square_root(Δu, δů, δu []float64, Δλ float64, 𝐪 []float64) (
+	δλ1, δλ2 float64) {
 
 	// 	#Arc Length Parameters
 	var (
-		psi = 1.0   // TODO: hyperellipsoid ratio - input data
-		dll = 1.e-3 // TODO : radius
+		𝜓  = 1.0   // TODO: hyperellipsoid ratio - input data
+		Δl = 1.e-3 // TODO : radius
 	)
 
 	// TODO: add comments for each variable
@@ -34,24 +39,24 @@ func square_root(da, dab, dat []float64, dl float64, iq []float64) (
 
 	// 	# Calculate the coefficients of the polynomial
 	var (
-		c1 = npdot(dat, dat) +
-			math.Pow(psi, 2.0)*npdot(iq, iq)
-		c2 = 2. * (npdot(summa(da, dab), dat) +
-			dl*math.Pow(psi, 2)*npdot(iq, iq))
-		c3 = npdot(summa(da, dab), summa(da, dab)) +
-			math.Pow(dl, 2.0)*math.Pow(psi, 2.0)*npdot(iq, iq) -
-			math.Pow(dll, 2)
+		𝛼1 = npdot(δu, δu) +
+			math.Pow(𝜓, 2.0)*npdot(𝐪, 𝐪)
+		𝛼2 = 2. * (npdot(summa(Δu, δů), δu) +
+			Δλ*math.Pow(𝜓, 2)*npdot(𝐪, 𝐪))
+		𝛼3 = npdot(summa(Δu, δů), summa(Δu, δů)) +
+			math.Pow(Δλ, 2.0)*math.Pow(𝜓, 2.0)*npdot(𝐪, 𝐪) -
+			math.Pow(Δl, 2)
 	)
 
 	// TODO : why if change ddl1 and ddl2 algorithm are fail??
-	if c2*c2-4.*c1*c3 > 0. { // TODO: this is determinant
+	if 𝛼2*𝛼2-4.*𝛼1*𝛼3 > 0. { // TODO: this is determinant
 		// # dls will store the 2 solutions from the 2nd order polynomial w.r.t. ddl
-		dls := nproots(c1, c2, c3)
-		ddl1 = dls[0]
-		ddl2 = dls[1]
+		dls := nproots(𝛼1, 𝛼2, 𝛼3)
+		δλ1 = dls[0]
+		δλ2 = dls[1]
 	} else {
-		ddl1 = -c2 / 2 * c1
-		ddl2 = -c2 / 2 * c1
+		δλ1 = -𝛼2 / 2 * 𝛼1
+		δλ2 = -𝛼2 / 2 * 𝛼1
 		// TODO : check coverage for that part of code
 		fmt.Println("Possible issue in Arc Length equation")
 	}
@@ -73,18 +78,18 @@ func ExampleArc2() {
 	// # Input of user defined parameters
 	th0 := math.Pi / 3
 	last_w := 0.25 // w = β/k , see page 24
-	psi := 1.0
+	𝜓 := 1.0
 	//dll := 2.5e-4
 
 	// # Define the dimensions of 'load' and 'displacement' vectors
 	var ndof int = 2
 
 	// # Iq is the force distribution vector (needs to be defined explicitly)
-	iq := npzeros(ndof)
+	𝐪 := npzeros(ndof)
 	// TODO : KI : FORCE on each direction
 	// TODO: strange vector. What happen if ndof more 2
-	iq[0] = 0.
-	iq[1] = 1.
+	𝐪[0] = 0.
+	𝐪[1] = 1.
 	// [0] - rotation
 	// [1] - vertical displacement
 
@@ -101,25 +106,25 @@ func ExampleArc2() {
 
 	// # dao is an araay that stores the last converged ``displacement
 	//  correction''
-	dao := npzeros(ndof)
+	// Δu := npzeros(ndof)
 
 	// # al is the dimensionless ``load'' vector
 	al := 0.0
 
 	// # Define the b function needed for calculations
-	b := func(a1 /*, th0*/ float64) float64 {
+	b := func(a1 float64) float64 {
 		// TODO see formula (3.11)
 		// B(a1, th0) = 1.0 - 2*a1*sin(th0)+a1*a1
 		return 1.0 + a1*a1 - 2.0*a1*math.Sin(th0) // TODO: use formula
 	}
 
 	// # Define the system of equations in the form F(u)=0
-	fcn := func(a []float64 /* y, */, λ /*, w */ float64) (f []float64) {
+	fcn := func(a []float64, λ float64) (f []float64) {
 		// # f is the system of equations (They need to be defined explicitly)
 		// [See Function fcn]
 		w := last_w
 		f = npzeros(ndof)
-		bb := b(a[0] /*, y*/)
+		bb := b(a[0])
 
 		// by formula (3.4):
 		// a = u/Lo
@@ -137,11 +142,11 @@ func ExampleArc2() {
 	// # It contains the derivatives of the equations w.r.t the variables
 	// # The function returns both the matrix as df
 	// as well as it's inverse as dfinv
-	dfcn := func(x []float64 /* y float64, z, , w float64*/) (df [][]float64) {
+	dfcn := func(x []float64) (df [][]float64) {
 		// (df, dfinv [][]float64) {
 		df = npzerosm(ndof)
 		//dfinv = npzerosm(ndof)
-		bb := b(x[0] /*, y*/)
+		bb := b(x[0])
 		y := th0
 		w := last_w
 		//      # Tangent Matrix
@@ -173,41 +178,41 @@ func ExampleArc2() {
 		}
 		// 	# Increment starts; Set all variations=0
 		var ( // TODO : minimaze allocations
-			da    = npzeros(ndof)
-			dab   = npzeros(ndof)
-			dat   = npzeros(ndof)
-			dda1  = npzeros(ndof)
-			dda2  = npzeros(ndof)
-			dda   = npzeros(ndof)
+			Δu  = npzeros(ndof)
+			δů  = npzeros(ndof)
+			δu  = npzeros(ndof)
+			δu1 = npzeros(ndof)
+			δu2 = npzeros(ndof)
+			//δu    = npzeros(ndof)
 			dalfa = npzeros(ndof)
 			// dl    = 0.0
-			dlamda = 0.0
-			ddl    = 0.0
+			Δλ = 0.0
+			δλ = 0.0
 		)
 
-		df /*, dfinv*/ := dfcn(summa(a, da) /* th0, al+dl,, w*/)
-		dat = SolveLinear(df, iq) // npdotm(dfinv, iq)
+		df := dfcn(summa(a, Δu))
+		δu = SolveLinear(df, 𝐪) // npdotm(dfinv, iq)
 
-		ddl1, ddl2 := square_root(da, dab, dat, dlamda, iq)
+		δλ1, δλ2 := square_root(Δu, δů, δu, Δλ, 𝐪)
 		// TODO: why?? generally values are zeros
-		dda1 = summa(dab, scale(ddl1, dat))
-		dda2 = summa(dab, scale(ddl2, dat))
+		δu1 = summa(δů, scale(δλ1, δu))
+		δu2 = summa(δů, scale(δλ2, δu))
 
 		det := nplinalgdet(df)
 
 		// TODO : some code are repeat - try to minimaze code
-		if npsign(det) == npsign(ddl1) {
-			dda = dda1
-			ddl = ddl1
+		if npsign(det) == npsign(δλ1) {
+			δu = δu1
+			δλ = δλ1
 		} else {
-			dda = dda2
-			ddl = ddl2
+			δu = δu2
+			δλ = δλ2
 		}
 
-		dalfa = summa(da, dda)
-		dlamda = dlamda + ddl // TODO: is it zero always??
+		dalfa = summa(Δu, δu)
+		Δλ = Δλ + δλ // TODO: is it zero always??
 
-		f := fcn(summa(a, dalfa) /* th0, */, (al + dlamda) /*, w*/)
+		f := fcn(summa(a, dalfa), (al + Δλ))
 
 		fcheck := nplinalgnorm(f) // math.Sqrt(npdot(f, f))
 		// var dlo float64
@@ -231,34 +236,34 @@ func ExampleArc2() {
 			// 	break
 			// }
 
-			da = dalfa
+			Δu = dalfa
 			// dl = dlamda
 
-			f = fcn(summa(a, da) /* th0, */, (al + dlamda) /*, w*/)
+			f = fcn(summa(a, Δu), (al + Δλ))
 
-			df /*, dfinv */ := dfcn(summa(a, da) /* th0,  (al + dl),, w*/)
-			dat = SolveLinear(df, iq) // = npdotm(dfinv, iq)
+			df := dfcn(summa(a, Δu))
+			δu = SolveLinear(df, 𝐪) // = npdotm(dfinv, iq)
 
 			temp := SolveLinear(df, f)
-			dab = scale(-1, temp) // npdotm(dfinv, f))
+			δů = scale(-1, temp) // npdotm(dfinv, f))
 
-			ddl1, ddl2 = square_root(da, dab, dat, dlamda, iq)
+			δλ1, δλ2 = square_root(Δu, δů, δu, Δλ, 𝐪)
 
 			// Formula (2.14)
-			dda1 = summa(dab, scale(ddl1, dat))
-			dda2 = summa(dab, scale(ddl2, dat))
+			δu1 = summa(δů, scale(δλ1, δu))
+			δu2 = summa(δů, scale(δλ2, δu))
 
 			det = nplinalgdet(df)
 
-			daomag := npdot(dao, dao)
+			daomag := npdot(Δu, Δu)
 
 			if daomag == 0. {
-				if npsign(dlamda+ddl1) == npsign(det) {
-					dda = dda1
-					ddl = ddl1
+				if npsign(Δλ+δλ1) == npsign(det) {
+					δu = δu1
+					δλ = δλ1
 				} else {
-					dda = dda2
-					ddl = ddl2
+					δu = δu2
+					δλ = δλ2
 				}
 			} else {
 				// aux1 :=
@@ -267,29 +272,29 @@ func ExampleArc2() {
 				// aux4 :=
 
 				// see page 14
-				dot1 := npdot(summa(da, dda1), dao) /* aux1 */ +
-					math.Pow(psi, 2)* /* aux3 */ dlamda*(dlamda+ddl1)*npdot(iq, iq)
-				dot2 := npdot(summa(da, dda2), dao) /* aux2 */ +
-					math.Pow(psi, 2)* /* aux4 */ dlamda*(dlamda+ddl2)*npdot(iq, iq)
+				DOT1 := npdot(summa(Δu, δu1), Δu) +
+					math.Pow(𝜓, 2)*Δλ*(Δλ+δλ1)*npdot(𝐪, 𝐪)
+				DOT2 := npdot(summa(Δu, δu2), Δu) +
+					math.Pow(𝜓, 2)*Δλ*(Δλ+δλ2)*npdot(𝐪, 𝐪)
 
-				if dot1 > dot2 {
-					dda = dda1
-					ddl = ddl1
+				if DOT1 > DOT2 {
+					δu = δu1
+					δλ = δλ1
 				} else {
-					dda = dda2
-					ddl = ddl2
+					δu = δu2
+					δλ = δλ2
 				}
 			}
 
-			if ddl1 == ddl2 {
-				dda = dda1
-				ddl = ddl1
+			if δλ1 == δλ2 {
+				δu = δu1
+				δλ = δλ1
 			}
 
-			dalfa = summa(da, dda)
-			dlamda = dlamda + ddl
+			dalfa = summa(Δu, δu)
+			Δλ = Δλ + δλ
 
-			f = fcn(summa(a, dalfa) /* th0, */, (al + dlamda) /* , w */)
+			f = fcn(summa(a, dalfa), (al + Δλ))
 
 			fcheck = nplinalgnorm(f)
 		}
@@ -301,19 +306,19 @@ func ExampleArc2() {
 		}
 
 		a = summa(a, dalfa)
-		al += dlamda
+		al += Δλ
 		//}
-		dao = dalfa
+		Δu = dalfa
 		// dlo = dlamda
 
 		// TODO: add visualization for steps and substeps
 		// TODO: add recorder for each step
 		fmt.Printf(
-			"Arc %5d(steps %3d). Coordinate: %.10f",
+			"%5d(%3d) %.15f",
 			i, iters, al,
 		)
 		for i := 0; i < ndof; i++ {
-			fmt.Printf(" %.7f", a[i])
+			fmt.Printf(" %.15f", a[i])
 		}
 		fmt.Printf("\n")
 	}
@@ -321,6403 +326,6403 @@ func ExampleArc2() {
 	// TODO : remove output data to specific file
 
 	// Output:
-	// Arc     0(steps   1). Coordinate: 0.0001789597 0.0002386 0.0009545
-	// Arc     1(steps   1). Coordinate: 0.0003579089 0.0004773 0.0019089
-	// Arc     2(steps   1). Coordinate: 0.0005368475 0.0007160 0.0028634
-	// Arc     3(steps   1). Coordinate: 0.0007157756 0.0009548 0.0038179
-	// Arc     4(steps   1). Coordinate: 0.0008946931 0.0011935 0.0047723
-	// Arc     5(steps   1). Coordinate: 0.0010736000 0.0014324 0.0057268
-	// Arc     6(steps   1). Coordinate: 0.0012524963 0.0016712 0.0066812
-	// Arc     7(steps   1). Coordinate: 0.0014313819 0.0019101 0.0076356
-	// Arc     8(steps   1). Coordinate: 0.0016102570 0.0021490 0.0085900
-	// Arc     9(steps   1). Coordinate: 0.0017891213 0.0023880 0.0095445
-	// Arc    10(steps   1). Coordinate: 0.0019679751 0.0026270 0.0104989
-	// Arc    11(steps   1). Coordinate: 0.0021468181 0.0028660 0.0114533
-	// Arc    12(steps   1). Coordinate: 0.0023256505 0.0031051 0.0124077
-	// Arc    13(steps   1). Coordinate: 0.0025044722 0.0033442 0.0133620
-	// Arc    14(steps   1). Coordinate: 0.0026832831 0.0035833 0.0143164
-	// Arc    15(steps   1). Coordinate: 0.0028620833 0.0038225 0.0152708
-	// Arc    16(steps   1). Coordinate: 0.0030408728 0.0040617 0.0162252
-	// Arc    17(steps   1). Coordinate: 0.0032196516 0.0043009 0.0171795
-	// Arc    18(steps   1). Coordinate: 0.0033984196 0.0045402 0.0181339
-	// Arc    19(steps   1). Coordinate: 0.0035771768 0.0047795 0.0190882
-	// Arc    20(steps   1). Coordinate: 0.0037559232 0.0050189 0.0200426
-	// Arc    21(steps   1). Coordinate: 0.0039346588 0.0052583 0.0209969
-	// Arc    22(steps   1). Coordinate: 0.0041133835 0.0054977 0.0219512
-	// Arc    23(steps   1). Coordinate: 0.0042920975 0.0057371 0.0229055
-	// Arc    24(steps   1). Coordinate: 0.0044708006 0.0059766 0.0238598
-	// Arc    25(steps   1). Coordinate: 0.0046494929 0.0062162 0.0248141
-	// Arc    26(steps   1). Coordinate: 0.0048281742 0.0064557 0.0257684
-	// Arc    27(steps   1). Coordinate: 0.0050068447 0.0066953 0.0267227
-	// Arc    28(steps   1). Coordinate: 0.0051855043 0.0069350 0.0276770
-	// Arc    29(steps   1). Coordinate: 0.0053641530 0.0071747 0.0286313
-	// Arc    30(steps   1). Coordinate: 0.0055427907 0.0074144 0.0295855
-	// Arc    31(steps   1). Coordinate: 0.0057214175 0.0076541 0.0305398
-	// Arc    32(steps   1). Coordinate: 0.0059000334 0.0078939 0.0314941
-	// Arc    33(steps   1). Coordinate: 0.0060786383 0.0081337 0.0324483
-	// Arc    34(steps   1). Coordinate: 0.0062572322 0.0083736 0.0334025
-	// Arc    35(steps   1). Coordinate: 0.0064358151 0.0086135 0.0343568
-	// Arc    36(steps   1). Coordinate: 0.0066143870 0.0088534 0.0353110
-	// Arc    37(steps   1). Coordinate: 0.0067929479 0.0090934 0.0362652
-	// Arc    38(steps   1). Coordinate: 0.0069714977 0.0093334 0.0372194
-	// Arc    39(steps   1). Coordinate: 0.0071500365 0.0095735 0.0381736
-	// Arc    40(steps   1). Coordinate: 0.0073285643 0.0098136 0.0391278
-	// Arc    41(steps   1). Coordinate: 0.0075070809 0.0100537 0.0400820
-	// Arc    42(steps   1). Coordinate: 0.0076855865 0.0102938 0.0410362
-	// Arc    43(steps   1). Coordinate: 0.0078640809 0.0105340 0.0419904
-	// Arc    44(steps   1). Coordinate: 0.0080425643 0.0107743 0.0429445
-	// Arc    45(steps   1). Coordinate: 0.0082210365 0.0110145 0.0438987
-	// Arc    46(steps   1). Coordinate: 0.0083994975 0.0112548 0.0448528
-	// Arc    47(steps   1). Coordinate: 0.0085779474 0.0114952 0.0458070
-	// Arc    48(steps   1). Coordinate: 0.0087563861 0.0117356 0.0467611
-	// Arc    49(steps   1). Coordinate: 0.0089348137 0.0119760 0.0477152
-	// Arc    50(steps   1). Coordinate: 0.0091132300 0.0122164 0.0486694
-	// Arc    51(steps   1). Coordinate: 0.0092916351 0.0124569 0.0496235
-	// Arc    52(steps   1). Coordinate: 0.0094700290 0.0126975 0.0505776
-	// Arc    53(steps   1). Coordinate: 0.0096484116 0.0129380 0.0515317
-	// Arc    54(steps   1). Coordinate: 0.0098267830 0.0131786 0.0524858
-	// Arc    55(steps   1). Coordinate: 0.0100051431 0.0134193 0.0534399
-	// Arc    56(steps   1). Coordinate: 0.0101834919 0.0136600 0.0543939
-	// Arc    57(steps   1). Coordinate: 0.0103618294 0.0139007 0.0553480
-	// Arc    58(steps   1). Coordinate: 0.0105401556 0.0141414 0.0563021
-	// Arc    59(steps   1). Coordinate: 0.0107184704 0.0143822 0.0572561
-	// Arc    60(steps   1). Coordinate: 0.0108967739 0.0146231 0.0582102
-	// Arc    61(steps   1). Coordinate: 0.0110750661 0.0148639 0.0591642
-	// Arc    62(steps   1). Coordinate: 0.0112533469 0.0151049 0.0601182
-	// Arc    63(steps   1). Coordinate: 0.0114316163 0.0153458 0.0610723
-	// Arc    64(steps   1). Coordinate: 0.0116098742 0.0155868 0.0620263
-	// Arc    65(steps   1). Coordinate: 0.0117881208 0.0158278 0.0629803
-	// Arc    66(steps   1). Coordinate: 0.0119663559 0.0160689 0.0639343
-	// Arc    67(steps   1). Coordinate: 0.0121445796 0.0163100 0.0648883
-	// Arc    68(steps   1). Coordinate: 0.0123227918 0.0165511 0.0658423
-	// Arc    69(steps   1). Coordinate: 0.0125009926 0.0167923 0.0667963
-	// Arc    70(steps   1). Coordinate: 0.0126791818 0.0170335 0.0677502
-	// Arc    71(steps   1). Coordinate: 0.0128573596 0.0172748 0.0687042
-	// Arc    72(steps   1). Coordinate: 0.0130355258 0.0175161 0.0696582
-	// Arc    73(steps   1). Coordinate: 0.0132136805 0.0177574 0.0706121
-	// Arc    74(steps   1). Coordinate: 0.0133918236 0.0179988 0.0715661
-	// Arc    75(steps   1). Coordinate: 0.0135699552 0.0182402 0.0725200
-	// Arc    76(steps   1). Coordinate: 0.0137480752 0.0184816 0.0734739
-	// Arc    77(steps   1). Coordinate: 0.0139261836 0.0187231 0.0744278
-	// Arc    78(steps   1). Coordinate: 0.0141042804 0.0189646 0.0753817
-	// Arc    79(steps   1). Coordinate: 0.0142823656 0.0192062 0.0763356
-	// Arc    80(steps   1). Coordinate: 0.0144604391 0.0194478 0.0772895
-	// Arc    81(steps   1). Coordinate: 0.0146385010 0.0196894 0.0782434
-	// Arc    82(steps   1). Coordinate: 0.0148165512 0.0199311 0.0791973
-	// Arc    83(steps   1). Coordinate: 0.0149945897 0.0201728 0.0801512
-	// Arc    84(steps   1). Coordinate: 0.0151726165 0.0204146 0.0811051
-	// Arc    85(steps   1). Coordinate: 0.0153506316 0.0206564 0.0820589
-	// Arc    86(steps   1). Coordinate: 0.0155286350 0.0208982 0.0830128
-	// Arc    87(steps   1). Coordinate: 0.0157066267 0.0211401 0.0839666
-	// Arc    88(steps   1). Coordinate: 0.0158846065 0.0213820 0.0849204
-	// Arc    89(steps   1). Coordinate: 0.0160625746 0.0216240 0.0858743
-	// Arc    90(steps   1). Coordinate: 0.0162405310 0.0218660 0.0868281
-	// Arc    91(steps   1). Coordinate: 0.0164184755 0.0221080 0.0877819
-	// Arc    92(steps   1). Coordinate: 0.0165964082 0.0223501 0.0887357
-	// Arc    93(steps   1). Coordinate: 0.0167743290 0.0225922 0.0896895
-	// Arc    94(steps   1). Coordinate: 0.0169522380 0.0228343 0.0906433
-	// Arc    95(steps   1). Coordinate: 0.0171301352 0.0230765 0.0915971
-	// Arc    96(steps   1). Coordinate: 0.0173080204 0.0233188 0.0925508
-	// Arc    97(steps   1). Coordinate: 0.0174858938 0.0235610 0.0935046
-	// Arc    98(steps   1). Coordinate: 0.0176637552 0.0238033 0.0944584
-	// Arc    99(steps   1). Coordinate: 0.0178416048 0.0240457 0.0954121
-	// Arc   100(steps   1). Coordinate: 0.0180194423 0.0242881 0.0963658
-	// Arc   101(steps   1). Coordinate: 0.0181972680 0.0245305 0.0973196
-	// Arc   102(steps   1). Coordinate: 0.0183750816 0.0247730 0.0982733
-	// Arc   103(steps   1). Coordinate: 0.0185528833 0.0250155 0.0992270
-	// Arc   104(steps   1). Coordinate: 0.0187306729 0.0252580 0.1001807
-	// Arc   105(steps   1). Coordinate: 0.0189084506 0.0255006 0.1011344
-	// Arc   106(steps   1). Coordinate: 0.0190862161 0.0257433 0.1020881
-	// Arc   107(steps   1). Coordinate: 0.0192639697 0.0259859 0.1030418
-	// Arc   108(steps   1). Coordinate: 0.0194417112 0.0262286 0.1039955
-	// Arc   109(steps   1). Coordinate: 0.0196194406 0.0264714 0.1049491
-	// Arc   110(steps   1). Coordinate: 0.0197971579 0.0267142 0.1059028
-	// Arc   111(steps   1). Coordinate: 0.0199748630 0.0269570 0.1068565
-	// Arc   112(steps   1). Coordinate: 0.0201525561 0.0271999 0.1078101
-	// Arc   113(steps   1). Coordinate: 0.0203302370 0.0274428 0.1087637
-	// Arc   114(steps   1). Coordinate: 0.0205079057 0.0276857 0.1097174
-	// Arc   115(steps   1). Coordinate: 0.0206855623 0.0279287 0.1106710
-	// Arc   116(steps   1). Coordinate: 0.0208632067 0.0281718 0.1116246
-	// Arc   117(steps   1). Coordinate: 0.0210408388 0.0284149 0.1125782
-	// Arc   118(steps   1). Coordinate: 0.0212184588 0.0286580 0.1135318
-	// Arc   119(steps   1). Coordinate: 0.0213960664 0.0289011 0.1144854
-	// Arc   120(steps   1). Coordinate: 0.0215736619 0.0291443 0.1154390
-	// Arc   121(steps   1). Coordinate: 0.0217512450 0.0293876 0.1163925
-	// Arc   122(steps   1). Coordinate: 0.0219288159 0.0296308 0.1173461
-	// Arc   123(steps   1). Coordinate: 0.0221063745 0.0298742 0.1182997
-	// Arc   124(steps   1). Coordinate: 0.0222839207 0.0301175 0.1192532
-	// Arc   125(steps   1). Coordinate: 0.0224614546 0.0303609 0.1202067
-	// Arc   126(steps   1). Coordinate: 0.0226389761 0.0306044 0.1211603
-	// Arc   127(steps   1). Coordinate: 0.0228164853 0.0308479 0.1221138
-	// Arc   128(steps   1). Coordinate: 0.0229939821 0.0310914 0.1230673
-	// Arc   129(steps   1). Coordinate: 0.0231714665 0.0313350 0.1240208
-	// Arc   130(steps   1). Coordinate: 0.0233489384 0.0315786 0.1249743
-	// Arc   131(steps   1). Coordinate: 0.0235263979 0.0318222 0.1259278
-	// Arc   132(steps   1). Coordinate: 0.0237038450 0.0320659 0.1268813
-	// Arc   133(steps   1). Coordinate: 0.0238812796 0.0323096 0.1278348
-	// Arc   134(steps   1). Coordinate: 0.0240587017 0.0325534 0.1287882
-	// Arc   135(steps   1). Coordinate: 0.0242361113 0.0327972 0.1297417
-	// Arc   136(steps   1). Coordinate: 0.0244135084 0.0330411 0.1306951
-	// Arc   137(steps   1). Coordinate: 0.0245908929 0.0332850 0.1316486
-	// Arc   138(steps   1). Coordinate: 0.0247682649 0.0335289 0.1326020
-	// Arc   139(steps   1). Coordinate: 0.0249456244 0.0337729 0.1335554
-	// Arc   140(steps   1). Coordinate: 0.0251229712 0.0340170 0.1345088
-	// Arc   141(steps   1). Coordinate: 0.0253003054 0.0342610 0.1354622
-	// Arc   142(steps   1). Coordinate: 0.0254776271 0.0345051 0.1364156
-	// Arc   143(steps   1). Coordinate: 0.0256549360 0.0347493 0.1373690
-	// Arc   144(steps   1). Coordinate: 0.0258322324 0.0349935 0.1383224
-	// Arc   145(steps   1). Coordinate: 0.0260095160 0.0352377 0.1392758
-	// Arc   146(steps   1). Coordinate: 0.0261867870 0.0354820 0.1402291
-	// Arc   147(steps   1). Coordinate: 0.0263640453 0.0357263 0.1411825
-	// Arc   148(steps   1). Coordinate: 0.0265412908 0.0359707 0.1421359
-	// Arc   149(steps   1). Coordinate: 0.0267185236 0.0362151 0.1430892
-	// Arc   150(steps   1). Coordinate: 0.0268957437 0.0364595 0.1440425
-	// Arc   151(steps   1). Coordinate: 0.0270729510 0.0367040 0.1449958
-	// Arc   152(steps   1). Coordinate: 0.0272501454 0.0369486 0.1459492
-	// Arc   153(steps   1). Coordinate: 0.0274273271 0.0371931 0.1469025
-	// Arc   154(steps   1). Coordinate: 0.0276044960 0.0374378 0.1478558
-	// Arc   155(steps   1). Coordinate: 0.0277816520 0.0376824 0.1488090
-	// Arc   156(steps   1). Coordinate: 0.0279587952 0.0379271 0.1497623
-	// Arc   157(steps   1). Coordinate: 0.0281359255 0.0381719 0.1507156
-	// Arc   158(steps   1). Coordinate: 0.0283130429 0.0384167 0.1516688
-	// Arc   159(steps   1). Coordinate: 0.0284901474 0.0386615 0.1526221
-	// Arc   160(steps   1). Coordinate: 0.0286672389 0.0389064 0.1535753
-	// Arc   161(steps   1). Coordinate: 0.0288443175 0.0391513 0.1545286
-	// Arc   162(steps   1). Coordinate: 0.0290213832 0.0393963 0.1554818
-	// Arc   163(steps   1). Coordinate: 0.0291984359 0.0396413 0.1564350
-	// Arc   164(steps   1). Coordinate: 0.0293754755 0.0398863 0.1573882
-	// Arc   165(steps   1). Coordinate: 0.0295525022 0.0401314 0.1583414
-	// Arc   166(steps   1). Coordinate: 0.0297295158 0.0403766 0.1592946
-	// Arc   167(steps   1). Coordinate: 0.0299065164 0.0406217 0.1602478
-	// Arc   168(steps   1). Coordinate: 0.0300835039 0.0408670 0.1612010
-	// Arc   169(steps   1). Coordinate: 0.0302604783 0.0411122 0.1621541
-	// Arc   170(steps   1). Coordinate: 0.0304374397 0.0413575 0.1631073
-	// Arc   171(steps   1). Coordinate: 0.0306143879 0.0416029 0.1640604
-	// Arc   172(steps   1). Coordinate: 0.0307913229 0.0418483 0.1650136
-	// Arc   173(steps   1). Coordinate: 0.0309682449 0.0420937 0.1659667
-	// Arc   174(steps   1). Coordinate: 0.0311451536 0.0423392 0.1669198
-	// Arc   175(steps   1). Coordinate: 0.0313220491 0.0425848 0.1678730
-	// Arc   176(steps   1). Coordinate: 0.0314989315 0.0428303 0.1688261
-	// Arc   177(steps   1). Coordinate: 0.0316758006 0.0430759 0.1697791
-	// Arc   178(steps   1). Coordinate: 0.0318526565 0.0433216 0.1707322
-	// Arc   179(steps   1). Coordinate: 0.0320294991 0.0435673 0.1716853
-	// Arc   180(steps   1). Coordinate: 0.0322063284 0.0438131 0.1726384
-	// Arc   181(steps   1). Coordinate: 0.0323831444 0.0440589 0.1735914
-	// Arc   182(steps   1). Coordinate: 0.0325599471 0.0443047 0.1745445
-	// Arc   183(steps   1). Coordinate: 0.0327367365 0.0445506 0.1754975
-	// Arc   184(steps   1). Coordinate: 0.0329135125 0.0447965 0.1764506
-	// Arc   185(steps   1). Coordinate: 0.0330902751 0.0450425 0.1774036
-	// Arc   186(steps   1). Coordinate: 0.0332670244 0.0452885 0.1783566
-	// Arc   187(steps   1). Coordinate: 0.0334437602 0.0455346 0.1793096
-	// Arc   188(steps   1). Coordinate: 0.0336204826 0.0457807 0.1802626
-	// Arc   189(steps   1). Coordinate: 0.0337971916 0.0460268 0.1812156
-	// Arc   190(steps   1). Coordinate: 0.0339738871 0.0462730 0.1821686
-	// Arc   191(steps   1). Coordinate: 0.0341505691 0.0465193 0.1831215
-	// Arc   192(steps   1). Coordinate: 0.0343272376 0.0467655 0.1840745
-	// Arc   193(steps   1). Coordinate: 0.0345038926 0.0470119 0.1850274
-	// Arc   194(steps   1). Coordinate: 0.0346805341 0.0472582 0.1859804
-	// Arc   195(steps   1). Coordinate: 0.0348571620 0.0475047 0.1869333
-	// Arc   196(steps   1). Coordinate: 0.0350337763 0.0477511 0.1878862
-	// Arc   197(steps   1). Coordinate: 0.0352103771 0.0479976 0.1888392
-	// Arc   198(steps   1). Coordinate: 0.0353869642 0.0482442 0.1897921
-	// Arc   199(steps   1). Coordinate: 0.0355635377 0.0484908 0.1907450
-	// Arc   200(steps   1). Coordinate: 0.0357400975 0.0487374 0.1916978
-	// Arc   201(steps   1). Coordinate: 0.0359166437 0.0489841 0.1926507
-	// Arc   202(steps   1). Coordinate: 0.0360931762 0.0492309 0.1936036
-	// Arc   203(steps   1). Coordinate: 0.0362696950 0.0494777 0.1945564
-	// Arc   204(steps   1). Coordinate: 0.0364462000 0.0497245 0.1955093
-	// Arc   205(steps   1). Coordinate: 0.0366226913 0.0499714 0.1964621
-	// Arc   206(steps   1). Coordinate: 0.0367991689 0.0502183 0.1974150
-	// Arc   207(steps   1). Coordinate: 0.0369756326 0.0504653 0.1983678
-	// Arc   208(steps   1). Coordinate: 0.0371520826 0.0507123 0.1993206
-	// Arc   209(steps   1). Coordinate: 0.0373285187 0.0509593 0.2002734
-	// Arc   210(steps   1). Coordinate: 0.0375049410 0.0512064 0.2012262
-	// Arc   211(steps   1). Coordinate: 0.0376813494 0.0514536 0.2021790
-	// Arc   212(steps   1). Coordinate: 0.0378577440 0.0517008 0.2031317
-	// Arc   213(steps   1). Coordinate: 0.0380341247 0.0519480 0.2040845
-	// Arc   214(steps   1). Coordinate: 0.0382104914 0.0521953 0.2050373
-	// Arc   215(steps   1). Coordinate: 0.0383868442 0.0524426 0.2059900
-	// Arc   216(steps   1). Coordinate: 0.0385631830 0.0526900 0.2069427
-	// Arc   217(steps   1). Coordinate: 0.0387395079 0.0529374 0.2078955
-	// Arc   218(steps   1). Coordinate: 0.0389158188 0.0531849 0.2088482
-	// Arc   219(steps   1). Coordinate: 0.0390921157 0.0534324 0.2098009
-	// Arc   220(steps   1). Coordinate: 0.0392683985 0.0536800 0.2107536
-	// Arc   221(steps   1). Coordinate: 0.0394446673 0.0539276 0.2117063
-	// Arc   222(steps   1). Coordinate: 0.0396209220 0.0541753 0.2126590
-	// Arc   223(steps   1). Coordinate: 0.0397971626 0.0544230 0.2136116
-	// Arc   224(steps   1). Coordinate: 0.0399733891 0.0546707 0.2145643
-	// Arc   225(steps   1). Coordinate: 0.0401496014 0.0549185 0.2155170
-	// Arc   226(steps   1). Coordinate: 0.0403257996 0.0551664 0.2164696
-	// Arc   227(steps   1). Coordinate: 0.0405019837 0.0554143 0.2174222
-	// Arc   228(steps   1). Coordinate: 0.0406781535 0.0556622 0.2183748
-	// Arc   229(steps   1). Coordinate: 0.0408543091 0.0559102 0.2193275
-	// Arc   230(steps   1). Coordinate: 0.0410304505 0.0561583 0.2202801
-	// Arc   231(steps   1). Coordinate: 0.0412065777 0.0564063 0.2212327
-	// Arc   232(steps   1). Coordinate: 0.0413826906 0.0566545 0.2221852
-	// Arc   233(steps   1). Coordinate: 0.0415587891 0.0569027 0.2231378
-	// Arc   234(steps   1). Coordinate: 0.0417348734 0.0571509 0.2240904
-	// Arc   235(steps   1). Coordinate: 0.0419109433 0.0573992 0.2250429
-	// Arc   236(steps   1). Coordinate: 0.0420869989 0.0576475 0.2259955
-	// Arc   237(steps   1). Coordinate: 0.0422630401 0.0578958 0.2269480
-	// Arc   238(steps   1). Coordinate: 0.0424390670 0.0581443 0.2279005
-	// Arc   239(steps   1). Coordinate: 0.0426150794 0.0583927 0.2288530
-	// Arc   240(steps   1). Coordinate: 0.0427910773 0.0586412 0.2298056
-	// Arc   241(steps   1). Coordinate: 0.0429670608 0.0588898 0.2307580
-	// Arc   242(steps   1). Coordinate: 0.0431430299 0.0591384 0.2317105
-	// Arc   243(steps   1). Coordinate: 0.0433189844 0.0593871 0.2326630
-	// Arc   244(steps   1). Coordinate: 0.0434949244 0.0596358 0.2336155
-	// Arc   245(steps   1). Coordinate: 0.0436708499 0.0598845 0.2345679
-	// Arc   246(steps   1). Coordinate: 0.0438467609 0.0601333 0.2355204
-	// Arc   247(steps   1). Coordinate: 0.0440226572 0.0603822 0.2364728
-	// Arc   248(steps   1). Coordinate: 0.0441985390 0.0606311 0.2374252
-	// Arc   249(steps   1). Coordinate: 0.0443744061 0.0608800 0.2383777
-	// Arc   250(steps   1). Coordinate: 0.0445502586 0.0611290 0.2393301
-	// Arc   251(steps   1). Coordinate: 0.0447260964 0.0613781 0.2402825
-	// Arc   252(steps   1). Coordinate: 0.0449019196 0.0616272 0.2412348
-	// Arc   253(steps   1). Coordinate: 0.0450777280 0.0618763 0.2421872
-	// Arc   254(steps   1). Coordinate: 0.0452535217 0.0621255 0.2431396
-	// Arc   255(steps   1). Coordinate: 0.0454293007 0.0623747 0.2440919
-	// Arc   256(steps   1). Coordinate: 0.0456050649 0.0626240 0.2450443
-	// Arc   257(steps   1). Coordinate: 0.0457808143 0.0628734 0.2459966
-	// Arc   258(steps   1). Coordinate: 0.0459565490 0.0631227 0.2469489
-	// Arc   259(steps   1). Coordinate: 0.0461322687 0.0633722 0.2479013
-	// Arc   260(steps   1). Coordinate: 0.0463079737 0.0636217 0.2488536
-	// Arc   261(steps   1). Coordinate: 0.0464836637 0.0638712 0.2498059
-	// Arc   262(steps   1). Coordinate: 0.0466593389 0.0641208 0.2507581
-	// Arc   263(steps   1). Coordinate: 0.0468349991 0.0643704 0.2517104
-	// Arc   264(steps   1). Coordinate: 0.0470106444 0.0646201 0.2526627
-	// Arc   265(steps   1). Coordinate: 0.0471862748 0.0648698 0.2536149
-	// Arc   266(steps   1). Coordinate: 0.0473618902 0.0651196 0.2545672
-	// Arc   267(steps   1). Coordinate: 0.0475374905 0.0653695 0.2555194
-	// Arc   268(steps   1). Coordinate: 0.0477130759 0.0656193 0.2564716
-	// Arc   269(steps   1). Coordinate: 0.0478886462 0.0658693 0.2574238
-	// Arc   270(steps   1). Coordinate: 0.0480642014 0.0661192 0.2583761
-	// Arc   271(steps   1). Coordinate: 0.0482397416 0.0663693 0.2593282
-	// Arc   272(steps   1). Coordinate: 0.0484152666 0.0666194 0.2602804
-	// Arc   273(steps   1). Coordinate: 0.0485907765 0.0668695 0.2612326
-	// Arc   274(steps   1). Coordinate: 0.0487662713 0.0671197 0.2621848
-	// Arc   275(steps   1). Coordinate: 0.0489417509 0.0673699 0.2631369
-	// Arc   276(steps   1). Coordinate: 0.0491172152 0.0676202 0.2640890
-	// Arc   277(steps   1). Coordinate: 0.0492926644 0.0678705 0.2650412
-	// Arc   278(steps   1). Coordinate: 0.0494680983 0.0681209 0.2659933
-	// Arc   279(steps   1). Coordinate: 0.0496435170 0.0683713 0.2669454
-	// Arc   280(steps   1). Coordinate: 0.0498189203 0.0686218 0.2678975
-	// Arc   281(steps   1). Coordinate: 0.0499943084 0.0688724 0.2688496
-	// Arc   282(steps   1). Coordinate: 0.0501696811 0.0691229 0.2698017
-	// Arc   283(steps   1). Coordinate: 0.0503450385 0.0693736 0.2707537
-	// Arc   284(steps   1). Coordinate: 0.0505203805 0.0696243 0.2717058
-	// Arc   285(steps   1). Coordinate: 0.0506957071 0.0698750 0.2726578
-	// Arc   286(steps   1). Coordinate: 0.0508710183 0.0701258 0.2736099
-	// Arc   287(steps   1). Coordinate: 0.0510463140 0.0703766 0.2745619
-	// Arc   288(steps   1). Coordinate: 0.0512215943 0.0706275 0.2755139
-	// Arc   289(steps   1). Coordinate: 0.0513968591 0.0708785 0.2764659
-	// Arc   290(steps   1). Coordinate: 0.0515721083 0.0711295 0.2774179
-	// Arc   291(steps   1). Coordinate: 0.0517473421 0.0713805 0.2783699
-	// Arc   292(steps   1). Coordinate: 0.0519225602 0.0716316 0.2793219
-	// Arc   293(steps   1). Coordinate: 0.0520977629 0.0718828 0.2802738
-	// Arc   294(steps   1). Coordinate: 0.0522729499 0.0721340 0.2812258
-	// Arc   295(steps   1). Coordinate: 0.0524481212 0.0723852 0.2821777
-	// Arc   296(steps   1). Coordinate: 0.0526232770 0.0726365 0.2831296
-	// Arc   297(steps   1). Coordinate: 0.0527984170 0.0728879 0.2840816
-	// Arc   298(steps   1). Coordinate: 0.0529735414 0.0731393 0.2850335
-	// Arc   299(steps   1). Coordinate: 0.0531486500 0.0733908 0.2859854
-	// Arc   300(steps   1). Coordinate: 0.0533237429 0.0736423 0.2869372
-	// Arc   301(steps   1). Coordinate: 0.0534988201 0.0738938 0.2878891
-	// Arc   302(steps   1). Coordinate: 0.0536738814 0.0741454 0.2888410
-	// Arc   303(steps   1). Coordinate: 0.0538489270 0.0743971 0.2897928
-	// Arc   304(steps   1). Coordinate: 0.0540239567 0.0746488 0.2907447
-	// Arc   305(steps   1). Coordinate: 0.0541989705 0.0749006 0.2916965
-	// Arc   306(steps   1). Coordinate: 0.0543739685 0.0751524 0.2926483
-	// Arc   307(steps   1). Coordinate: 0.0545489506 0.0754043 0.2936001
-	// Arc   308(steps   1). Coordinate: 0.0547239167 0.0756563 0.2945519
-	// Arc   309(steps   1). Coordinate: 0.0548988669 0.0759082 0.2955037
-	// Arc   310(steps   1). Coordinate: 0.0550738012 0.0761603 0.2964555
-	// Arc   311(steps   1). Coordinate: 0.0552487194 0.0764124 0.2974072
-	// Arc   312(steps   1). Coordinate: 0.0554236216 0.0766645 0.2983590
-	// Arc   313(steps   1). Coordinate: 0.0555985077 0.0769167 0.2993107
-	// Arc   314(steps   1). Coordinate: 0.0557733778 0.0771690 0.3002625
-	// Arc   315(steps   1). Coordinate: 0.0559482318 0.0774213 0.3012142
-	// Arc   316(steps   1). Coordinate: 0.0561230697 0.0776736 0.3021659
-	// Arc   317(steps   1). Coordinate: 0.0562978914 0.0779260 0.3031176
-	// Arc   318(steps   1). Coordinate: 0.0564726970 0.0781785 0.3040693
-	// Arc   319(steps   1). Coordinate: 0.0566474863 0.0784310 0.3050209
-	// Arc   320(steps   1). Coordinate: 0.0568222595 0.0786836 0.3059726
-	// Arc   321(steps   1). Coordinate: 0.0569970164 0.0789362 0.3069243
-	// Arc   322(steps   1). Coordinate: 0.0571717571 0.0791889 0.3078759
-	// Arc   323(steps   1). Coordinate: 0.0573464814 0.0794416 0.3088275
-	// Arc   324(steps   1). Coordinate: 0.0575211895 0.0796944 0.3097792
-	// Arc   325(steps   1). Coordinate: 0.0576958812 0.0799472 0.3107308
-	// Arc   326(steps   1). Coordinate: 0.0578705566 0.0802001 0.3116824
-	// Arc   327(steps   1). Coordinate: 0.0580452156 0.0804531 0.3126339
-	// Arc   328(steps   1). Coordinate: 0.0582198581 0.0807061 0.3135855
-	// Arc   329(steps   1). Coordinate: 0.0583944843 0.0809591 0.3145371
-	// Arc   330(steps   1). Coordinate: 0.0585690939 0.0812122 0.3154886
-	// Arc   331(steps   1). Coordinate: 0.0587436871 0.0814654 0.3164402
-	// Arc   332(steps   1). Coordinate: 0.0589182638 0.0817186 0.3173917
-	// Arc   333(steps   1). Coordinate: 0.0590928239 0.0819719 0.3183432
-	// Arc   334(steps   1). Coordinate: 0.0592673675 0.0822252 0.3192947
-	// Arc   335(steps   1). Coordinate: 0.0594418945 0.0824786 0.3202462
-	// Arc   336(steps   1). Coordinate: 0.0596164049 0.0827321 0.3211977
-	// Arc   337(steps   1). Coordinate: 0.0597908987 0.0829855 0.3221491
-	// Arc   338(steps   1). Coordinate: 0.0599653758 0.0832391 0.3231006
-	// Arc   339(steps   1). Coordinate: 0.0601398362 0.0834927 0.3240520
-	// Arc   340(steps   1). Coordinate: 0.0603142799 0.0837464 0.3250035
-	// Arc   341(steps   1). Coordinate: 0.0604887069 0.0840001 0.3259549
-	// Arc   342(steps   1). Coordinate: 0.0606631171 0.0842538 0.3269063
-	// Arc   343(steps   1). Coordinate: 0.0608375105 0.0845077 0.3278577
-	// Arc   344(steps   1). Coordinate: 0.0610118872 0.0847616 0.3288091
-	// Arc   345(steps   1). Coordinate: 0.0611862469 0.0850155 0.3297605
-	// Arc   346(steps   1). Coordinate: 0.0613605898 0.0852695 0.3307118
-	// Arc   347(steps   1). Coordinate: 0.0615349159 0.0855235 0.3316632
-	// Arc   348(steps   1). Coordinate: 0.0617092250 0.0857776 0.3326145
-	// Arc   349(steps   1). Coordinate: 0.0618835172 0.0860318 0.3335659
-	// Arc   350(steps   1). Coordinate: 0.0620577924 0.0862860 0.3345172
-	// Arc   351(steps   1). Coordinate: 0.0622320506 0.0865403 0.3354685
-	// Arc   352(steps   1). Coordinate: 0.0624062918 0.0867946 0.3364198
-	// Arc   353(steps   1). Coordinate: 0.0625805159 0.0870490 0.3373711
-	// Arc   354(steps   1). Coordinate: 0.0627547230 0.0873034 0.3383223
-	// Arc   355(steps   1). Coordinate: 0.0629289130 0.0875579 0.3392736
-	// Arc   356(steps   1). Coordinate: 0.0631030859 0.0878125 0.3402248
-	// Arc   357(steps   1). Coordinate: 0.0632772416 0.0880671 0.3411761
-	// Arc   358(steps   1). Coordinate: 0.0634513801 0.0883218 0.3421273
-	// Arc   359(steps   1). Coordinate: 0.0636255015 0.0885765 0.3430785
-	// Arc   360(steps   1). Coordinate: 0.0637996056 0.0888313 0.3440297
-	// Arc   361(steps   1). Coordinate: 0.0639736925 0.0890861 0.3449809
-	// Arc   362(steps   1). Coordinate: 0.0641477620 0.0893410 0.3459320
-	// Arc   363(steps   1). Coordinate: 0.0643218143 0.0895959 0.3468832
-	// Arc   364(steps   1). Coordinate: 0.0644958492 0.0898509 0.3478343
-	// Arc   365(steps   1). Coordinate: 0.0646698668 0.0901060 0.3487855
-	// Arc   366(steps   1). Coordinate: 0.0648438670 0.0903611 0.3497366
-	// Arc   367(steps   1). Coordinate: 0.0650178498 0.0906163 0.3506877
-	// Arc   368(steps   1). Coordinate: 0.0651918151 0.0908716 0.3516388
-	// Arc   369(steps   1). Coordinate: 0.0653657630 0.0911269 0.3525899
-	// Arc   370(steps   1). Coordinate: 0.0655396934 0.0913822 0.3535410
-	// Arc   371(steps   1). Coordinate: 0.0657136062 0.0916376 0.3544920
-	// Arc   372(steps   1). Coordinate: 0.0658875015 0.0918931 0.3554431
-	// Arc   373(steps   1). Coordinate: 0.0660613792 0.0921486 0.3563941
-	// Arc   374(steps   1). Coordinate: 0.0662352393 0.0924042 0.3573452
-	// Arc   375(steps   1). Coordinate: 0.0664090818 0.0926598 0.3582962
-	// Arc   376(steps   1). Coordinate: 0.0665829066 0.0929155 0.3592472
-	// Arc   377(steps   1). Coordinate: 0.0667567138 0.0931713 0.3601982
-	// Arc   378(steps   1). Coordinate: 0.0669305032 0.0934271 0.3611491
-	// Arc   379(steps   1). Coordinate: 0.0671042749 0.0936830 0.3621001
-	// Arc   380(steps   1). Coordinate: 0.0672780288 0.0939389 0.3630510
-	// Arc   381(steps   1). Coordinate: 0.0674517649 0.0941949 0.3640020
-	// Arc   382(steps   1). Coordinate: 0.0676254832 0.0944510 0.3649529
-	// Arc   383(steps   1). Coordinate: 0.0677991836 0.0947071 0.3659038
-	// Arc   384(steps   1). Coordinate: 0.0679728661 0.0949633 0.3668547
-	// Arc   385(steps   1). Coordinate: 0.0681465308 0.0952195 0.3678056
-	// Arc   386(steps   1). Coordinate: 0.0683201775 0.0954758 0.3687565
-	// Arc   387(steps   1). Coordinate: 0.0684938062 0.0957321 0.3697073
-	// Arc   388(steps   1). Coordinate: 0.0686674170 0.0959885 0.3706582
-	// Arc   389(steps   1). Coordinate: 0.0688410097 0.0962450 0.3716090
-	// Arc   390(steps   1). Coordinate: 0.0690145844 0.0965015 0.3725599
-	// Arc   391(steps   1). Coordinate: 0.0691881410 0.0967581 0.3735107
-	// Arc   392(steps   1). Coordinate: 0.0693616794 0.0970147 0.3744615
-	// Arc   393(steps   1). Coordinate: 0.0695351998 0.0972715 0.3754123
-	// Arc   394(steps   1). Coordinate: 0.0697087020 0.0975282 0.3763630
-	// Arc   395(steps   1). Coordinate: 0.0698821860 0.0977850 0.3773138
-	// Arc   396(steps   1). Coordinate: 0.0700556517 0.0980419 0.3782645
-	// Arc   397(steps   1). Coordinate: 0.0702290993 0.0982989 0.3792153
-	// Arc   398(steps   1). Coordinate: 0.0704025285 0.0985559 0.3801660
-	// Arc   399(steps   1). Coordinate: 0.0705759394 0.0988129 0.3811167
-	// Arc   400(steps   1). Coordinate: 0.0707493320 0.0990701 0.3820674
-	// Arc   401(steps   1). Coordinate: 0.0709227063 0.0993272 0.3830181
-	// Arc   402(steps   1). Coordinate: 0.0710960621 0.0995845 0.3839687
-	// Arc   403(steps   1). Coordinate: 0.0712693995 0.0998418 0.3849194
-	// Arc   404(steps   1). Coordinate: 0.0714427184 0.1000992 0.3858700
-	// Arc   405(steps   1). Coordinate: 0.0716160189 0.1003566 0.3868207
-	// Arc   406(steps   1). Coordinate: 0.0717893009 0.1006141 0.3877713
-	// Arc   407(steps   1). Coordinate: 0.0719625643 0.1008716 0.3887219
-	// Arc   408(steps   1). Coordinate: 0.0721358091 0.1011292 0.3896725
-	// Arc   409(steps   1). Coordinate: 0.0723090353 0.1013869 0.3906231
-	// Arc   410(steps   1). Coordinate: 0.0724822429 0.1016447 0.3915736
-	// Arc   411(steps   1). Coordinate: 0.0726554319 0.1019024 0.3925242
-	// Arc   412(steps   1). Coordinate: 0.0728286021 0.1021603 0.3934747
-	// Arc   413(steps   1). Coordinate: 0.0730017537 0.1024182 0.3944252
-	// Arc   414(steps   1). Coordinate: 0.0731748865 0.1026762 0.3953757
-	// Arc   415(steps   1). Coordinate: 0.0733480005 0.1029342 0.3963262
-	// Arc   416(steps   1). Coordinate: 0.0735210956 0.1031923 0.3972767
-	// Arc   417(steps   1). Coordinate: 0.0736941720 0.1034505 0.3982272
-	// Arc   418(steps   1). Coordinate: 0.0738672295 0.1037087 0.3991777
-	// Arc   419(steps   1). Coordinate: 0.0740402680 0.1039670 0.4001281
-	// Arc   420(steps   1). Coordinate: 0.0742132877 0.1042254 0.4010785
-	// Arc   421(steps   1). Coordinate: 0.0743862883 0.1044838 0.4020290
-	// Arc   422(steps   1). Coordinate: 0.0745592700 0.1047423 0.4029794
-	// Arc   423(steps   1). Coordinate: 0.0747322327 0.1050008 0.4039297
-	// Arc   424(steps   1). Coordinate: 0.0749051763 0.1052594 0.4048801
-	// Arc   425(steps   1). Coordinate: 0.0750781008 0.1055181 0.4058305
-	// Arc   426(steps   1). Coordinate: 0.0752510062 0.1057768 0.4067808
-	// Arc   427(steps   1). Coordinate: 0.0754238924 0.1060356 0.4077312
-	// Arc   428(steps   1). Coordinate: 0.0755967595 0.1062945 0.4086815
-	// Arc   429(steps   1). Coordinate: 0.0757696074 0.1065534 0.4096318
-	// Arc   430(steps   1). Coordinate: 0.0759424360 0.1068124 0.4105821
-	// Arc   431(steps   1). Coordinate: 0.0761152453 0.1070714 0.4115324
-	// Arc   432(steps   1). Coordinate: 0.0762880354 0.1073305 0.4124826
-	// Arc   433(steps   1). Coordinate: 0.0764608061 0.1075897 0.4134329
-	// Arc   434(steps   1). Coordinate: 0.0766335574 0.1078489 0.4143831
-	// Arc   435(steps   1). Coordinate: 0.0768062894 0.1081082 0.4153334
-	// Arc   436(steps   1). Coordinate: 0.0769790019 0.1083676 0.4162836
-	// Arc   437(steps   1). Coordinate: 0.0771516949 0.1086270 0.4172338
-	// Arc   438(steps   1). Coordinate: 0.0773243685 0.1088865 0.4181840
-	// Arc   439(steps   1). Coordinate: 0.0774970225 0.1091460 0.4191341
-	// Arc   440(steps   1). Coordinate: 0.0776696570 0.1094056 0.4200843
-	// Arc   441(steps   1). Coordinate: 0.0778422719 0.1096653 0.4210344
-	// Arc   442(steps   1). Coordinate: 0.0780148672 0.1099251 0.4219845
-	// Arc   443(steps   1). Coordinate: 0.0781874428 0.1101849 0.4229347
-	// Arc   444(steps   1). Coordinate: 0.0783599987 0.1104448 0.4238848
-	// Arc   445(steps   1). Coordinate: 0.0785325349 0.1107047 0.4248348
-	// Arc   446(steps   1). Coordinate: 0.0787050514 0.1109647 0.4257849
-	// Arc   447(steps   1). Coordinate: 0.0788775481 0.1112248 0.4267350
-	// Arc   448(steps   1). Coordinate: 0.0790500249 0.1114849 0.4276850
-	// Arc   449(steps   1). Coordinate: 0.0792224819 0.1117451 0.4286350
-	// Arc   450(steps   1). Coordinate: 0.0793949191 0.1120054 0.4295851
-	// Arc   451(steps   1). Coordinate: 0.0795673363 0.1122657 0.4305351
-	// Arc   452(steps   1). Coordinate: 0.0797397336 0.1125261 0.4314850
-	// Arc   453(steps   1). Coordinate: 0.0799121109 0.1127866 0.4324350
-	// Arc   454(steps   1). Coordinate: 0.0800844682 0.1130471 0.4333850
-	// Arc   455(steps   1). Coordinate: 0.0802568054 0.1133077 0.4343349
-	// Arc   456(steps   1). Coordinate: 0.0804291225 0.1135684 0.4352848
-	// Arc   457(steps   1). Coordinate: 0.0806014196 0.1138291 0.4362348
-	// Arc   458(steps   1). Coordinate: 0.0807736965 0.1140899 0.4371847
-	// Arc   459(steps   1). Coordinate: 0.0809459532 0.1143507 0.4381345
-	// Arc   460(steps   1). Coordinate: 0.0811181897 0.1146117 0.4390844
-	// Arc   461(steps   1). Coordinate: 0.0812904060 0.1148726 0.4400343
-	// Arc   462(steps   1). Coordinate: 0.0814626020 0.1151337 0.4409841
-	// Arc   463(steps   1). Coordinate: 0.0816347777 0.1153948 0.4419339
-	// Arc   464(steps   1). Coordinate: 0.0818069330 0.1156560 0.4428837
-	// Arc   465(steps   1). Coordinate: 0.0819790679 0.1159173 0.4438335
-	// Arc   466(steps   1). Coordinate: 0.0821511824 0.1161786 0.4447833
-	// Arc   467(steps   1). Coordinate: 0.0823232765 0.1164400 0.4457331
-	// Arc   468(steps   1). Coordinate: 0.0824953501 0.1167014 0.4466828
-	// Arc   469(steps   1). Coordinate: 0.0826674032 0.1169630 0.4476326
-	// Arc   470(steps   1). Coordinate: 0.0828394357 0.1172246 0.4485823
-	// Arc   471(steps   1). Coordinate: 0.0830114477 0.1174862 0.4495320
-	// Arc   472(steps   1). Coordinate: 0.0831834390 0.1177480 0.4504817
-	// Arc   473(steps   1). Coordinate: 0.0833554096 0.1180097 0.4514314
-	// Arc   474(steps   1). Coordinate: 0.0835273596 0.1182716 0.4523811
-	// Arc   475(steps   1). Coordinate: 0.0836992889 0.1185335 0.4533307
-	// Arc   476(steps   1). Coordinate: 0.0838711973 0.1187955 0.4542803
-	// Arc   477(steps   1). Coordinate: 0.0840430850 0.1190576 0.4552300
-	// Arc   478(steps   1). Coordinate: 0.0842149519 0.1193197 0.4561796
-	// Arc   479(steps   1). Coordinate: 0.0843867979 0.1195820 0.4571291
-	// Arc   480(steps   1). Coordinate: 0.0845586230 0.1198442 0.4580787
-	// Arc   481(steps   1). Coordinate: 0.0847304271 0.1201066 0.4590283
-	// Arc   482(steps   1). Coordinate: 0.0849022103 0.1203690 0.4599778
-	// Arc   483(steps   1). Coordinate: 0.0850739725 0.1206315 0.4609273
-	// Arc   484(steps   1). Coordinate: 0.0852457136 0.1208940 0.4618769
-	// Arc   485(steps   1). Coordinate: 0.0854174337 0.1211566 0.4628264
-	// Arc   486(steps   1). Coordinate: 0.0855891326 0.1214193 0.4637758
-	// Arc   487(steps   1). Coordinate: 0.0857608104 0.1216821 0.4647253
-	// Arc   488(steps   1). Coordinate: 0.0859324670 0.1219449 0.4656748
-	// Arc   489(steps   1). Coordinate: 0.0861041024 0.1222078 0.4666242
-	// Arc   490(steps   1). Coordinate: 0.0862757165 0.1224707 0.4675736
-	// Arc   491(steps   1). Coordinate: 0.0864473094 0.1227338 0.4685230
-	// Arc   492(steps   1). Coordinate: 0.0866188809 0.1229969 0.4694724
-	// Arc   493(steps   1). Coordinate: 0.0867904310 0.1232601 0.4704218
-	// Arc   494(steps   1). Coordinate: 0.0869619597 0.1235233 0.4713711
-	// Arc   495(steps   1). Coordinate: 0.0871334670 0.1237866 0.4723205
-	// Arc   496(steps   1). Coordinate: 0.0873049528 0.1240500 0.4732698
-	// Arc   497(steps   1). Coordinate: 0.0874764171 0.1243134 0.4742191
-	// Arc   498(steps   1). Coordinate: 0.0876478599 0.1245770 0.4751684
-	// Arc   499(steps   1). Coordinate: 0.0878192811 0.1248406 0.4761177
-	// Arc   500(steps   1). Coordinate: 0.0879906806 0.1251042 0.4770670
-	// Arc   501(steps   1). Coordinate: 0.0881620585 0.1253680 0.4780162
-	// Arc   502(steps   1). Coordinate: 0.0883334146 0.1256318 0.4789654
-	// Arc   503(steps   1). Coordinate: 0.0885047491 0.1258957 0.4799147
-	// Arc   504(steps   1). Coordinate: 0.0886760617 0.1261596 0.4808639
-	// Arc   505(steps   1). Coordinate: 0.0888473526 0.1264236 0.4818130
-	// Arc   506(steps   1). Coordinate: 0.0890186216 0.1266877 0.4827622
-	// Arc   507(steps   1). Coordinate: 0.0891898687 0.1269519 0.4837114
-	// Arc   508(steps   1). Coordinate: 0.0893610939 0.1272161 0.4846605
-	// Arc   509(steps   1). Coordinate: 0.0895322971 0.1274804 0.4856096
-	// Arc   510(steps   1). Coordinate: 0.0897034784 0.1277448 0.4865587
-	// Arc   511(steps   1). Coordinate: 0.0898746376 0.1280093 0.4875078
-	// Arc   512(steps   1). Coordinate: 0.0900457747 0.1282738 0.4884569
-	// Arc   513(steps   1). Coordinate: 0.0902168897 0.1285384 0.4894059
-	// Arc   514(steps   1). Coordinate: 0.0903879825 0.1288031 0.4903550
-	// Arc   515(steps   1). Coordinate: 0.0905590532 0.1290678 0.4913040
-	// Arc   516(steps   1). Coordinate: 0.0907301016 0.1293326 0.4922530
-	// Arc   517(steps   1). Coordinate: 0.0909011277 0.1295975 0.4932020
-	// Arc   518(steps   1). Coordinate: 0.0910721316 0.1298625 0.4941510
-	// Arc   519(steps   1). Coordinate: 0.0912431130 0.1301275 0.4950999
-	// Arc   520(steps   1). Coordinate: 0.0914140721 0.1303926 0.4960489
-	// Arc   521(steps   1). Coordinate: 0.0915850088 0.1306578 0.4969978
-	// Arc   522(steps   1). Coordinate: 0.0917559230 0.1309230 0.4979467
-	// Arc   523(steps   1). Coordinate: 0.0919268147 0.1311884 0.4988956
-	// Arc   524(steps   1). Coordinate: 0.0920976839 0.1314538 0.4998445
-	// Arc   525(steps   1). Coordinate: 0.0922685305 0.1317192 0.5007933
-	// Arc   526(steps   1). Coordinate: 0.0924393544 0.1319848 0.5017422
-	// Arc   527(steps   1). Coordinate: 0.0926101557 0.1322504 0.5026910
-	// Arc   528(steps   1). Coordinate: 0.0927809343 0.1325161 0.5036398
-	// Arc   529(steps   1). Coordinate: 0.0929516902 0.1327819 0.5045886
-	// Arc   530(steps   1). Coordinate: 0.0931224232 0.1330477 0.5055374
-	// Arc   531(steps   1). Coordinate: 0.0932931335 0.1333136 0.5064862
-	// Arc   532(steps   1). Coordinate: 0.0934638209 0.1335796 0.5074349
-	// Arc   533(steps   1). Coordinate: 0.0936344853 0.1338457 0.5083836
-	// Arc   534(steps   1). Coordinate: 0.0938051269 0.1341118 0.5093323
-	// Arc   535(steps   1). Coordinate: 0.0939757454 0.1343780 0.5102810
-	// Arc   536(steps   1). Coordinate: 0.0941463409 0.1346443 0.5112297
-	// Arc   537(steps   1). Coordinate: 0.0943169134 0.1349107 0.5121784
-	// Arc   538(steps   1). Coordinate: 0.0944874627 0.1351772 0.5131270
-	// Arc   539(steps   1). Coordinate: 0.0946579889 0.1354437 0.5140756
-	// Arc   540(steps   1). Coordinate: 0.0948284919 0.1357103 0.5150242
-	// Arc   541(steps   1). Coordinate: 0.0949989717 0.1359769 0.5159728
-	// Arc   542(steps   1). Coordinate: 0.0951694282 0.1362437 0.5169214
-	// Arc   543(steps   1). Coordinate: 0.0953398614 0.1365105 0.5178700
-	// Arc   544(steps   1). Coordinate: 0.0955102712 0.1367774 0.5188185
-	// Arc   545(steps   1). Coordinate: 0.0956806577 0.1370444 0.5197670
-	// Arc   546(steps   1). Coordinate: 0.0958510206 0.1373114 0.5207155
-	// Arc   547(steps   1). Coordinate: 0.0960213602 0.1375786 0.5216640
-	// Arc   548(steps   1). Coordinate: 0.0961916762 0.1378458 0.5226125
-	// Arc   549(steps   1). Coordinate: 0.0963619686 0.1381130 0.5235609
-	// Arc   550(steps   1). Coordinate: 0.0965322374 0.1383804 0.5245094
-	// Arc   551(steps   1). Coordinate: 0.0967024826 0.1386478 0.5254578
-	// Arc   552(steps   1). Coordinate: 0.0968727040 0.1389154 0.5264062
-	// Arc   553(steps   1). Coordinate: 0.0970429018 0.1391829 0.5273546
-	// Arc   554(steps   1). Coordinate: 0.0972130758 0.1394506 0.5283029
-	// Arc   555(steps   1). Coordinate: 0.0973832259 0.1397184 0.5292513
-	// Arc   556(steps   1). Coordinate: 0.0975533522 0.1399862 0.5301996
-	// Arc   557(steps   1). Coordinate: 0.0977234546 0.1402541 0.5311479
-	// Arc   558(steps   1). Coordinate: 0.0978935330 0.1405221 0.5320962
-	// Arc   559(steps   1). Coordinate: 0.0980635874 0.1407901 0.5330445
-	// Arc   560(steps   1). Coordinate: 0.0982336178 0.1410583 0.5339927
-	// Arc   561(steps   1). Coordinate: 0.0984036241 0.1413265 0.5349410
-	// Arc   562(steps   1). Coordinate: 0.0985736063 0.1415948 0.5358892
-	// Arc   563(steps   1). Coordinate: 0.0987435643 0.1418631 0.5368374
-	// Arc   564(steps   1). Coordinate: 0.0989134981 0.1421316 0.5377856
-	// Arc   565(steps   1). Coordinate: 0.0990834077 0.1424001 0.5387338
-	// Arc   566(steps   1). Coordinate: 0.0992532930 0.1426687 0.5396819
-	// Arc   567(steps   1). Coordinate: 0.0994231539 0.1429374 0.5406300
-	// Arc   568(steps   1). Coordinate: 0.0995929904 0.1432062 0.5415781
-	// Arc   569(steps   1). Coordinate: 0.0997628025 0.1434750 0.5425262
-	// Arc   570(steps   1). Coordinate: 0.0999325901 0.1437440 0.5434743
-	// Arc   571(steps   1). Coordinate: 0.1001023532 0.1440130 0.5444224
-	// Arc   572(steps   1). Coordinate: 0.1002720917 0.1442821 0.5453704
-	// Arc   573(steps   1). Coordinate: 0.1004418056 0.1445512 0.5463184
-	// Arc   574(steps   1). Coordinate: 0.1006114949 0.1448205 0.5472664
-	// Arc   575(steps   1). Coordinate: 0.1007811594 0.1450898 0.5482144
-	// Arc   576(steps   1). Coordinate: 0.1009507992 0.1453592 0.5491624
-	// Arc   577(steps   1). Coordinate: 0.1011204142 0.1456287 0.5501103
-	// Arc   578(steps   1). Coordinate: 0.1012900044 0.1458983 0.5510583
-	// Arc   579(steps   1). Coordinate: 0.1014595697 0.1461679 0.5520062
-	// Arc   580(steps   1). Coordinate: 0.1016291101 0.1464376 0.5529541
-	// Arc   581(steps   1). Coordinate: 0.1017986254 0.1467075 0.5539020
-	// Arc   582(steps   1). Coordinate: 0.1019681158 0.1469773 0.5548498
-	// Arc   583(steps   1). Coordinate: 0.1021375811 0.1472473 0.5557976
-	// Arc   584(steps   1). Coordinate: 0.1023070213 0.1475174 0.5567455
-	// Arc   585(steps   1). Coordinate: 0.1024764363 0.1477875 0.5576933
-	// Arc   586(steps   1). Coordinate: 0.1026458261 0.1480577 0.5586410
-	// Arc   587(steps   1). Coordinate: 0.1028151906 0.1483280 0.5595888
-	// Arc   588(steps   1). Coordinate: 0.1029845299 0.1485984 0.5605366
-	// Arc   589(steps   1). Coordinate: 0.1031538438 0.1488689 0.5614843
-	// Arc   590(steps   1). Coordinate: 0.1033231323 0.1491395 0.5624320
-	// Arc   591(steps   1). Coordinate: 0.1034923953 0.1494101 0.5633797
-	// Arc   592(steps   1). Coordinate: 0.1036616329 0.1496808 0.5643273
-	// Arc   593(steps   1). Coordinate: 0.1038308449 0.1499516 0.5652750
-	// Arc   594(steps   1). Coordinate: 0.1040000314 0.1502225 0.5662226
-	// Arc   595(steps   1). Coordinate: 0.1041691922 0.1504934 0.5671702
-	// Arc   596(steps   1). Coordinate: 0.1043383273 0.1507645 0.5681178
-	// Arc   597(steps   1). Coordinate: 0.1045074367 0.1510356 0.5690654
-	// Arc   598(steps   1). Coordinate: 0.1046765203 0.1513068 0.5700129
-	// Arc   599(steps   1). Coordinate: 0.1048455781 0.1515781 0.5709605
-	// Arc   600(steps   1). Coordinate: 0.1050146100 0.1518495 0.5719080
-	// Arc   601(steps   1). Coordinate: 0.1051836160 0.1521210 0.5728555
-	// Arc   602(steps   1). Coordinate: 0.1053525961 0.1523925 0.5738029
-	// Arc   603(steps   1). Coordinate: 0.1055215501 0.1526642 0.5747504
-	// Arc   604(steps   1). Coordinate: 0.1056904780 0.1529359 0.5756978
-	// Arc   605(steps   1). Coordinate: 0.1058593798 0.1532077 0.5766452
-	// Arc   606(steps   1). Coordinate: 0.1060282554 0.1534796 0.5775926
-	// Arc   607(steps   1). Coordinate: 0.1061971048 0.1537516 0.5785400
-	// Arc   608(steps   1). Coordinate: 0.1063659280 0.1540236 0.5794874
-	// Arc   609(steps   1). Coordinate: 0.1065347248 0.1542958 0.5804347
-	// Arc   610(steps   1). Coordinate: 0.1067034953 0.1545680 0.5813820
-	// Arc   611(steps   1). Coordinate: 0.1068722393 0.1548403 0.5823293
-	// Arc   612(steps   1). Coordinate: 0.1070409569 0.1551128 0.5832766
-	// Arc   613(steps   1). Coordinate: 0.1072096480 0.1553852 0.5842238
-	// Arc   614(steps   1). Coordinate: 0.1073783125 0.1556578 0.5851711
-	// Arc   615(steps   1). Coordinate: 0.1075469504 0.1559305 0.5861183
-	// Arc   616(steps   1). Coordinate: 0.1077155616 0.1562032 0.5870655
-	// Arc   617(steps   1). Coordinate: 0.1078841460 0.1564761 0.5880127
-	// Arc   618(steps   1). Coordinate: 0.1080527038 0.1567490 0.5889598
-	// Arc   619(steps   1). Coordinate: 0.1082212346 0.1570220 0.5899069
-	// Arc   620(steps   1). Coordinate: 0.1083897387 0.1572951 0.5908541
-	// Arc   621(steps   1). Coordinate: 0.1085582157 0.1575683 0.5918011
-	// Arc   622(steps   1). Coordinate: 0.1087266658 0.1578416 0.5927482
-	// Arc   623(steps   1). Coordinate: 0.1088950889 0.1581149 0.5936953
-	// Arc   624(steps   1). Coordinate: 0.1090634849 0.1583884 0.5946423
-	// Arc   625(steps   1). Coordinate: 0.1092318538 0.1586619 0.5955893
-	// Arc   626(steps   1). Coordinate: 0.1094001955 0.1589355 0.5965363
-	// Arc   627(steps   1). Coordinate: 0.1095685099 0.1592092 0.5974833
-	// Arc   628(steps   1). Coordinate: 0.1097367971 0.1594830 0.5984302
-	// Arc   629(steps   1). Coordinate: 0.1099050569 0.1597569 0.5993772
-	// Arc   630(steps   1). Coordinate: 0.1100732893 0.1600309 0.6003241
-	// Arc   631(steps   1). Coordinate: 0.1102414942 0.1603050 0.6012709
-	// Arc   632(steps   1). Coordinate: 0.1104096717 0.1605791 0.6022178
-	// Arc   633(steps   1). Coordinate: 0.1105778216 0.1608534 0.6031647
-	// Arc   634(steps   1). Coordinate: 0.1107459439 0.1611277 0.6041115
-	// Arc   635(steps   1). Coordinate: 0.1109140385 0.1614021 0.6050583
-	// Arc   636(steps   1). Coordinate: 0.1110821054 0.1616766 0.6060051
-	// Arc   637(steps   1). Coordinate: 0.1112501446 0.1619512 0.6069518
-	// Arc   638(steps   1). Coordinate: 0.1114181559 0.1622259 0.6078986
-	// Arc   639(steps   1). Coordinate: 0.1115861393 0.1625007 0.6088453
-	// Arc   640(steps   1). Coordinate: 0.1117540948 0.1627756 0.6097920
-	// Arc   641(steps   1). Coordinate: 0.1119220223 0.1630506 0.6107387
-	// Arc   642(steps   1). Coordinate: 0.1120899218 0.1633256 0.6116853
-	// Arc   643(steps   1). Coordinate: 0.1122577932 0.1636008 0.6126319
-	// Arc   644(steps   1). Coordinate: 0.1124256364 0.1638760 0.6135786
-	// Arc   645(steps   1). Coordinate: 0.1125934514 0.1641513 0.6145251
-	// Arc   646(steps   1). Coordinate: 0.1127612382 0.1644268 0.6154717
-	// Arc   647(steps   1). Coordinate: 0.1129289966 0.1647023 0.6164183
-	// Arc   648(steps   1). Coordinate: 0.1130967267 0.1649779 0.6173648
-	// Arc   649(steps   1). Coordinate: 0.1132644283 0.1652536 0.6183113
-	// Arc   650(steps   1). Coordinate: 0.1134321014 0.1655294 0.6192578
-	// Arc   651(steps   1). Coordinate: 0.1135997460 0.1658052 0.6202042
-	// Arc   652(steps   1). Coordinate: 0.1137673620 0.1660812 0.6211507
-	// Arc   653(steps   1). Coordinate: 0.1139349494 0.1663573 0.6220971
-	// Arc   654(steps   1). Coordinate: 0.1141025080 0.1666334 0.6230435
-	// Arc   655(steps   1). Coordinate: 0.1142700379 0.1669097 0.6239898
-	// Arc   656(steps   1). Coordinate: 0.1144375389 0.1671860 0.6249362
-	// Arc   657(steps   1). Coordinate: 0.1146050110 0.1674625 0.6258825
-	// Arc   658(steps   1). Coordinate: 0.1147724543 0.1677390 0.6268288
-	// Arc   659(steps   1). Coordinate: 0.1149398685 0.1680156 0.6277751
-	// Arc   660(steps   1). Coordinate: 0.1151072536 0.1682924 0.6287214
-	// Arc   661(steps   1). Coordinate: 0.1152746097 0.1685692 0.6296676
-	// Arc   662(steps   1). Coordinate: 0.1154419365 0.1688461 0.6306138
-	// Arc   663(steps   1). Coordinate: 0.1156092342 0.1691231 0.6315600
-	// Arc   664(steps   1). Coordinate: 0.1157765025 0.1694002 0.6325062
-	// Arc   665(steps   1). Coordinate: 0.1159437415 0.1696774 0.6334523
-	// Arc   666(steps   1). Coordinate: 0.1161109511 0.1699547 0.6343985
-	// Arc   667(steps   1). Coordinate: 0.1162781313 0.1702320 0.6353446
-	// Arc   668(steps   1). Coordinate: 0.1164452819 0.1705095 0.6362906
-	// Arc   669(steps   1). Coordinate: 0.1166124029 0.1707871 0.6372367
-	// Arc   670(steps   1). Coordinate: 0.1167794943 0.1710648 0.6381827
-	// Arc   671(steps   1). Coordinate: 0.1169465560 0.1713425 0.6391287
-	// Arc   672(steps   1). Coordinate: 0.1171135879 0.1716204 0.6400747
-	// Arc   673(steps   1). Coordinate: 0.1172805900 0.1718983 0.6410207
-	// Arc   674(steps   1). Coordinate: 0.1174475622 0.1721764 0.6419666
-	// Arc   675(steps   1). Coordinate: 0.1176145044 0.1724545 0.6429126
-	// Arc   676(steps   1). Coordinate: 0.1177814167 0.1727328 0.6438585
-	// Arc   677(steps   1). Coordinate: 0.1179482989 0.1730111 0.6448043
-	// Arc   678(steps   1). Coordinate: 0.1181151510 0.1732896 0.6457502
-	// Arc   679(steps   1). Coordinate: 0.1182819728 0.1735681 0.6466960
-	// Arc   680(steps   1). Coordinate: 0.1184487645 0.1738467 0.6476418
-	// Arc   681(steps   1). Coordinate: 0.1186155258 0.1741255 0.6485876
-	// Arc   682(steps   1). Coordinate: 0.1187822568 0.1744043 0.6495333
-	// Arc   683(steps   1). Coordinate: 0.1189489573 0.1746832 0.6504791
-	// Arc   684(steps   1). Coordinate: 0.1191156273 0.1749623 0.6514248
-	// Arc   685(steps   1). Coordinate: 0.1192822668 0.1752414 0.6523705
-	// Arc   686(steps   1). Coordinate: 0.1194488756 0.1755206 0.6533161
-	// Arc   687(steps   1). Coordinate: 0.1196154538 0.1757999 0.6542618
-	// Arc   688(steps   1). Coordinate: 0.1197820012 0.1760794 0.6552074
-	// Arc   689(steps   1). Coordinate: 0.1199485178 0.1763589 0.6561530
-	// Arc   690(steps   1). Coordinate: 0.1201150035 0.1766385 0.6570985
-	// Arc   691(steps   1). Coordinate: 0.1202814583 0.1769182 0.6580441
-	// Arc   692(steps   1). Coordinate: 0.1204478821 0.1771981 0.6589896
-	// Arc   693(steps   1). Coordinate: 0.1206142749 0.1774780 0.6599351
-	// Arc   694(steps   1). Coordinate: 0.1207806365 0.1777580 0.6608805
-	// Arc   695(steps   1). Coordinate: 0.1209469669 0.1780381 0.6618260
-	// Arc   696(steps   1). Coordinate: 0.1211132660 0.1783183 0.6627714
-	// Arc   697(steps   1). Coordinate: 0.1212795339 0.1785987 0.6637168
-	// Arc   698(steps   1). Coordinate: 0.1214457703 0.1788791 0.6646622
-	// Arc   699(steps   1). Coordinate: 0.1216119753 0.1791596 0.6656075
-	// Arc   700(steps   1). Coordinate: 0.1217781488 0.1794403 0.6665528
-	// Arc   701(steps   1). Coordinate: 0.1219442907 0.1797210 0.6674981
-	// Arc   702(steps   1). Coordinate: 0.1221104010 0.1800018 0.6684434
-	// Arc   703(steps   1). Coordinate: 0.1222764795 0.1802828 0.6693887
-	// Arc   704(steps   1). Coordinate: 0.1224425263 0.1805638 0.6703339
-	// Arc   705(steps   1). Coordinate: 0.1226085412 0.1808449 0.6712791
-	// Arc   706(steps   1). Coordinate: 0.1227745242 0.1811262 0.6722243
-	// Arc   707(steps   1). Coordinate: 0.1229404753 0.1814075 0.6731694
-	// Arc   708(steps   1). Coordinate: 0.1231063942 0.1816890 0.6741145
-	// Arc   709(steps   1). Coordinate: 0.1232722811 0.1819705 0.6750596
-	// Arc   710(steps   1). Coordinate: 0.1234381358 0.1822522 0.6760047
-	// Arc   711(steps   1). Coordinate: 0.1236039582 0.1825339 0.6769498
-	// Arc   712(steps   1). Coordinate: 0.1237697484 0.1828158 0.6778948
-	// Arc   713(steps   1). Coordinate: 0.1239355061 0.1830977 0.6788398
-	// Arc   714(steps   1). Coordinate: 0.1241012314 0.1833798 0.6797847
-	// Arc   715(steps   1). Coordinate: 0.1242669242 0.1836620 0.6807297
-	// Arc   716(steps   1). Coordinate: 0.1244325844 0.1839443 0.6816746
-	// Arc   717(steps   1). Coordinate: 0.1245982119 0.1842267 0.6826195
-	// Arc   718(steps   1). Coordinate: 0.1247638067 0.1845091 0.6835644
-	// Arc   719(steps   1). Coordinate: 0.1249293687 0.1847917 0.6845092
-	// Arc   720(steps   1). Coordinate: 0.1250948978 0.1850744 0.6854540
-	// Arc   721(steps   1). Coordinate: 0.1252603940 0.1853573 0.6863988
-	// Arc   722(steps   1). Coordinate: 0.1254258572 0.1856402 0.6873436
-	// Arc   723(steps   1). Coordinate: 0.1255912873 0.1859232 0.6882883
-	// Arc   724(steps   1). Coordinate: 0.1257566843 0.1862063 0.6892330
-	// Arc   725(steps   1). Coordinate: 0.1259220480 0.1864895 0.6901777
-	// Arc   726(steps   1). Coordinate: 0.1260873785 0.1867729 0.6911224
-	// Arc   727(steps   1). Coordinate: 0.1262526756 0.1870563 0.6920670
-	// Arc   728(steps   1). Coordinate: 0.1264179393 0.1873399 0.6930116
-	// Arc   729(steps   1). Coordinate: 0.1265831695 0.1876235 0.6939562
-	// Arc   730(steps   1). Coordinate: 0.1267483661 0.1879073 0.6949008
-	// Arc   731(steps   1). Coordinate: 0.1269135290 0.1881912 0.6958453
-	// Arc   732(steps   1). Coordinate: 0.1270786583 0.1884752 0.6967898
-	// Arc   733(steps   1). Coordinate: 0.1272437537 0.1887593 0.6977343
-	// Arc   734(steps   1). Coordinate: 0.1274088153 0.1890435 0.6986787
-	// Arc   735(steps   1). Coordinate: 0.1275738430 0.1893278 0.6996232
-	// Arc   736(steps   1). Coordinate: 0.1277388366 0.1896122 0.7005676
-	// Arc   737(steps   1). Coordinate: 0.1279037962 0.1898967 0.7015119
-	// Arc   738(steps   1). Coordinate: 0.1280687215 0.1901814 0.7024563
-	// Arc   739(steps   1). Coordinate: 0.1282336127 0.1904661 0.7034006
-	// Arc   740(steps   1). Coordinate: 0.1283984696 0.1907510 0.7043449
-	// Arc   741(steps   1). Coordinate: 0.1285632921 0.1910360 0.7052891
-	// Arc   742(steps   1). Coordinate: 0.1287280801 0.1913210 0.7062334
-	// Arc   743(steps   1). Coordinate: 0.1288928336 0.1916062 0.7071776
-	// Arc   744(steps   1). Coordinate: 0.1290575525 0.1918915 0.7081217
-	// Arc   745(steps   1). Coordinate: 0.1292222367 0.1921769 0.7090659
-	// Arc   746(steps   1). Coordinate: 0.1293868862 0.1924625 0.7100100
-	// Arc   747(steps   1). Coordinate: 0.1295515008 0.1927481 0.7109541
-	// Arc   748(steps   1). Coordinate: 0.1297160805 0.1930338 0.7118982
-	// Arc   749(steps   1). Coordinate: 0.1298806253 0.1933197 0.7128422
-	// Arc   750(steps   1). Coordinate: 0.1300451349 0.1936057 0.7137862
-	// Arc   751(steps   1). Coordinate: 0.1302096095 0.1938918 0.7147302
-	// Arc   752(steps   1). Coordinate: 0.1303740488 0.1941780 0.7156742
-	// Arc   753(steps   1). Coordinate: 0.1305384528 0.1944643 0.7166181
-	// Arc   754(steps   1). Coordinate: 0.1307028215 0.1947507 0.7175620
-	// Arc   755(steps   1). Coordinate: 0.1308671547 0.1950372 0.7185058
-	// Arc   756(steps   1). Coordinate: 0.1310314524 0.1953239 0.7194497
-	// Arc   757(steps   1). Coordinate: 0.1311957145 0.1956106 0.7203935
-	// Arc   758(steps   1). Coordinate: 0.1313599409 0.1958975 0.7213373
-	// Arc   759(steps   1). Coordinate: 0.1315241315 0.1961845 0.7222810
-	// Arc   760(steps   1). Coordinate: 0.1316882863 0.1964716 0.7232248
-	// Arc   761(steps   1). Coordinate: 0.1318524052 0.1967589 0.7241685
-	// Arc   762(steps   1). Coordinate: 0.1320164881 0.1970462 0.7251121
-	// Arc   763(steps   1). Coordinate: 0.1321805349 0.1973336 0.7260558
-	// Arc   764(steps   1). Coordinate: 0.1323445455 0.1976212 0.7269994
-	// Arc   765(steps   1). Coordinate: 0.1325085199 0.1979089 0.7279430
-	// Arc   766(steps   1). Coordinate: 0.1326724580 0.1981967 0.7288865
-	// Arc   767(steps   1). Coordinate: 0.1328363596 0.1984846 0.7298301
-	// Arc   768(steps   1). Coordinate: 0.1330002248 0.1987727 0.7307736
-	// Arc   769(steps   1). Coordinate: 0.1331640534 0.1990608 0.7317170
-	// Arc   770(steps   1). Coordinate: 0.1333278454 0.1993491 0.7326605
-	// Arc   771(steps   1). Coordinate: 0.1334916006 0.1996375 0.7336039
-	// Arc   772(steps   1). Coordinate: 0.1336553190 0.1999260 0.7345472
-	// Arc   773(steps   1). Coordinate: 0.1338190005 0.2002146 0.7354906
-	// Arc   774(steps   1). Coordinate: 0.1339826451 0.2005033 0.7364339
-	// Arc   775(steps   1). Coordinate: 0.1341462525 0.2007922 0.7373772
-	// Arc   776(steps   1). Coordinate: 0.1343098229 0.2010812 0.7383205
-	// Arc   777(steps   1). Coordinate: 0.1344733560 0.2013703 0.7392637
-	// Arc   778(steps   1). Coordinate: 0.1346368517 0.2016595 0.7402069
-	// Arc   779(steps   1). Coordinate: 0.1348003101 0.2019488 0.7411501
-	// Arc   780(steps   1). Coordinate: 0.1349637310 0.2022383 0.7420932
-	// Arc   781(steps   1). Coordinate: 0.1351271143 0.2025278 0.7430363
-	// Arc   782(steps   1). Coordinate: 0.1352904600 0.2028175 0.7439794
-	// Arc   783(steps   1). Coordinate: 0.1354537679 0.2031074 0.7449224
-	// Arc   784(steps   1). Coordinate: 0.1356170380 0.2033973 0.7458654
-	// Arc   785(steps   1). Coordinate: 0.1357802702 0.2036873 0.7468084
-	// Arc   786(steps   1). Coordinate: 0.1359434643 0.2039775 0.7477514
-	// Arc   787(steps   1). Coordinate: 0.1361066204 0.2042678 0.7486943
-	// Arc   788(steps   1). Coordinate: 0.1362697383 0.2045582 0.7496372
-	// Arc   789(steps   1). Coordinate: 0.1364328180 0.2048488 0.7505801
-	// Arc   790(steps   1). Coordinate: 0.1365958593 0.2051395 0.7515229
-	// Arc   791(steps   1). Coordinate: 0.1367588622 0.2054302 0.7524657
-	// Arc   792(steps   1). Coordinate: 0.1369218265 0.2057212 0.7534085
-	// Arc   793(steps   1). Coordinate: 0.1370847522 0.2060122 0.7543512
-	// Arc   794(steps   1). Coordinate: 0.1372476392 0.2063033 0.7552939
-	// Arc   795(steps   1). Coordinate: 0.1374104874 0.2065946 0.7562366
-	// Arc   796(steps   1). Coordinate: 0.1375732968 0.2068860 0.7571792
-	// Arc   797(steps   1). Coordinate: 0.1377360671 0.2071776 0.7581218
-	// Arc   798(steps   1). Coordinate: 0.1378987984 0.2074692 0.7590644
-	// Arc   799(steps   1). Coordinate: 0.1380614906 0.2077610 0.7600070
-	// Arc   800(steps   1). Coordinate: 0.1382241434 0.2080529 0.7609495
-	// Arc   801(steps   1). Coordinate: 0.1383867570 0.2083449 0.7618920
-	// Arc   802(steps   1). Coordinate: 0.1385493311 0.2086371 0.7628344
-	// Arc   803(steps   1). Coordinate: 0.1387118657 0.2089294 0.7637768
-	// Arc   804(steps   1). Coordinate: 0.1388743607 0.2092218 0.7647192
-	// Arc   805(steps   1). Coordinate: 0.1390368160 0.2095143 0.7656616
-	// Arc   806(steps   1). Coordinate: 0.1391992315 0.2098070 0.7666039
-	// Arc   807(steps   1). Coordinate: 0.1393616071 0.2100998 0.7675462
-	// Arc   808(steps   1). Coordinate: 0.1395239427 0.2103927 0.7684884
-	// Arc   809(steps   1). Coordinate: 0.1396862382 0.2106857 0.7694307
-	// Arc   810(steps   1). Coordinate: 0.1398484935 0.2109789 0.7703729
-	// Arc   811(steps   1). Coordinate: 0.1400107086 0.2112722 0.7713150
-	// Arc   812(steps   1). Coordinate: 0.1401728833 0.2115656 0.7722571
-	// Arc   813(steps   1). Coordinate: 0.1403350176 0.2118592 0.7731992
-	// Arc   814(steps   1). Coordinate: 0.1404971113 0.2121528 0.7741413
-	// Arc   815(steps   1). Coordinate: 0.1406591643 0.2124467 0.7750833
-	// Arc   816(steps   1). Coordinate: 0.1408211766 0.2127406 0.7760253
-	// Arc   817(steps   1). Coordinate: 0.1409831481 0.2130347 0.7769673
-	// Arc   818(steps   1). Coordinate: 0.1411450786 0.2133289 0.7779092
-	// Arc   819(steps   1). Coordinate: 0.1413069681 0.2136232 0.7788511
-	// Arc   820(steps   1). Coordinate: 0.1414688164 0.2139177 0.7797929
-	// Arc   821(steps   1). Coordinate: 0.1416306235 0.2142123 0.7807348
-	// Arc   822(steps   1). Coordinate: 0.1417923893 0.2145070 0.7816766
-	// Arc   823(steps   1). Coordinate: 0.1419541136 0.2148019 0.7826183
-	// Arc   824(steps   1). Coordinate: 0.1421157964 0.2150968 0.7835600
-	// Arc   825(steps   1). Coordinate: 0.1422774376 0.2153920 0.7845017
-	// Arc   826(steps   1). Coordinate: 0.1424390370 0.2156872 0.7854434
-	// Arc   827(steps   1). Coordinate: 0.1426005946 0.2159826 0.7863850
-	// Arc   828(steps   1). Coordinate: 0.1427621103 0.2162781 0.7873266
-	// Arc   829(steps   1). Coordinate: 0.1429235840 0.2165738 0.7882681
-	// Arc   830(steps   1). Coordinate: 0.1430850155 0.2168696 0.7892096
-	// Arc   831(steps   1). Coordinate: 0.1432464047 0.2171655 0.7901511
-	// Arc   832(steps   1). Coordinate: 0.1434077517 0.2174616 0.7910926
-	// Arc   833(steps   1). Coordinate: 0.1435690562 0.2177577 0.7920340
-	// Arc   834(steps   1). Coordinate: 0.1437303181 0.2180541 0.7929753
-	// Arc   835(steps   1). Coordinate: 0.1438915374 0.2183505 0.7939167
-	// Arc   836(steps   1). Coordinate: 0.1440527140 0.2186471 0.7948580
-	// Arc   837(steps   1). Coordinate: 0.1442138477 0.2189439 0.7957993
-	// Arc   838(steps   1). Coordinate: 0.1443749384 0.2192407 0.7967405
-	// Arc   839(steps   1). Coordinate: 0.1445359861 0.2195377 0.7976817
-	// Arc   840(steps   1). Coordinate: 0.1446969906 0.2198349 0.7986228
-	// Arc   841(steps   1). Coordinate: 0.1448579519 0.2201322 0.7995640
-	// Arc   842(steps   1). Coordinate: 0.1450188697 0.2204296 0.8005051
-	// Arc   843(steps   1). Coordinate: 0.1451797441 0.2207271 0.8014461
-	// Arc   844(steps   1). Coordinate: 0.1453405749 0.2210248 0.8023871
-	// Arc   845(steps   1). Coordinate: 0.1455013619 0.2213227 0.8033281
-	// Arc   846(steps   1). Coordinate: 0.1456621052 0.2216206 0.8042691
-	// Arc   847(steps   1). Coordinate: 0.1458228046 0.2219187 0.8052100
-	// Arc   848(steps   1). Coordinate: 0.1459834599 0.2222170 0.8061508
-	// Arc   849(steps   1). Coordinate: 0.1461440711 0.2225154 0.8070917
-	// Arc   850(steps   1). Coordinate: 0.1463046380 0.2228139 0.8080325
-	// Arc   851(steps   1). Coordinate: 0.1464651606 0.2231126 0.8089732
-	// Arc   852(steps   1). Coordinate: 0.1466256387 0.2234114 0.8099139
-	// Arc   853(steps   1). Coordinate: 0.1467860723 0.2237103 0.8108546
-	// Arc   854(steps   1). Coordinate: 0.1469464612 0.2240094 0.8117953
-	// Arc   855(steps   1). Coordinate: 0.1471068052 0.2243087 0.8127359
-	// Arc   856(steps   1). Coordinate: 0.1472671044 0.2246080 0.8136765
-	// Arc   857(steps   1). Coordinate: 0.1474273586 0.2249076 0.8146170
-	// Arc   858(steps   1). Coordinate: 0.1475875676 0.2252072 0.8155575
-	// Arc   859(steps   1). Coordinate: 0.1477477314 0.2255070 0.8164980
-	// Arc   860(steps   1). Coordinate: 0.1479078498 0.2258070 0.8174384
-	// Arc   861(steps   1). Coordinate: 0.1480679227 0.2261071 0.8183788
-	// Arc   862(steps   1). Coordinate: 0.1482279501 0.2264073 0.8193191
-	// Arc   863(steps   1). Coordinate: 0.1483879317 0.2267077 0.8202594
-	// Arc   864(steps   1). Coordinate: 0.1485478676 0.2270082 0.8211997
-	// Arc   865(steps   1). Coordinate: 0.1487077575 0.2273089 0.8221399
-	// Arc   866(steps   1). Coordinate: 0.1488676013 0.2276097 0.8230801
-	// Arc   867(steps   1). Coordinate: 0.1490273990 0.2279107 0.8240203
-	// Arc   868(steps   1). Coordinate: 0.1491871504 0.2282118 0.8249604
-	// Arc   869(steps   1). Coordinate: 0.1493468554 0.2285130 0.8259004
-	// Arc   870(steps   1). Coordinate: 0.1495065139 0.2288144 0.8268405
-	// Arc   871(steps   1). Coordinate: 0.1496661258 0.2291160 0.8277805
-	// Arc   872(steps   1). Coordinate: 0.1498256909 0.2294177 0.8287204
-	// Arc   873(steps   1). Coordinate: 0.1499852091 0.2297195 0.8296603
-	// Arc   874(steps   1). Coordinate: 0.1501446803 0.2300215 0.8306002
-	// Arc   875(steps   1). Coordinate: 0.1503041045 0.2303236 0.8315401
-	// Arc   876(steps   1). Coordinate: 0.1504634813 0.2306259 0.8324799
-	// Arc   877(steps   1). Coordinate: 0.1506228109 0.2309284 0.8334196
-	// Arc   878(steps   1). Coordinate: 0.1507820929 0.2312310 0.8343593
-	// Arc   879(steps   1). Coordinate: 0.1509413274 0.2315337 0.8352990
-	// Arc   880(steps   1). Coordinate: 0.1511005141 0.2318366 0.8362386
-	// Arc   881(steps   1). Coordinate: 0.1512596530 0.2321396 0.8371782
-	// Arc   882(steps   1). Coordinate: 0.1514187439 0.2324428 0.8381178
-	// Arc   883(steps   1). Coordinate: 0.1515777867 0.2327462 0.8390573
-	// Arc   884(steps   1). Coordinate: 0.1517367813 0.2330497 0.8399968
-	// Arc   885(steps   1). Coordinate: 0.1518957276 0.2333533 0.8409362
-	// Arc   886(steps   1). Coordinate: 0.1520546254 0.2336571 0.8418756
-	// Arc   887(steps   1). Coordinate: 0.1522134746 0.2339611 0.8428150
-	// Arc   888(steps   1). Coordinate: 0.1523722751 0.2342652 0.8437543
-	// Arc   889(steps   1). Coordinate: 0.1525310267 0.2345694 0.8446935
-	// Arc   890(steps   1). Coordinate: 0.1526897294 0.2348738 0.8456328
-	// Arc   891(steps   1). Coordinate: 0.1528483829 0.2351784 0.8465720
-	// Arc   892(steps   1). Coordinate: 0.1530069872 0.2354831 0.8475111
-	// Arc   893(steps   1). Coordinate: 0.1531655422 0.2357880 0.8484502
-	// Arc   894(steps   1). Coordinate: 0.1533240477 0.2360931 0.8493893
-	// Arc   895(steps   1). Coordinate: 0.1534825035 0.2363983 0.8503283
-	// Arc   896(steps   1). Coordinate: 0.1536409096 0.2367036 0.8512672
-	// Arc   897(steps   1). Coordinate: 0.1537992658 0.2370091 0.8522062
-	// Arc   898(steps   1). Coordinate: 0.1539575720 0.2373148 0.8531451
-	// Arc   899(steps   1). Coordinate: 0.1541158281 0.2376206 0.8540839
-	// Arc   900(steps   1). Coordinate: 0.1542740339 0.2379266 0.8550227
-	// Arc   901(steps   1). Coordinate: 0.1544321892 0.2382327 0.8559615
-	// Arc   902(steps   1). Coordinate: 0.1545902940 0.2385390 0.8569002
-	// Arc   903(steps   1). Coordinate: 0.1547483482 0.2388455 0.8578388
-	// Arc   904(steps   1). Coordinate: 0.1549063515 0.2391521 0.8587775
-	// Arc   905(steps   1). Coordinate: 0.1550643039 0.2394588 0.8597161
-	// Arc   906(steps   1). Coordinate: 0.1552222051 0.2397658 0.8606546
-	// Arc   907(steps   1). Coordinate: 0.1553800552 0.2400729 0.8615931
-	// Arc   908(steps   1). Coordinate: 0.1555378539 0.2403801 0.8625315
-	// Arc   909(steps   1). Coordinate: 0.1556956011 0.2406876 0.8634700
-	// Arc   910(steps   1). Coordinate: 0.1558532966 0.2409951 0.8644083
-	// Arc   911(steps   1). Coordinate: 0.1560109404 0.2413029 0.8653466
-	// Arc   912(steps   1). Coordinate: 0.1561685323 0.2416108 0.8662849
-	// Arc   913(steps   1). Coordinate: 0.1563260721 0.2419189 0.8672231
-	// Arc   914(steps   1). Coordinate: 0.1564835597 0.2422271 0.8681613
-	// Arc   915(steps   1). Coordinate: 0.1566409950 0.2425355 0.8690995
-	// Arc   916(steps   1). Coordinate: 0.1567983778 0.2428440 0.8700376
-	// Arc   917(steps   1). Coordinate: 0.1569557079 0.2431528 0.8709756
-	// Arc   918(steps   1). Coordinate: 0.1571129854 0.2434617 0.8719136
-	// Arc   919(steps   1). Coordinate: 0.1572702099 0.2437707 0.8728516
-	// Arc   920(steps   1). Coordinate: 0.1574273813 0.2440800 0.8737895
-	// Arc   921(steps   1). Coordinate: 0.1575844995 0.2443893 0.8747273
-	// Arc   922(steps   1). Coordinate: 0.1577415645 0.2446989 0.8756652
-	// Arc   923(steps   1). Coordinate: 0.1578985759 0.2450086 0.8766029
-	// Arc   924(steps   1). Coordinate: 0.1580555337 0.2453185 0.8775407
-	// Arc   925(steps   1). Coordinate: 0.1582124377 0.2456286 0.8784783
-	// Arc   926(steps   1). Coordinate: 0.1583692877 0.2459388 0.8794160
-	// Arc   927(steps   1). Coordinate: 0.1585260837 0.2462492 0.8803536
-	// Arc   928(steps   1). Coordinate: 0.1586828255 0.2465598 0.8812911
-	// Arc   929(steps   1). Coordinate: 0.1588395129 0.2468705 0.8822286
-	// Arc   930(steps   1). Coordinate: 0.1589961457 0.2471814 0.8831660
-	// Arc   931(steps   1). Coordinate: 0.1591527239 0.2474925 0.8841034
-	// Arc   932(steps   1). Coordinate: 0.1593092473 0.2478038 0.8850408
-	// Arc   933(steps   1). Coordinate: 0.1594657156 0.2481152 0.8859781
-	// Arc   934(steps   1). Coordinate: 0.1596221289 0.2484268 0.8869153
-	// Arc   935(steps   1). Coordinate: 0.1597784868 0.2487386 0.8878525
-	// Arc   936(steps   1). Coordinate: 0.1599347893 0.2490505 0.8887897
-	// Arc   937(steps   1). Coordinate: 0.1600910362 0.2493626 0.8897268
-	// Arc   938(steps   1). Coordinate: 0.1602472274 0.2496749 0.8906638
-	// Arc   939(steps   1). Coordinate: 0.1604033626 0.2499874 0.8916009
-	// Arc   940(steps   1). Coordinate: 0.1605594418 0.2503000 0.8925378
-	// Arc   941(steps   1). Coordinate: 0.1607154647 0.2506129 0.8934747
-	// Arc   942(steps   1). Coordinate: 0.1608714313 0.2509259 0.8944116
-	// Arc   943(steps   1). Coordinate: 0.1610273413 0.2512390 0.8953484
-	// Arc   944(steps   1). Coordinate: 0.1611831946 0.2515524 0.8962852
-	// Arc   945(steps   1). Coordinate: 0.1613389911 0.2518659 0.8972219
-	// Arc   946(steps   1). Coordinate: 0.1614947305 0.2521796 0.8981585
-	// Arc   947(steps   1). Coordinate: 0.1616504128 0.2524935 0.8990951
-	// Arc   948(steps   1). Coordinate: 0.1618060377 0.2528076 0.9000317
-	// Arc   949(steps   1). Coordinate: 0.1619616051 0.2531218 0.9009682
-	// Arc   950(steps   1). Coordinate: 0.1621171148 0.2534362 0.9019047
-	// Arc   951(steps   1). Coordinate: 0.1622725667 0.2537508 0.9028411
-	// Arc   952(steps   1). Coordinate: 0.1624279606 0.2540656 0.9037774
-	// Arc   953(steps   1). Coordinate: 0.1625832963 0.2543806 0.9047137
-	// Arc   954(steps   1). Coordinate: 0.1627385737 0.2546957 0.9056500
-	// Arc   955(steps   1). Coordinate: 0.1628937926 0.2550110 0.9065862
-	// Arc   956(steps   1). Coordinate: 0.1630489528 0.2553265 0.9075224
-	// Arc   957(steps   1). Coordinate: 0.1632040541 0.2556422 0.9084585
-	// Arc   958(steps   1). Coordinate: 0.1633590965 0.2559581 0.9093945
-	// Arc   959(steps   1). Coordinate: 0.1635140796 0.2562742 0.9103305
-	// Arc   960(steps   1). Coordinate: 0.1636690035 0.2565904 0.9112664
-	// Arc   961(steps   1). Coordinate: 0.1638238678 0.2569069 0.9122023
-	// Arc   962(steps   1). Coordinate: 0.1639786724 0.2572235 0.9131382
-	// Arc   963(steps   1). Coordinate: 0.1641334171 0.2575403 0.9140739
-	// Arc   964(steps   1). Coordinate: 0.1642881018 0.2578573 0.9150097
-	// Arc   965(steps   1). Coordinate: 0.1644427262 0.2581744 0.9159453
-	// Arc   966(steps   1). Coordinate: 0.1645972903 0.2584918 0.9168810
-	// Arc   967(steps   1). Coordinate: 0.1647517938 0.2588094 0.9178165
-	// Arc   968(steps   1). Coordinate: 0.1649062365 0.2591271 0.9187521
-	// Arc   969(steps   1). Coordinate: 0.1650606183 0.2594450 0.9196875
-	// Arc   970(steps   1). Coordinate: 0.1652149391 0.2597632 0.9206229
-	// Arc   971(steps   1). Coordinate: 0.1653691985 0.2600815 0.9215583
-	// Arc   972(steps   1). Coordinate: 0.1655233964 0.2604000 0.9224936
-	// Arc   973(steps   1). Coordinate: 0.1656775327 0.2607187 0.9234288
-	// Arc   974(steps   1). Coordinate: 0.1658316072 0.2610376 0.9243640
-	// Arc   975(steps   1). Coordinate: 0.1659856197 0.2613566 0.9252991
-	// Arc   976(steps   1). Coordinate: 0.1661395700 0.2616759 0.9262342
-	// Arc   977(steps   1). Coordinate: 0.1662934578 0.2619954 0.9271692
-	// Arc   978(steps   1). Coordinate: 0.1664472831 0.2623150 0.9281042
-	// Arc   979(steps   1). Coordinate: 0.1666010457 0.2626349 0.9290391
-	// Arc   980(steps   1). Coordinate: 0.1667547453 0.2629550 0.9299739
-	// Arc   981(steps   1). Coordinate: 0.1669083818 0.2632752 0.9309087
-	// Arc   982(steps   1). Coordinate: 0.1670619550 0.2635956 0.9318435
-	// Arc   983(steps   1). Coordinate: 0.1672154646 0.2639163 0.9327781
-	// Arc   984(steps   1). Coordinate: 0.1673689106 0.2642371 0.9337128
-	// Arc   985(steps   1). Coordinate: 0.1675222926 0.2645582 0.9346473
-	// Arc   986(steps   1). Coordinate: 0.1676756106 0.2648794 0.9355818
-	// Arc   987(steps   1). Coordinate: 0.1678288643 0.2652008 0.9365163
-	// Arc   988(steps   1). Coordinate: 0.1679820536 0.2655225 0.9374507
-	// Arc   989(steps   1). Coordinate: 0.1681351781 0.2658443 0.9383850
-	// Arc   990(steps   1). Coordinate: 0.1682882378 0.2661663 0.9393193
-	// Arc   991(steps   1). Coordinate: 0.1684412325 0.2664886 0.9402535
-	// Arc   992(steps   1). Coordinate: 0.1685941618 0.2668110 0.9411876
-	// Arc   993(steps   1). Coordinate: 0.1687470257 0.2671336 0.9421217
-	// Arc   994(steps   1). Coordinate: 0.1688998240 0.2674565 0.9430558
-	// Arc   995(steps   1). Coordinate: 0.1690525564 0.2677795 0.9439898
-	// Arc   996(steps   1). Coordinate: 0.1692052227 0.2681028 0.9449237
-	// Arc   997(steps   1). Coordinate: 0.1693578228 0.2684262 0.9458575
-	// Arc   998(steps   1). Coordinate: 0.1695103564 0.2687499 0.9467913
-	// Arc   999(steps   1). Coordinate: 0.1696628234 0.2690738 0.9477251
-	// Arc  1000(steps   1). Coordinate: 0.1698152234 0.2693978 0.9486587
-	// Arc  1001(steps   1). Coordinate: 0.1699675564 0.2697221 0.9495924
-	// Arc  1002(steps   1). Coordinate: 0.1701198221 0.2700466 0.9505259
-	// Arc  1003(steps   1). Coordinate: 0.1702720203 0.2703713 0.9514594
-	// Arc  1004(steps   1). Coordinate: 0.1704241507 0.2706962 0.9523928
-	// Arc  1005(steps   1). Coordinate: 0.1705762133 0.2710213 0.9533262
-	// Arc  1006(steps   1). Coordinate: 0.1707282077 0.2713467 0.9542595
-	// Arc  1007(steps   1). Coordinate: 0.1708801338 0.2716722 0.9551927
-	// Arc  1008(steps   1). Coordinate: 0.1710319913 0.2719980 0.9561259
-	// Arc  1009(steps   1). Coordinate: 0.1711837801 0.2723239 0.9570590
-	// Arc  1010(steps   1). Coordinate: 0.1713354998 0.2726501 0.9579921
-	// Arc  1011(steps   1). Coordinate: 0.1714871504 0.2729765 0.9589251
-	// Arc  1012(steps   1). Coordinate: 0.1716387315 0.2733031 0.9598580
-	// Arc  1013(steps   1). Coordinate: 0.1717902430 0.2736299 0.9607909
-	// Arc  1014(steps   1). Coordinate: 0.1719416846 0.2739569 0.9617237
-	// Arc  1015(steps   1). Coordinate: 0.1720930561 0.2742842 0.9626564
-	// Arc  1016(steps   1). Coordinate: 0.1722443574 0.2746117 0.9635891
-	// Arc  1017(steps   1). Coordinate: 0.1723955881 0.2749393 0.9645217
-	// Arc  1018(steps   1). Coordinate: 0.1725467480 0.2752672 0.9654542
-	// Arc  1019(steps   1). Coordinate: 0.1726978370 0.2755954 0.9663867
-	// Arc  1020(steps   1). Coordinate: 0.1728488548 0.2759237 0.9673191
-	// Arc  1021(steps   1). Coordinate: 0.1729998011 0.2762523 0.9682515
-	// Arc  1022(steps   1). Coordinate: 0.1731506758 0.2765810 0.9691837
-	// Arc  1023(steps   1). Coordinate: 0.1733014786 0.2769100 0.9701159
-	// Arc  1024(steps   1). Coordinate: 0.1734522092 0.2772393 0.9710481
-	// Arc  1025(steps   1). Coordinate: 0.1736028676 0.2775687 0.9719802
-	// Arc  1026(steps   1). Coordinate: 0.1737534533 0.2778984 0.9729122
-	// Arc  1027(steps   1). Coordinate: 0.1739039662 0.2782283 0.9738441
-	// Arc  1028(steps   1). Coordinate: 0.1740544060 0.2785584 0.9747760
-	// Arc  1029(steps   1). Coordinate: 0.1742047726 0.2788887 0.9757078
-	// Arc  1030(steps   1). Coordinate: 0.1743550656 0.2792193 0.9766395
-	// Arc  1031(steps   1). Coordinate: 0.1745052849 0.2795501 0.9775712
-	// Arc  1032(steps   1). Coordinate: 0.1746554301 0.2798811 0.9785028
-	// Arc  1033(steps   1). Coordinate: 0.1748055011 0.2802123 0.9794343
-	// Arc  1034(steps   1). Coordinate: 0.1749554976 0.2805438 0.9803658
-	// Arc  1035(steps   1). Coordinate: 0.1751054194 0.2808755 0.9812972
-	// Arc  1036(steps   1). Coordinate: 0.1752552661 0.2812075 0.9822285
-	// Arc  1037(steps   1). Coordinate: 0.1754050377 0.2815396 0.9831598
-	// Arc  1038(steps   1). Coordinate: 0.1755547338 0.2818720 0.9840910
-	// Arc  1039(steps   1). Coordinate: 0.1757043541 0.2822047 0.9850221
-	// Arc  1040(steps   1). Coordinate: 0.1758538985 0.2825375 0.9859531
-	// Arc  1041(steps   1). Coordinate: 0.1760033666 0.2828706 0.9868841
-	// Arc  1042(steps   1). Coordinate: 0.1761527582 0.2832040 0.9878150
-	// Arc  1043(steps   1). Coordinate: 0.1763020731 0.2835375 0.9887458
-	// Arc  1044(steps   1). Coordinate: 0.1764513111 0.2838713 0.9896766
-	// Arc  1045(steps   1). Coordinate: 0.1766004717 0.2842054 0.9906073
-	// Arc  1046(steps   1). Coordinate: 0.1767495549 0.2845396 0.9915379
-	// Arc  1047(steps   1). Coordinate: 0.1768985603 0.2848742 0.9924684
-	// Arc  1048(steps   1). Coordinate: 0.1770474877 0.2852089 0.9933989
-	// Arc  1049(steps   1). Coordinate: 0.1771963368 0.2855439 0.9943292
-	// Arc  1050(steps   1). Coordinate: 0.1773451073 0.2858791 0.9952596
-	// Arc  1051(steps   1). Coordinate: 0.1774937990 0.2862146 0.9961898
-	// Arc  1052(steps   1). Coordinate: 0.1776424117 0.2865503 0.9971200
-	// Arc  1053(steps   1). Coordinate: 0.1777909450 0.2868863 0.9980501
-	// Arc  1054(steps   1). Coordinate: 0.1779393986 0.2872225 0.9989801
-	// Arc  1055(steps   1). Coordinate: 0.1780877724 0.2875589 0.9999100
-	// Arc  1056(steps   1). Coordinate: 0.1782360660 0.2878956 1.0008399
-	// Arc  1057(steps   1). Coordinate: 0.1783842792 0.2882326 1.0017697
-	// Arc  1058(steps   1). Coordinate: 0.1785324117 0.2885697 1.0026994
-	// Arc  1059(steps   1). Coordinate: 0.1786804632 0.2889072 1.0036290
-	// Arc  1060(steps   1). Coordinate: 0.1788284334 0.2892448 1.0045586
-	// Arc  1061(steps   1). Coordinate: 0.1789763221 0.2895828 1.0054881
-	// Arc  1062(steps   1). Coordinate: 0.1791241290 0.2899209 1.0064175
-	// Arc  1063(steps   1). Coordinate: 0.1792718537 0.2902594 1.0073468
-	// Arc  1064(steps   1). Coordinate: 0.1794194961 0.2905980 1.0082760
-	// Arc  1065(steps   1). Coordinate: 0.1795670558 0.2909370 1.0092052
-	// Arc  1066(steps   1). Coordinate: 0.1797145326 0.2912762 1.0101343
-	// Arc  1067(steps   1). Coordinate: 0.1798619261 0.2916156 1.0110633
-	// Arc  1068(steps   1). Coordinate: 0.1800092360 0.2919553 1.0119922
-	// Arc  1069(steps   1). Coordinate: 0.1801564622 0.2922952 1.0129211
-	// Arc  1070(steps   1). Coordinate: 0.1803036042 0.2926354 1.0138498
-	// Arc  1071(steps   1). Coordinate: 0.1804506618 0.2929759 1.0147785
-	// Arc  1072(steps   1). Coordinate: 0.1805976347 0.2933166 1.0157071
-	// Arc  1073(steps   1). Coordinate: 0.1807445226 0.2936576 1.0166357
-	// Arc  1074(steps   1). Coordinate: 0.1808913251 0.2939988 1.0175641
-	// Arc  1075(steps   1). Coordinate: 0.1810380421 0.2943403 1.0184925
-	// Arc  1076(steps   1). Coordinate: 0.1811846732 0.2946821 1.0194208
-	// Arc  1077(steps   1). Coordinate: 0.1813312180 0.2950241 1.0203490
-	// Arc  1078(steps   1). Coordinate: 0.1814776763 0.2953664 1.0212771
-	// Arc  1079(steps   1). Coordinate: 0.1816240478 0.2957089 1.0222051
-	// Arc  1080(steps   1). Coordinate: 0.1817703322 0.2960517 1.0231330
-	// Arc  1081(steps   1). Coordinate: 0.1819165291 0.2963948 1.0240609
-	// Arc  1082(steps   1). Coordinate: 0.1820626383 0.2967381 1.0249887
-	// Arc  1083(steps   1). Coordinate: 0.1822086594 0.2970817 1.0259164
-	// Arc  1084(steps   1). Coordinate: 0.1823545921 0.2974256 1.0268440
-	// Arc  1085(steps   1). Coordinate: 0.1825004360 0.2977698 1.0277715
-	// Arc  1086(steps   1). Coordinate: 0.1826461910 0.2981142 1.0286989
-	// Arc  1087(steps   1). Coordinate: 0.1827918566 0.2984589 1.0296263
-	// Arc  1088(steps   1). Coordinate: 0.1829374326 0.2988038 1.0305535
-	// Arc  1089(steps   1). Coordinate: 0.1830829185 0.2991490 1.0314807
-	// Arc  1090(steps   1). Coordinate: 0.1832283141 0.2994945 1.0324078
-	// Arc  1091(steps   1). Coordinate: 0.1833736191 0.2998403 1.0333348
-	// Arc  1092(steps   1). Coordinate: 0.1835188331 0.3001864 1.0342617
-	// Arc  1093(steps   1). Coordinate: 0.1836639558 0.3005327 1.0351885
-	// Arc  1094(steps   1). Coordinate: 0.1838089868 0.3008793 1.0361153
-	// Arc  1095(steps   1). Coordinate: 0.1839539259 0.3012262 1.0370419
-	// Arc  1096(steps   1). Coordinate: 0.1840987726 0.3015734 1.0379684
-	// Arc  1097(steps   1). Coordinate: 0.1842435267 0.3019208 1.0388949
-	// Arc  1098(steps   1). Coordinate: 0.1843881878 0.3022685 1.0398213
-	// Arc  1099(steps   1). Coordinate: 0.1845327555 0.3026165 1.0407476
-	// Arc  1100(steps   1). Coordinate: 0.1846772295 0.3029648 1.0416737
-	// Arc  1101(steps   1). Coordinate: 0.1848216095 0.3033134 1.0425998
-	// Arc  1102(steps   1). Coordinate: 0.1849658951 0.3036623 1.0435258
-	// Arc  1103(steps   1). Coordinate: 0.1851100860 0.3040114 1.0444517
-	// Arc  1104(steps   1). Coordinate: 0.1852541818 0.3043608 1.0453776
-	// Arc  1105(steps   1). Coordinate: 0.1853981821 0.3047106 1.0463033
-	// Arc  1106(steps   1). Coordinate: 0.1855420866 0.3050606 1.0472289
-	// Arc  1107(steps   1). Coordinate: 0.1856858950 0.3054109 1.0481544
-	// Arc  1108(steps   1). Coordinate: 0.1858296068 0.3057615 1.0490799
-	// Arc  1109(steps   1). Coordinate: 0.1859732217 0.3061123 1.0500052
-	// Arc  1110(steps   1). Coordinate: 0.1861167394 0.3064635 1.0509305
-	// Arc  1111(steps   1). Coordinate: 0.1862601595 0.3068150 1.0518556
-	// Arc  1112(steps   1). Coordinate: 0.1864034815 0.3071667 1.0527807
-	// Arc  1113(steps   1). Coordinate: 0.1865467052 0.3075188 1.0537056
-	// Arc  1114(steps   1). Coordinate: 0.1866898301 0.3078712 1.0546305
-	// Arc  1115(steps   1). Coordinate: 0.1868328559 0.3082238 1.0555552
-	// Arc  1116(steps   1). Coordinate: 0.1869757822 0.3085768 1.0564799
-	// Arc  1117(steps   1). Coordinate: 0.1871186087 0.3089300 1.0574045
-	// Arc  1118(steps   1). Coordinate: 0.1872613348 0.3092836 1.0583289
-	// Arc  1119(steps   1). Coordinate: 0.1874039603 0.3096374 1.0592533
-	// Arc  1120(steps   1). Coordinate: 0.1875464848 0.3099916 1.0601775
-	// Arc  1121(steps   1). Coordinate: 0.1876889078 0.3103461 1.0611017
-	// Arc  1122(steps   1). Coordinate: 0.1878312291 0.3107008 1.0620258
-	// Arc  1123(steps   1). Coordinate: 0.1879734481 0.3110559 1.0629497
-	// Arc  1124(steps   1). Coordinate: 0.1881155644 0.3114113 1.0638736
-	// Arc  1125(steps   1). Coordinate: 0.1882575778 0.3117670 1.0647973
-	// Arc  1126(steps   1). Coordinate: 0.1883994877 0.3121230 1.0657210
-	// Arc  1127(steps   1). Coordinate: 0.1885412939 0.3124793 1.0666445
-	// Arc  1128(steps   1). Coordinate: 0.1886829957 0.3128360 1.0675679
-	// Arc  1129(steps   1). Coordinate: 0.1888245930 0.3131929 1.0684913
-	// Arc  1130(steps   1). Coordinate: 0.1889660852 0.3135502 1.0694145
-	// Arc  1131(steps   1). Coordinate: 0.1891074719 0.3139077 1.0703376
-	// Arc  1132(steps   1). Coordinate: 0.1892487527 0.3142656 1.0712606
-	// Arc  1133(steps   1). Coordinate: 0.1893899273 0.3146238 1.0721835
-	// Arc  1134(steps   1). Coordinate: 0.1895309951 0.3149824 1.0731063
-	// Arc  1135(steps   1). Coordinate: 0.1896719557 0.3153412 1.0740290
-	// Arc  1136(steps   1). Coordinate: 0.1898128088 0.3157004 1.0749516
-	// Arc  1137(steps   1). Coordinate: 0.1899535538 0.3160599 1.0758741
-	// Arc  1138(steps   1). Coordinate: 0.1900941905 0.3164197 1.0767964
-	// Arc  1139(steps   1). Coordinate: 0.1902347182 0.3167798 1.0777187
-	// Arc  1140(steps   1). Coordinate: 0.1903751366 0.3171403 1.0786408
-	// Arc  1141(steps   1). Coordinate: 0.1905154452 0.3175011 1.0795629
-	// Arc  1142(steps   1). Coordinate: 0.1906556437 0.3178622 1.0804848
-	// Arc  1143(steps   1). Coordinate: 0.1907957315 0.3182237 1.0814066
-	// Arc  1144(steps   1). Coordinate: 0.1909357082 0.3185854 1.0823283
-	// Arc  1145(steps   1). Coordinate: 0.1910755733 0.3189476 1.0832499
-	// Arc  1146(steps   1). Coordinate: 0.1912153264 0.3193100 1.0841713
-	// Arc  1147(steps   1). Coordinate: 0.1913549671 0.3196728 1.0850927
-	// Arc  1148(steps   1). Coordinate: 0.1914944948 0.3200359 1.0860139
-	// Arc  1149(steps   1). Coordinate: 0.1916339092 0.3203994 1.0869350
-	// Arc  1150(steps   1). Coordinate: 0.1917732097 0.3207632 1.0878560
-	// Arc  1151(steps   1). Coordinate: 0.1919123958 0.3211273 1.0887769
-	// Arc  1152(steps   1). Coordinate: 0.1920514672 0.3214918 1.0896977
-	// Arc  1153(steps   1). Coordinate: 0.1921904233 0.3218566 1.0906183
-	// Arc  1154(steps   1). Coordinate: 0.1923292636 0.3222218 1.0915389
-	// Arc  1155(steps   1). Coordinate: 0.1924679877 0.3225873 1.0924593
-	// Arc  1156(steps   1). Coordinate: 0.1926065951 0.3229532 1.0933796
-	// Arc  1157(steps   1). Coordinate: 0.1927450852 0.3233194 1.0942997
-	// Arc  1158(steps   1). Coordinate: 0.1928834577 0.3236859 1.0952198
-	// Arc  1159(steps   1). Coordinate: 0.1930217119 0.3240529 1.0961397
-	// Arc  1160(steps   1). Coordinate: 0.1931598475 0.3244201 1.0970595
-	// Arc  1161(steps   1). Coordinate: 0.1932978638 0.3247877 1.0979792
-	// Arc  1162(steps   1). Coordinate: 0.1934357605 0.3251557 1.0988987
-	// Arc  1163(steps   1). Coordinate: 0.1935735370 0.3255240 1.0998182
-	// Arc  1164(steps   1). Coordinate: 0.1937111927 0.3258927 1.1007375
-	// Arc  1165(steps   1). Coordinate: 0.1938487272 0.3262618 1.1016567
-	// Arc  1166(steps   1). Coordinate: 0.1939861399 0.3266312 1.1025757
-	// Arc  1167(steps   1). Coordinate: 0.1941234304 0.3270009 1.1034946
-	// Arc  1168(steps   1). Coordinate: 0.1942605981 0.3273710 1.1044134
-	// Arc  1169(steps   1). Coordinate: 0.1943976424 0.3277415 1.1053321
-	// Arc  1170(steps   1). Coordinate: 0.1945345629 0.3281124 1.1062507
-	// Arc  1171(steps   1). Coordinate: 0.1946713590 0.3284836 1.1071691
-	// Arc  1172(steps   1). Coordinate: 0.1948080302 0.3288552 1.1080873
-	// Arc  1173(steps   1). Coordinate: 0.1949445759 0.3292272 1.1090055
-	// Arc  1174(steps   1). Coordinate: 0.1950809956 0.3295995 1.1099235
-	// Arc  1175(steps   1). Coordinate: 0.1952172887 0.3299722 1.1108414
-	// Arc  1176(steps   1). Coordinate: 0.1953534547 0.3303453 1.1117591
-	// Arc  1177(steps   1). Coordinate: 0.1954894930 0.3307188 1.1126768
-	// Arc  1178(steps   1). Coordinate: 0.1956254031 0.3310926 1.1135942
-	// Arc  1179(steps   1). Coordinate: 0.1957611843 0.3314668 1.1145116
-	// Arc  1180(steps   1). Coordinate: 0.1958968362 0.3318414 1.1154288
-	// Arc  1181(steps   1). Coordinate: 0.1960323582 0.3322164 1.1163459
-	// Arc  1182(steps   1). Coordinate: 0.1961677496 0.3325918 1.1172628
-	// Arc  1183(steps   1). Coordinate: 0.1963030099 0.3329676 1.1181796
-	// Arc  1184(steps   1). Coordinate: 0.1964381385 0.3333437 1.1190962
-	// Arc  1185(steps   1). Coordinate: 0.1965731348 0.3337202 1.1200128
-	// Arc  1186(steps   1). Coordinate: 0.1967079983 0.3340971 1.1209291
-	// Arc  1187(steps   1). Coordinate: 0.1968427283 0.3344745 1.1218454
-	// Arc  1188(steps   1). Coordinate: 0.1969773243 0.3348522 1.1227615
-	// Arc  1189(steps   1). Coordinate: 0.1971117856 0.3352303 1.1236774
-	// Arc  1190(steps   1). Coordinate: 0.1972461115 0.3356088 1.1245932
-	// Arc  1191(steps   1). Coordinate: 0.1973803016 0.3359877 1.1255089
-	// Arc  1192(steps   1). Coordinate: 0.1975143552 0.3363670 1.1264244
-	// Arc  1193(steps   1). Coordinate: 0.1976482717 0.3367467 1.1273397
-	// Arc  1194(steps   1). Coordinate: 0.1977820504 0.3371268 1.1282550
-	// Arc  1195(steps   1). Coordinate: 0.1979156907 0.3375073 1.1291700
-	// Arc  1196(steps   1). Coordinate: 0.1980491919 0.3378882 1.1300850
-	// Arc  1197(steps   1). Coordinate: 0.1981825535 0.3382695 1.1309997
-	// Arc  1198(steps   1). Coordinate: 0.1983157748 0.3386512 1.1319143
-	// Arc  1199(steps   1). Coordinate: 0.1984488552 0.3390334 1.1328288
-	// Arc  1200(steps   1). Coordinate: 0.1985817939 0.3394160 1.1337431
-	// Arc  1201(steps   1). Coordinate: 0.1987145903 0.3397989 1.1346573
-	// Arc  1202(steps   1). Coordinate: 0.1988472438 0.3401823 1.1355713
-	// Arc  1203(steps   1). Coordinate: 0.1989797537 0.3405661 1.1364852
-	// Arc  1204(steps   1). Coordinate: 0.1991121193 0.3409504 1.1373989
-	// Arc  1205(steps   1). Coordinate: 0.1992443400 0.3413350 1.1383124
-	// Arc  1206(steps   1). Coordinate: 0.1993764150 0.3417201 1.1392258
-	// Arc  1207(steps   1). Coordinate: 0.1995083437 0.3421056 1.1401390
-	// Arc  1208(steps   1). Coordinate: 0.1996401254 0.3424916 1.1410521
-	// Arc  1209(steps   1). Coordinate: 0.1997717594 0.3428779 1.1419650
-	// Arc  1210(steps   1). Coordinate: 0.1999032450 0.3432647 1.1428777
-	// Arc  1211(steps   1). Coordinate: 0.2000345814 0.3436520 1.1437903
-	// Arc  1212(steps   1). Coordinate: 0.2001657680 0.3440396 1.1447027
-	// Arc  1213(steps   1). Coordinate: 0.2002968040 0.3444277 1.1456150
-	// Arc  1214(steps   1). Coordinate: 0.2004276887 0.3448163 1.1465270
-	// Arc  1215(steps   1). Coordinate: 0.2005584215 0.3452053 1.1474390
-	// Arc  1216(steps   1). Coordinate: 0.2006890015 0.3455947 1.1483507
-	// Arc  1217(steps   1). Coordinate: 0.2008194279 0.3459846 1.1492623
-	// Arc  1218(steps   1). Coordinate: 0.2009497002 0.3463749 1.1501737
-	// Arc  1219(steps   1). Coordinate: 0.2010798175 0.3467657 1.1510850
-	// Arc  1220(steps   1). Coordinate: 0.2012097790 0.3471569 1.1519960
-	// Arc  1221(steps   1). Coordinate: 0.2013395841 0.3475486 1.1529069
-	// Arc  1222(steps   1). Coordinate: 0.2014692318 0.3479407 1.1538177
-	// Arc  1223(steps   1). Coordinate: 0.2015987216 0.3483333 1.1547282
-	// Arc  1224(steps   1). Coordinate: 0.2017280524 0.3487264 1.1556386
-	// Arc  1225(steps   1). Coordinate: 0.2018572237 0.3491199 1.1565488
-	// Arc  1226(steps   1). Coordinate: 0.2019862346 0.3495139 1.1574588
-	// Arc  1227(steps   1). Coordinate: 0.2021150843 0.3499083 1.1583686
-	// Arc  1228(steps   1). Coordinate: 0.2022437719 0.3503032 1.1592783
-	// Arc  1229(steps   1). Coordinate: 0.2023722967 0.3506986 1.1601878
-	// Arc  1230(steps   1). Coordinate: 0.2025006579 0.3510945 1.1610971
-	// Arc  1231(steps   1). Coordinate: 0.2026288547 0.3514908 1.1620062
-	// Arc  1232(steps   1). Coordinate: 0.2027568861 0.3518876 1.1629151
-	// Arc  1233(steps   1). Coordinate: 0.2028847514 0.3522849 1.1638239
-	// Arc  1234(steps   1). Coordinate: 0.2030124498 0.3526826 1.1647324
-	// Arc  1235(steps   1). Coordinate: 0.2031399803 0.3530809 1.1656408
-	// Arc  1236(steps   1). Coordinate: 0.2032673422 0.3534796 1.1665490
-	// Arc  1237(steps   1). Coordinate: 0.2033945345 0.3538788 1.1674570
-	// Arc  1238(steps   1). Coordinate: 0.2035215564 0.3542785 1.1683648
-	// Arc  1239(steps   1). Coordinate: 0.2036484071 0.3546787 1.1692724
-	// Arc  1240(steps   1). Coordinate: 0.2037750855 0.3550794 1.1701798
-	// Arc  1241(steps   1). Coordinate: 0.2039015909 0.3554806 1.1710870
-	// Arc  1242(steps   1). Coordinate: 0.2040279224 0.3558823 1.1719940
-	// Arc  1243(steps   1). Coordinate: 0.2041540789 0.3562845 1.1729008
-	// Arc  1244(steps   1). Coordinate: 0.2042800597 0.3566872 1.1738075
-	// Arc  1245(steps   1). Coordinate: 0.2044058639 0.3570904 1.1747139
-	// Arc  1246(steps   1). Coordinate: 0.2045314904 0.3574941 1.1756201
-	// Arc  1247(steps   1). Coordinate: 0.2046569383 0.3578984 1.1765261
-	// Arc  1248(steps   1). Coordinate: 0.2047822067 0.3583031 1.1774319
-	// Arc  1249(steps   1). Coordinate: 0.2049072947 0.3587084 1.1783375
-	// Arc  1250(steps   1). Coordinate: 0.2050322013 0.3591141 1.1792429
-	// Arc  1251(steps   1). Coordinate: 0.2051569255 0.3595204 1.1801481
-	// Arc  1252(steps   1). Coordinate: 0.2052814664 0.3599272 1.1810531
-	// Arc  1253(steps   1). Coordinate: 0.2054058229 0.3603346 1.1819579
-	// Arc  1254(steps   1). Coordinate: 0.2055299942 0.3607425 1.1828624
-	// Arc  1255(steps   1). Coordinate: 0.2056539791 0.3611509 1.1837668
-	// Arc  1256(steps   1). Coordinate: 0.2057777767 0.3615598 1.1846709
-	// Arc  1257(steps   1). Coordinate: 0.2059013859 0.3619693 1.1855748
-	// Arc  1258(steps   1). Coordinate: 0.2060248058 0.3623793 1.1864785
-	// Arc  1259(steps   1). Coordinate: 0.2061480354 0.3627898 1.1873820
-	// Arc  1260(steps   1). Coordinate: 0.2062710734 0.3632009 1.1882852
-	// Arc  1261(steps   1). Coordinate: 0.2063939190 0.3636126 1.1891882
-	// Arc  1262(steps   1). Coordinate: 0.2065165711 0.3640248 1.1900911
-	// Arc  1263(steps   1). Coordinate: 0.2066390286 0.3644375 1.1909936
-	// Arc  1264(steps   1). Coordinate: 0.2067612903 0.3648508 1.1918960
-	// Arc  1265(steps   1). Coordinate: 0.2068833554 0.3652647 1.1927981
-	// Arc  1266(steps   1). Coordinate: 0.2070052225 0.3656791 1.1937000
-	// Arc  1267(steps   1). Coordinate: 0.2071268907 0.3660941 1.1946016
-	// Arc  1268(steps   1). Coordinate: 0.2072483588 0.3665096 1.1955031
-	// Arc  1269(steps   1). Coordinate: 0.2073696257 0.3669257 1.1964043
-	// Arc  1270(steps   1). Coordinate: 0.2074906903 0.3673424 1.1973052
-	// Arc  1271(steps   1). Coordinate: 0.2076115514 0.3677597 1.1982059
-	// Arc  1272(steps   1). Coordinate: 0.2077322078 0.3681776 1.1991064
-	// Arc  1273(steps   1). Coordinate: 0.2078526585 0.3685960 1.2000066
-	// Arc  1274(steps   1). Coordinate: 0.2079729022 0.3690150 1.2009066
-	// Arc  1275(steps   1). Coordinate: 0.2080929377 0.3694346 1.2018063
-	// Arc  1276(steps   1). Coordinate: 0.2082127639 0.3698548 1.2027058
-	// Arc  1277(steps   1). Coordinate: 0.2083323796 0.3702756 1.2036051
-	// Arc  1278(steps   1). Coordinate: 0.2084517835 0.3706969 1.2045041
-	// Arc  1279(steps   1). Coordinate: 0.2085709744 0.3711189 1.2054028
-	// Arc  1280(steps   1). Coordinate: 0.2086899511 0.3715415 1.2063013
-	// Arc  1281(steps   1). Coordinate: 0.2088087123 0.3719647 1.2071995
-	// Arc  1282(steps   1). Coordinate: 0.2089272567 0.3723885 1.2080975
-	// Arc  1283(steps   1). Coordinate: 0.2090455832 0.3728129 1.2089952
-	// Arc  1284(steps   1). Coordinate: 0.2091636904 0.3732379 1.2098926
-	// Arc  1285(steps   1). Coordinate: 0.2092815769 0.3736635 1.2107898
-	// Arc  1286(steps   1). Coordinate: 0.2093992417 0.3740898 1.2116867
-	// Arc  1287(steps   1). Coordinate: 0.2095166832 0.3745167 1.2125834
-	// Arc  1288(steps   1). Coordinate: 0.2096339001 0.3749442 1.2134798
-	// Arc  1289(steps   1). Coordinate: 0.2097508912 0.3753723 1.2143759
-	// Arc  1290(steps   1). Coordinate: 0.2098676551 0.3758011 1.2152717
-	// Arc  1291(steps   1). Coordinate: 0.2099841903 0.3762305 1.2161673
-	// Arc  1292(steps   1). Coordinate: 0.2101004956 0.3766606 1.2170625
-	// Arc  1293(steps   1). Coordinate: 0.2102165695 0.3770913 1.2179575
-	// Arc  1294(steps   1). Coordinate: 0.2103324107 0.3775226 1.2188523
-	// Arc  1295(steps   1). Coordinate: 0.2104480176 0.3779546 1.2197467
-	// Arc  1296(steps   1). Coordinate: 0.2105633890 0.3783873 1.2206408
-	// Arc  1297(steps   1). Coordinate: 0.2106785232 0.3788206 1.2215347
-	// Arc  1298(steps   1). Coordinate: 0.2107934190 0.3792546 1.2224282
-	// Arc  1299(steps   1). Coordinate: 0.2109080747 0.3796892 1.2233215
-	// Arc  1300(steps   1). Coordinate: 0.2110224890 0.3801245 1.2242145
-	// Arc  1301(steps   1). Coordinate: 0.2111366602 0.3805605 1.2251072
-	// Arc  1302(steps   1). Coordinate: 0.2112505870 0.3809972 1.2259996
-	// Arc  1303(steps   1). Coordinate: 0.2113642677 0.3814346 1.2268916
-	// Arc  1304(steps   1). Coordinate: 0.2114777009 0.3818726 1.2277834
-	// Arc  1305(steps   1). Coordinate: 0.2115908849 0.3823113 1.2286749
-	// Arc  1306(steps   1). Coordinate: 0.2117038182 0.3827507 1.2295660
-	// Arc  1307(steps   1). Coordinate: 0.2118164992 0.3831909 1.2304569
-	// Arc  1308(steps   1). Coordinate: 0.2119289263 0.3836317 1.2313474
-	// Arc  1309(steps   1). Coordinate: 0.2120410978 0.3840732 1.2322376
-	// Arc  1310(steps   1). Coordinate: 0.2121530122 0.3845154 1.2331275
-	// Arc  1311(steps   1). Coordinate: 0.2122646678 0.3849584 1.2340171
-	// Arc  1312(steps   1). Coordinate: 0.2123760629 0.3854020 1.2349063
-	// Arc  1313(steps   1). Coordinate: 0.2124871958 0.3858464 1.2357952
-	// Arc  1314(steps   1). Coordinate: 0.2125980649 0.3862915 1.2366838
-	// Arc  1315(steps   1). Coordinate: 0.2127086683 0.3867374 1.2375721
-	// Arc  1316(steps   1). Coordinate: 0.2128190044 0.3871840 1.2384600
-	// Arc  1317(steps   1). Coordinate: 0.2129290715 0.3876313 1.2393476
-	// Arc  1318(steps   1). Coordinate: 0.2130388676 0.3880793 1.2402348
-	// Arc  1319(steps   1). Coordinate: 0.2131483912 0.3885281 1.2411217
-	// Arc  1320(steps   1). Coordinate: 0.2132576402 0.3889777 1.2420082
-	// Arc  1321(steps   1). Coordinate: 0.2133666130 0.3894280 1.2428944
-	// Arc  1322(steps   1). Coordinate: 0.2134753076 0.3898790 1.2437803
-	// Arc  1323(steps   1). Coordinate: 0.2135837223 0.3903309 1.2446658
-	// Arc  1324(steps   1). Coordinate: 0.2136918550 0.3907835 1.2455509
-	// Arc  1325(steps   1). Coordinate: 0.2137997040 0.3912369 1.2464357
-	// Arc  1326(steps   1). Coordinate: 0.2139072673 0.3916910 1.2473201
-	// Arc  1327(steps   1). Coordinate: 0.2140145429 0.3921459 1.2482041
-	// Arc  1328(steps   1). Coordinate: 0.2141215289 0.3926017 1.2490878
-	// Arc  1329(steps   1). Coordinate: 0.2142282233 0.3930582 1.2499711
-	// Arc  1330(steps   1). Coordinate: 0.2143346241 0.3935155 1.2508540
-	// Arc  1331(steps   1). Coordinate: 0.2144407293 0.3939736 1.2517365
-	// Arc  1332(steps   1). Coordinate: 0.2145465368 0.3944325 1.2526187
-	// Arc  1333(steps   1). Coordinate: 0.2146520446 0.3948923 1.2535005
-	// Arc  1334(steps   1). Coordinate: 0.2147572505 0.3953528 1.2543818
-	// Arc  1335(steps   1). Coordinate: 0.2148621525 0.3958142 1.2552628
-	// Arc  1336(steps   1). Coordinate: 0.2149667484 0.3962764 1.2561434
-	// Arc  1337(steps   1). Coordinate: 0.2150710361 0.3967394 1.2570236
-	// Arc  1338(steps   1). Coordinate: 0.2151750133 0.3972033 1.2579034
-	// Arc  1339(steps   1). Coordinate: 0.2152786779 0.3976680 1.2587827
-	// Arc  1340(steps   1). Coordinate: 0.2153820277 0.3981336 1.2596617
-	// Arc  1341(steps   1). Coordinate: 0.2154850603 0.3986000 1.2605402
-	// Arc  1342(steps   1). Coordinate: 0.2155877736 0.3990673 1.2614184
-	// Arc  1343(steps   1). Coordinate: 0.2156901651 0.3995354 1.2622961
-	// Arc  1344(steps   1). Coordinate: 0.2157922326 0.4000044 1.2631733
-	// Arc  1345(steps   1). Coordinate: 0.2158939738 0.4004743 1.2640502
-	// Arc  1346(steps   1). Coordinate: 0.2159953861 0.4009451 1.2649266
-	// Arc  1347(steps   1). Coordinate: 0.2160964673 0.4014167 1.2658026
-	// Arc  1348(steps   1). Coordinate: 0.2161972149 0.4018892 1.2666781
-	// Arc  1349(steps   1). Coordinate: 0.2162976264 0.4023627 1.2675532
-	// Arc  1350(steps   1). Coordinate: 0.2163976994 0.4028370 1.2684278
-	// Arc  1351(steps   1). Coordinate: 0.2164974313 0.4033123 1.2693020
-	// Arc  1352(steps   1). Coordinate: 0.2165968195 0.4037884 1.2701757
-	// Arc  1353(steps   1). Coordinate: 0.2166958616 0.4042655 1.2710490
-	// Arc  1354(steps   1). Coordinate: 0.2167945548 0.4047436 1.2719218
-	// Arc  1355(steps   1). Coordinate: 0.2168928966 0.4052225 1.2727941
-	// Arc  1356(steps   1). Coordinate: 0.2169908843 0.4057024 1.2736659
-	// Arc  1357(steps   1). Coordinate: 0.2170885152 0.4061832 1.2745373
-	// Arc  1358(steps   1). Coordinate: 0.2171857865 0.4066650 1.2754082
-	// Arc  1359(steps   1). Coordinate: 0.2172826956 0.4071478 1.2762785
-	// Arc  1360(steps   1). Coordinate: 0.2173792396 0.4076315 1.2771484
-	// Arc  1361(steps   1). Coordinate: 0.2174754156 0.4081162 1.2780178
-	// Arc  1362(steps   1). Coordinate: 0.2175712209 0.4086018 1.2788867
-	// Arc  1363(steps   1). Coordinate: 0.2176666526 0.4090885 1.2797551
-	// Arc  1364(steps   1). Coordinate: 0.2177617076 0.4095761 1.2806229
-	// Arc  1365(steps   1). Coordinate: 0.2178563831 0.4100647 1.2814903
-	// Arc  1366(steps   1). Coordinate: 0.2179506761 0.4105544 1.2823571
-	// Arc  1367(steps   1). Coordinate: 0.2180445835 0.4110450 1.2832234
-	// Arc  1368(steps   1). Coordinate: 0.2181381022 0.4115367 1.2840891
-	// Arc  1369(steps   1). Coordinate: 0.2182312292 0.4120294 1.2849543
-	// Arc  1370(steps   1). Coordinate: 0.2183239613 0.4125231 1.2858190
-	// Arc  1371(steps   1). Coordinate: 0.2184162953 0.4130179 1.2866831
-	// Arc  1372(steps   1). Coordinate: 0.2185082281 0.4135137 1.2875466
-	// Arc  1373(steps   1). Coordinate: 0.2185997562 0.4140106 1.2884096
-	// Arc  1374(steps   1). Coordinate: 0.2186908765 0.4145085 1.2892720
-	// Arc  1375(steps   1). Coordinate: 0.2187815856 0.4150075 1.2901339
-	// Arc  1376(steps   1). Coordinate: 0.2188718802 0.4155076 1.2909951
-	// Arc  1377(steps   1). Coordinate: 0.2189617567 0.4160088 1.2918558
-	// Arc  1378(steps   1). Coordinate: 0.2190512117 0.4165110 1.2927159
-	// Arc  1379(steps   1). Coordinate: 0.2191402417 0.4170144 1.2935753
-	// Arc  1380(steps   1). Coordinate: 0.2192288432 0.4175188 1.2944342
-	// Arc  1381(steps   1). Coordinate: 0.2193170126 0.4180244 1.2952925
-	// Arc  1382(steps   1). Coordinate: 0.2194047461 0.4185311 1.2961501
-	// Arc  1383(steps   1). Coordinate: 0.2194920402 0.4190390 1.2970071
-	// Arc  1384(steps   1). Coordinate: 0.2195788910 0.4195480 1.2978635
-	// Arc  1385(steps   1). Coordinate: 0.2196652948 0.4200581 1.2987193
-	// Arc  1386(steps   1). Coordinate: 0.2197512478 0.4205694 1.2995744
-	// Arc  1387(steps   1). Coordinate: 0.2198367460 0.4210818 1.3004288
-	// Arc  1388(steps   1). Coordinate: 0.2199217855 0.4215955 1.3012826
-	// Arc  1389(steps   1). Coordinate: 0.2200063624 0.4221103 1.3021357
-	// Arc  1390(steps   1). Coordinate: 0.2200904726 0.4226263 1.3029882
-	// Arc  1391(steps   1). Coordinate: 0.2201741119 0.4231435 1.3038399
-	// Arc  1392(steps   1). Coordinate: 0.2202572763 0.4236619 1.3046910
-	// Arc  1393(steps   1). Coordinate: 0.2203399615 0.4241815 1.3055414
-	// Arc  1394(steps   1). Coordinate: 0.2204221634 0.4247024 1.3063911
-	// Arc  1395(steps   1). Coordinate: 0.2205038774 0.4252245 1.3072400
-	// Arc  1396(steps   1). Coordinate: 0.2205850994 0.4257479 1.3080882
-	// Arc  1397(steps   1). Coordinate: 0.2206658248 0.4262725 1.3089358
-	// Arc  1398(steps   1). Coordinate: 0.2207460492 0.4267983 1.3097825
-	// Arc  1399(steps   1). Coordinate: 0.2208257680 0.4273255 1.3106286
-	// Arc  1400(steps   1). Coordinate: 0.2209049766 0.4278539 1.3114738
-	// Arc  1401(steps   1). Coordinate: 0.2209836703 0.4283836 1.3123183
-	// Arc  1402(steps   1). Coordinate: 0.2210618443 0.4289147 1.3131621
-	// Arc  1403(steps   1). Coordinate: 0.2211394939 0.4294470 1.3140050
-	// Arc  1404(steps   1). Coordinate: 0.2212166142 0.4299807 1.3148472
-	// Arc  1405(steps   1). Coordinate: 0.2212932002 0.4305157 1.3156885
-	// Arc  1406(steps   1). Coordinate: 0.2213692470 0.4310521 1.3165291
-	// Arc  1407(steps   1). Coordinate: 0.2214447493 0.4315898 1.3173688
-	// Arc  1408(steps   1). Coordinate: 0.2215197022 0.4321289 1.3182077
-	// Arc  1409(steps   1). Coordinate: 0.2215941003 0.4326694 1.3190458
-	// Arc  1410(steps   1). Coordinate: 0.2216679384 0.4332113 1.3198830
-	// Arc  1411(steps   1). Coordinate: 0.2217412110 0.4337545 1.3207194
-	// Arc  1412(steps   1). Coordinate: 0.2218139128 0.4342992 1.3215549
-	// Arc  1413(steps   1). Coordinate: 0.2218860381 0.4348453 1.3223895
-	// Arc  1414(steps   1). Coordinate: 0.2219575814 0.4353929 1.3232232
-	// Arc  1415(steps   1). Coordinate: 0.2220285370 0.4359418 1.3240560
-	// Arc  1416(steps   1). Coordinate: 0.2220988991 0.4364923 1.3248879
-	// Arc  1417(steps   1). Coordinate: 0.2221686619 0.4370442 1.3257189
-	// Arc  1418(steps   1). Coordinate: 0.2222378193 0.4375976 1.3265489
-	// Arc  1419(steps   1). Coordinate: 0.2223063655 0.4381525 1.3273780
-	// Arc  1420(steps   1). Coordinate: 0.2223742941 0.4387089 1.3282061
-	// Arc  1421(steps   1). Coordinate: 0.2224415991 0.4392669 1.3290333
-	// Arc  1422(steps   1). Coordinate: 0.2225082741 0.4398263 1.3298594
-	// Arc  1423(steps   1). Coordinate: 0.2225743128 0.4403873 1.3306846
-	// Arc  1424(steps   1). Coordinate: 0.2226397086 0.4409499 1.3315088
-	// Arc  1425(steps   1). Coordinate: 0.2227044549 0.4415141 1.3323319
-	// Arc  1426(steps   1). Coordinate: 0.2227685450 0.4420798 1.3331540
-	// Arc  1427(steps   1). Coordinate: 0.2228319722 0.4426471 1.3339750
-	// Arc  1428(steps   1). Coordinate: 0.2228947296 0.4432161 1.3347950
-	// Arc  1429(steps   1). Coordinate: 0.2229568101 0.4437867 1.3356139
-	// Arc  1430(steps   1). Coordinate: 0.2230182067 0.4443589 1.3364317
-	// Arc  1431(steps   1). Coordinate: 0.2230789121 0.4449327 1.3372484
-	// Arc  1432(steps   1). Coordinate: 0.2231389189 0.4455083 1.3380640
-	// Arc  1433(steps   1). Coordinate: 0.2231982198 0.4460855 1.3388784
-	// Arc  1434(steps   1). Coordinate: 0.2232568072 0.4466644 1.3396917
-	// Arc  1435(steps   1). Coordinate: 0.2233146735 0.4472451 1.3405038
-	// Arc  1436(steps   2). Coordinate: 0.2233718107 0.4478274 1.3413147
-	// Arc  1437(steps   2). Coordinate: 0.2234282110 0.4484115 1.3421244
-	// Arc  1438(steps   2). Coordinate: 0.2234838663 0.4489974 1.3429329
-	// Arc  1439(steps   2). Coordinate: 0.2235387686 0.4495851 1.3437401
-	// Arc  1440(steps   2). Coordinate: 0.2235929093 0.4501745 1.3445461
-	// Arc  1441(steps   2). Coordinate: 0.2236462802 0.4507657 1.3453509
-	// Arc  1442(steps   2). Coordinate: 0.2236988727 0.4513588 1.3461543
-	// Arc  1443(steps   2). Coordinate: 0.2237506780 0.4519537 1.3469564
-	// Arc  1444(steps   2). Coordinate: 0.2238016873 0.4525505 1.3477572
-	// Arc  1445(steps   2). Coordinate: 0.2238518916 0.4531491 1.3485567
-	// Arc  1446(steps   2). Coordinate: 0.2239012817 0.4537496 1.3493547
-	// Arc  1447(steps   2). Coordinate: 0.2239498484 0.4543521 1.3501514
-	// Arc  1448(steps   2). Coordinate: 0.2239975823 0.4549564 1.3509467
-	// Arc  1449(steps   2). Coordinate: 0.2240444737 0.4555627 1.3517406
-	// Arc  1450(steps   2). Coordinate: 0.2240905128 0.4561709 1.3525330
-	// Arc  1451(steps   2). Coordinate: 0.2241356898 0.4567812 1.3533239
-	// Arc  1452(steps   2). Coordinate: 0.2241799946 0.4573934 1.3541134
-	// Arc  1453(steps   2). Coordinate: 0.2242234170 0.4580076 1.3549013
-	// Arc  1454(steps   2). Coordinate: 0.2242659464 0.4586239 1.3556877
-	// Arc  1455(steps   2). Coordinate: 0.2243075724 0.4592422 1.3564725
-	// Arc  1456(steps   2). Coordinate: 0.2243482841 0.4598626 1.3572557
-	// Arc  1457(steps   2). Coordinate: 0.2243880707 0.4604851 1.3580374
-	// Arc  1458(steps   2). Coordinate: 0.2244269209 0.4611097 1.3588174
-	// Arc  1459(steps   2). Coordinate: 0.2244648234 0.4617364 1.3595957
-	// Arc  1460(steps   2). Coordinate: 0.2245017668 0.4623653 1.3603723
-	// Arc  1461(steps   2). Coordinate: 0.2245377392 0.4629963 1.3611472
-	// Arc  1462(steps   2). Coordinate: 0.2245727289 0.4636295 1.3619204
-	// Arc  1463(steps   2). Coordinate: 0.2246067236 0.4642649 1.3626918
-	// Arc  1464(steps   2). Coordinate: 0.2246397111 0.4649026 1.3634614
-	// Arc  1465(steps   2). Coordinate: 0.2246716788 0.4655425 1.3642292
-	// Arc  1466(steps   2). Coordinate: 0.2247026139 0.4661847 1.3649952
-	// Arc  1467(steps   2). Coordinate: 0.2247325035 0.4668292 1.3657592
-	// Arc  1468(steps   2). Coordinate: 0.2247613345 0.4674760 1.3665213
-	// Arc  1469(steps   2). Coordinate: 0.2247890932 0.4681251 1.3672815
-	// Arc  1470(steps   2). Coordinate: 0.2248157662 0.4687766 1.3680397
-	// Arc  1471(steps   2). Coordinate: 0.2248413394 0.4694305 1.3687958
-	// Arc  1472(steps   2). Coordinate: 0.2248657989 0.4700868 1.3695500
-	// Arc  1473(steps   2). Coordinate: 0.2248891300 0.4707455 1.3703020
-	// Arc  1474(steps   2). Coordinate: 0.2249113183 0.4714066 1.3710519
-	// Arc  1475(steps   2). Coordinate: 0.2249323489 0.4720703 1.3717997
-	// Arc  1476(steps   2). Coordinate: 0.2249522065 0.4727364 1.3725452
-	// Arc  1477(steps   2). Coordinate: 0.2249708757 0.4734051 1.3732886
-	// Arc  1478(steps   2). Coordinate: 0.2249883409 0.4740763 1.3740296
-	// Arc  1479(steps   2). Coordinate: 0.2250045861 0.4747500 1.3747684
-	// Arc  1480(steps   2). Coordinate: 0.2250195951 0.4754264 1.3755048
-	// Arc  1481(steps   2). Coordinate: 0.2250333512 0.4761054 1.3762388
-	// Arc  1482(steps   2). Coordinate: 0.2250458377 0.4767870 1.3769704
-	// Arc  1483(steps   2). Coordinate: 0.2250570374 0.4774714 1.3776995
-	// Arc  1484(steps   2). Coordinate: 0.2250669329 0.4781584 1.3784261
-	// Arc  1485(steps   2). Coordinate: 0.2250755066 0.4788481 1.3791501
-	// Arc  1486(steps   2). Coordinate: 0.2250827403 0.4795406 1.3798715
-	// Arc  1487(steps   2). Coordinate: 0.2250886156 0.4802358 1.3805903
-	// Arc  1488(steps   2). Coordinate: 0.2250931140 0.4809338 1.3813063
-	// Arc  1489(steps   2). Coordinate: 0.2250962164 0.4816347 1.3820196
-	// Arc  1490(steps   2). Coordinate: 0.2250979034 0.4823384 1.3827301
-	// Arc  1491(steps   2). Coordinate: 0.2250981555 0.4830450 1.3834377
-	// Arc  1492(steps   2). Coordinate: 0.2250969525 0.4837546 1.3841424
-	// Arc  1493(steps   2). Coordinate: 0.2250942741 0.4844670 1.3848441
-	// Arc  1494(steps   2). Coordinate: 0.2250900997 0.4851824 1.3855428
-	// Arc  1495(steps   2). Coordinate: 0.2250844081 0.4859008 1.3862384
-	// Arc  1496(steps   2). Coordinate: 0.2250771778 0.4866222 1.3869309
-	// Arc  1497(steps   2). Coordinate: 0.2250683872 0.4873466 1.3876202
-	// Arc  1498(steps   2). Coordinate: 0.2250580141 0.4880741 1.3883062
-	// Arc  1499(steps   2). Coordinate: 0.2250460359 0.4888047 1.3889889
-	// Arc  1500(steps   2). Coordinate: 0.2250324297 0.4895385 1.3896682
-	// Arc  1501(steps   2). Coordinate: 0.2250171722 0.4902753 1.3903440
-	// Arc  1502(steps   2). Coordinate: 0.2250002397 0.4910154 1.3910164
-	// Arc  1503(steps   2). Coordinate: 0.2249816083 0.4917587 1.3916851
-	// Arc  1504(steps   2). Coordinate: 0.2249612534 0.4925052 1.3923502
-	// Arc  1505(steps   2). Coordinate: 0.2249391501 0.4932549 1.3930115
-	// Arc  1506(steps   2). Coordinate: 0.2249152734 0.4940080 1.3936691
-	// Arc  1507(steps   2). Coordinate: 0.2248895975 0.4947643 1.3943227
-	// Arc  1508(steps   2). Coordinate: 0.2248620963 0.4955240 1.3949724
-	// Arc  1509(steps   2). Coordinate: 0.2248327436 0.4962871 1.3956181
-	// Arc  1510(steps   2). Coordinate: 0.2248015124 0.4970536 1.3962596
-	// Arc  1511(steps   2). Coordinate: 0.2247683756 0.4978234 1.3968969
-	// Arc  1512(steps   2). Coordinate: 0.2247333055 0.4985968 1.3975300
-	// Arc  1513(steps   2). Coordinate: 0.2246962742 0.4993735 1.3981586
-	// Arc  1514(steps   2). Coordinate: 0.2246572532 0.5001538 1.3987828
-	// Arc  1515(steps   2). Coordinate: 0.2246162138 0.5009376 1.3994025
-	// Arc  1516(steps   2). Coordinate: 0.2245731269 0.5017250 1.4000175
-	// Arc  1517(steps   2). Coordinate: 0.2245279628 0.5025159 1.4006278
-	// Arc  1518(steps   2). Coordinate: 0.2244806917 0.5033104 1.4012332
-	// Arc  1519(steps   2). Coordinate: 0.2244312834 0.5041085 1.4018336
-	// Arc  1520(steps   2). Coordinate: 0.2243797072 0.5049103 1.4024291
-	// Arc  1521(steps   2). Coordinate: 0.2243259322 0.5057157 1.4030194
-	// Arc  1522(steps   2). Coordinate: 0.2242699272 0.5065247 1.4036044
-	// Arc  1523(steps   2). Coordinate: 0.2242116604 0.5073375 1.4041841
-	// Arc  1524(steps   2). Coordinate: 0.2241511001 0.5081539 1.4047583
-	// Arc  1525(steps   2). Coordinate: 0.2240882140 0.5089741 1.4053270
-	// Arc  1526(steps   2). Coordinate: 0.2240229697 0.5097980 1.4058899
-	// Arc  1527(steps   2). Coordinate: 0.2239553346 0.5106257 1.4064470
-	// Arc  1528(steps   2). Coordinate: 0.2238852757 0.5114571 1.4069982
-	// Arc  1529(steps   2). Coordinate: 0.2238127599 0.5122923 1.4075434
-	// Arc  1530(steps   2). Coordinate: 0.2237377539 0.5131313 1.4080823
-	// Arc  1531(steps   2). Coordinate: 0.2236602244 0.5139741 1.4086150
-	// Arc  1532(steps   2). Coordinate: 0.2235801377 0.5148207 1.4091412
-	// Arc  1533(steps   2). Coordinate: 0.2234974603 0.5156710 1.4096609
-	// Arc  1534(steps   2). Coordinate: 0.2234121586 0.5165252 1.4101738
-	// Arc  1535(steps   2). Coordinate: 0.2233241987 0.5173832 1.4106799
-	// Arc  1536(steps   2). Coordinate: 0.2232335472 0.5182449 1.4111791
-	// Arc  1537(steps   2). Coordinate: 0.2231401705 0.5191105 1.4116711
-	// Arc  1538(steps   2). Coordinate: 0.2230440352 0.5199798 1.4121559
-	// Arc  1539(steps   2). Coordinate: 0.2229451080 0.5208529 1.4126333
-	// Arc  1540(steps   2). Coordinate: 0.2228433559 0.5217298 1.4131032
-	// Arc  1541(steps   2). Coordinate: 0.2227387463 0.5226104 1.4135653
-	// Arc  1542(steps   2). Coordinate: 0.2226312467 0.5234947 1.4140197
-	// Arc  1543(steps   2). Coordinate: 0.2225208252 0.5243827 1.4144660
-	// Arc  1544(steps   2). Coordinate: 0.2224074504 0.5252744 1.4149042
-	// Arc  1545(steps   2). Coordinate: 0.2222910911 0.5261698 1.4153341
-	// Arc  1546(steps   2). Coordinate: 0.2221717173 0.5270687 1.4157556
-	// Arc  1547(steps   2). Coordinate: 0.2220492990 0.5279712 1.4161684
-	// Arc  1548(steps   2). Coordinate: 0.2219238076 0.5288773 1.4165725
-	// Arc  1549(steps   2). Coordinate: 0.2217952149 0.5297869 1.4169677
-	// Arc  1550(steps   2). Coordinate: 0.2216634938 0.5306999 1.4173538
-	// Arc  1551(steps   2). Coordinate: 0.2215286182 0.5316162 1.4177307
-	// Arc  1552(steps   2). Coordinate: 0.2213905630 0.5325360 1.4180982
-	// Arc  1553(steps   2). Coordinate: 0.2212493044 0.5334590 1.4184562
-	// Arc  1554(steps   2). Coordinate: 0.2211048198 0.5343852 1.4188044
-	// Arc  1555(steps   2). Coordinate: 0.2209570879 0.5353145 1.4191428
-	// Arc  1556(steps   2). Coordinate: 0.2208060888 0.5362469 1.4194712
-	// Arc  1557(steps   2). Coordinate: 0.2206518044 0.5371822 1.4197895
-	// Arc  1558(steps   2). Coordinate: 0.2204942180 0.5381205 1.4200974
-	// Arc  1559(steps   2). Coordinate: 0.2203333146 0.5390616 1.4203949
-	// Arc  1560(steps   2). Coordinate: 0.2201690809 0.5400054 1.4206817
-	// Arc  1561(steps   2). Coordinate: 0.2200015058 0.5409518 1.4209578
-	// Arc  1562(steps   2). Coordinate: 0.2198305799 0.5419007 1.4212230
-	// Arc  1563(steps   2). Coordinate: 0.2196562958 0.5428520 1.4214772
-	// Arc  1564(steps   2). Coordinate: 0.2194786483 0.5438056 1.4217202
-	// Arc  1565(steps   2). Coordinate: 0.2192976345 0.5447614 1.4219520
-	// Arc  1566(steps   2). Coordinate: 0.2191132534 0.5457193 1.4221723
-	// Arc  1567(steps   2). Coordinate: 0.2189255067 0.5466791 1.4223811
-	// Arc  1568(steps   2). Coordinate: 0.2187343982 0.5476406 1.4225782
-	// Arc  1569(steps   2). Coordinate: 0.2185399340 0.5486039 1.4227636
-	// Arc  1570(steps   1). Coordinate: 0.2183421230 0.5495686 1.4229371
-	// Arc  1571(steps   1). Coordinate: 0.2181409763 0.5505348 1.4230987
-	// Arc  1572(steps   1). Coordinate: 0.2179365074 0.5515021 1.4232482
-	// Arc  1573(steps   1). Coordinate: 0.2177287325 0.5524706 1.4233856
-	// Arc  1574(steps   1). Coordinate: 0.2175176703 0.5534401 1.4235107
-	// Arc  1575(steps   1). Coordinate: 0.2173033418 0.5544103 1.4236236
-	// Arc  1576(steps   1). Coordinate: 0.2170857707 0.5553811 1.4237242
-	// Arc  1577(steps   1). Coordinate: 0.2168649829 0.5563524 1.4238124
-	// Arc  1578(steps   1). Coordinate: 0.2166410070 0.5573241 1.4238881
-	// Arc  1579(steps   1). Coordinate: 0.2164138738 0.5582959 1.4239514
-	// Arc  1580(steps   1). Coordinate: 0.2161836164 0.5592677 1.4240022
-	// Arc  1581(steps   1). Coordinate: 0.2159502703 0.5602393 1.4240404
-	// Arc  1582(steps   1). Coordinate: 0.2157138730 0.5612107 1.4240662
-	// Arc  1583(steps   1). Coordinate: 0.2154744642 0.5621815 1.4240793
-	// Arc  1584(steps   1). Coordinate: 0.2152320856 0.5631517 1.4240800
-	// Arc  1585(steps   1). Coordinate: 0.2149867808 0.5641210 1.4240682
-	// Arc  1586(steps   1). Coordinate: 0.2147385953 0.5650895 1.4240438
-	// Arc  1587(steps   1). Coordinate: 0.2144875761 0.5660567 1.4240070
-	// Arc  1588(steps   1). Coordinate: 0.2142337719 0.5670227 1.4239578
-	// Arc  1589(steps   1). Coordinate: 0.2139772330 0.5679873 1.4238962
-	// Arc  1590(steps   2). Coordinate: 0.2137180108 0.5689503 1.4238223
-	// Arc  1591(steps   2). Coordinate: 0.2134561581 0.5699115 1.4237362
-	// Arc  1592(steps   2). Coordinate: 0.2131917288 0.5708709 1.4236378
-	// Arc  1593(steps   2). Coordinate: 0.2129247775 0.5718283 1.4235274
-	// Arc  1594(steps   2). Coordinate: 0.2126553601 0.5727835 1.4234049
-	// Arc  1595(steps   2). Coordinate: 0.2123835328 0.5737364 1.4232705
-	// Arc  1596(steps   2). Coordinate: 0.2121093524 0.5746869 1.4231243
-	// Arc  1597(steps   2). Coordinate: 0.2118328765 0.5756349 1.4229664
-	// Arc  1598(steps   2). Coordinate: 0.2115541627 0.5765801 1.4227968
-	// Arc  1599(steps   2). Coordinate: 0.2112732690 0.5775226 1.4226157
-	// Arc  1600(steps   2). Coordinate: 0.2109902533 0.5784623 1.4224233
-	// Arc  1601(steps   2). Coordinate: 0.2107051736 0.5793989 1.4222196
-	// Arc  1602(steps   2). Coordinate: 0.2104180878 0.5803324 1.4220047
-	// Arc  1603(steps   2). Coordinate: 0.2101290535 0.5812627 1.4217789
-	// Arc  1604(steps   2). Coordinate: 0.2098381282 0.5821897 1.4215422
-	// Arc  1605(steps   2). Coordinate: 0.2095453686 0.5831133 1.4212948
-	// Arc  1606(steps   2). Coordinate: 0.2092508311 0.5840334 1.4210368
-	// Arc  1607(steps   2). Coordinate: 0.2089545717 0.5849501 1.4207683
-	// Arc  1608(steps   2). Coordinate: 0.2086566454 0.5858630 1.4204896
-	// Arc  1609(steps   2). Coordinate: 0.2083571067 0.5867724 1.4202008
-	// Arc  1610(steps   2). Coordinate: 0.2080560092 0.5876779 1.4199020
-	// Arc  1611(steps   2). Coordinate: 0.2077534059 0.5885797 1.4195933
-	// Arc  1612(steps   2). Coordinate: 0.2074493485 0.5894776 1.4192750
-	// Arc  1613(steps   2). Coordinate: 0.2071438880 0.5903715 1.4189471
-	// Arc  1614(steps   2). Coordinate: 0.2068370746 0.5912616 1.4186099
-	// Arc  1615(steps   2). Coordinate: 0.2065289571 0.5921476 1.4182634
-	// Arc  1616(steps   2). Coordinate: 0.2062195836 0.5930296 1.4179079
-	// Arc  1617(steps   2). Coordinate: 0.2059090010 0.5939075 1.4175435
-	// Arc  1618(steps   2). Coordinate: 0.2055972550 0.5947813 1.4171703
-	// Arc  1619(steps   2). Coordinate: 0.2052843905 0.5956510 1.4167886
-	// Arc  1620(steps   2). Coordinate: 0.2049704509 0.5965166 1.4163984
-	// Arc  1621(steps   2). Coordinate: 0.2046554788 0.5973780 1.4159999
-	// Arc  1622(steps   2). Coordinate: 0.2043395157 0.5982352 1.4155932
-	// Arc  1623(steps   2). Coordinate: 0.2040226016 0.5990882 1.4151786
-	// Arc  1624(steps   2). Coordinate: 0.2037047759 0.5999370 1.4147561
-	// Arc  1625(steps   2). Coordinate: 0.2033860765 0.6007816 1.4143259
-	// Arc  1626(steps   2). Coordinate: 0.2030665403 0.6016220 1.4138882
-	// Arc  1627(steps   2). Coordinate: 0.2027462031 0.6024582 1.4134430
-	// Arc  1628(steps   2). Coordinate: 0.2024250998 0.6032902 1.4129906
-	// Arc  1629(steps   2). Coordinate: 0.2021032640 0.6041180 1.4125311
-	// Arc  1630(steps   2). Coordinate: 0.2017807283 0.6049416 1.4120645
-	// Arc  1631(steps   2). Coordinate: 0.2014575243 0.6057610 1.4115911
-	// Arc  1632(steps   2). Coordinate: 0.2011336826 0.6065762 1.4111109
-	// Arc  1633(steps   2). Coordinate: 0.2008092328 0.6073873 1.4106242
-	// Arc  1634(steps   2). Coordinate: 0.2004842034 0.6081942 1.4101310
-	// Arc  1635(steps   2). Coordinate: 0.2001586221 0.6089969 1.4096314
-	// Arc  1636(steps   2). Coordinate: 0.1998325156 0.6097956 1.4091257
-	// Arc  1637(steps   2). Coordinate: 0.1995059096 0.6105902 1.4086138
-	// Arc  1638(steps   2). Coordinate: 0.1991788292 0.6113806 1.4080960
-	// Arc  1639(steps   2). Coordinate: 0.1988512982 0.6121671 1.4075723
-	// Arc  1640(steps   2). Coordinate: 0.1985233399 0.6129495 1.4070428
-	// Arc  1641(steps   2). Coordinate: 0.1981949766 0.6137278 1.4065077
-	// Arc  1642(steps   2). Coordinate: 0.1978662300 0.6145022 1.4059671
-	// Arc  1643(steps   2). Coordinate: 0.1975371207 0.6152727 1.4054211
-	// Arc  1644(steps   2). Coordinate: 0.1972076688 0.6160392 1.4048698
-	// Arc  1645(steps   2). Coordinate: 0.1968778936 0.6168017 1.4043133
-	// Arc  1646(steps   2). Coordinate: 0.1965478136 0.6175605 1.4037517
-	// Arc  1647(steps   2). Coordinate: 0.1962174469 0.6183153 1.4031851
-	// Arc  1648(steps   2). Coordinate: 0.1958868105 0.6190664 1.4026136
-	// Arc  1649(steps   2). Coordinate: 0.1955559211 0.6198136 1.4020373
-	// Arc  1650(steps   2). Coordinate: 0.1952247947 0.6205571 1.4014563
-	// Arc  1651(steps   2). Coordinate: 0.1948934466 0.6212968 1.4008706
-	// Arc  1652(steps   2). Coordinate: 0.1945618915 0.6220329 1.4002805
-	// Arc  1653(steps   2). Coordinate: 0.1942301438 0.6227653 1.3996859
-	// Arc  1654(steps   2). Coordinate: 0.1938982170 0.6234940 1.3990869
-	// Arc  1655(steps   2). Coordinate: 0.1935661242 0.6242192 1.3984837
-	// Arc  1656(steps   2). Coordinate: 0.1932338782 0.6249407 1.3978762
-	// Arc  1657(steps   2). Coordinate: 0.1929014911 0.6256587 1.3972647
-	// Arc  1658(steps   2). Coordinate: 0.1925689745 0.6263732 1.3966491
-	// Arc  1659(steps   2). Coordinate: 0.1922363396 0.6270843 1.3960296
-	// Arc  1660(steps   2). Coordinate: 0.1919035973 0.6277918 1.3954062
-	// Arc  1661(steps   2). Coordinate: 0.1915707578 0.6284960 1.3947790
-	// Arc  1662(steps   2). Coordinate: 0.1912378311 0.6291968 1.3941481
-	// Arc  1663(steps   2). Coordinate: 0.1909048267 0.6298942 1.3935135
-	// Arc  1664(steps   2). Coordinate: 0.1905717539 0.6305883 1.3928753
-	// Arc  1665(steps   2). Coordinate: 0.1902386214 0.6312791 1.3922336
-	// Arc  1666(steps   2). Coordinate: 0.1899054376 0.6319666 1.3915884
-	// Arc  1667(steps   2). Coordinate: 0.1895722107 0.6326509 1.3909398
-	// Arc  1668(steps   2). Coordinate: 0.1892389485 0.6333321 1.3902879
-	// Arc  1669(steps   2). Coordinate: 0.1889056583 0.6340100 1.3896327
-	// Arc  1670(steps   2). Coordinate: 0.1885723474 0.6346849 1.3889742
-	// Arc  1671(steps   2). Coordinate: 0.1882390227 0.6353566 1.3883127
-	// Arc  1672(steps   2). Coordinate: 0.1879056907 0.6360252 1.3876480
-	// Arc  1673(steps   2). Coordinate: 0.1875723577 0.6366909 1.3869803
-	// Arc  1674(steps   2). Coordinate: 0.1872390298 0.6373535 1.3863096
-	// Arc  1675(steps   2). Coordinate: 0.1869057129 0.6380131 1.3856359
-	// Arc  1676(steps   2). Coordinate: 0.1865724124 0.6386697 1.3849594
-	// Arc  1677(steps   2). Coordinate: 0.1862391338 0.6393235 1.3842800
-	// Arc  1678(steps   2). Coordinate: 0.1859058821 0.6399744 1.3835979
-	// Arc  1679(steps   2). Coordinate: 0.1855726622 0.6406224 1.3829130
-	// Arc  1680(steps   2). Coordinate: 0.1852394788 0.6412675 1.3822254
-	// Arc  1681(steps   2). Coordinate: 0.1849063364 0.6419099 1.3815352
-	// Arc  1682(steps   2). Coordinate: 0.1845732393 0.6425494 1.3808424
-	// Arc  1683(steps   2). Coordinate: 0.1842401916 0.6431863 1.3801470
-	// Arc  1684(steps   2). Coordinate: 0.1839071973 0.6438204 1.3794492
-	// Arc  1685(steps   2). Coordinate: 0.1835742601 0.6444518 1.3787488
-	// Arc  1686(steps   2). Coordinate: 0.1832413837 0.6450805 1.3780461
-	// Arc  1687(steps   2). Coordinate: 0.1829085714 0.6457066 1.3773409
-	// Arc  1688(steps   2). Coordinate: 0.1825758265 0.6463301 1.3766334
-	// Arc  1689(steps   2). Coordinate: 0.1822431523 0.6469510 1.3759236
-	// Arc  1690(steps   2). Coordinate: 0.1819105517 0.6475694 1.3752116
-	// Arc  1691(steps   2). Coordinate: 0.1815780276 0.6481852 1.3744973
-	// Arc  1692(steps   2). Coordinate: 0.1812455828 0.6487985 1.3737808
-	// Arc  1693(steps   2). Coordinate: 0.1809132198 0.6494093 1.3730622
-	// Arc  1694(steps   2). Coordinate: 0.1805809411 0.6500176 1.3723414
-	// Arc  1695(steps   2). Coordinate: 0.1802487492 0.6506236 1.3716185
-	// Arc  1696(steps   2). Coordinate: 0.1799166463 0.6512271 1.3708936
-	// Arc  1697(steps   2). Coordinate: 0.1795846346 0.6518282 1.3701667
-	// Arc  1698(steps   2). Coordinate: 0.1792527161 0.6524269 1.3694378
-	// Arc  1699(steps   2). Coordinate: 0.1789208927 0.6530233 1.3687069
-	// Arc  1700(steps   2). Coordinate: 0.1785891665 0.6536175 1.3679741
-	// Arc  1701(steps   2). Coordinate: 0.1782575391 0.6542093 1.3672394
-	// Arc  1702(steps   2). Coordinate: 0.1779260122 0.6547988 1.3665028
-	// Arc  1703(steps   2). Coordinate: 0.1775945874 0.6553861 1.3657644
-	// Arc  1704(steps   2). Coordinate: 0.1772632663 0.6559712 1.3650242
-	// Arc  1705(steps   2). Coordinate: 0.1769320502 0.6565540 1.3642822
-	// Arc  1706(steps   2). Coordinate: 0.1766009406 0.6571347 1.3635385
-	// Arc  1707(steps   2). Coordinate: 0.1762699388 0.6577132 1.3627930
-	// Arc  1708(steps   2). Coordinate: 0.1759390459 0.6582896 1.3620458
-	// Arc  1709(steps   2). Coordinate: 0.1756082631 0.6588638 1.3612969
-	// Arc  1710(steps   2). Coordinate: 0.1752775916 0.6594360 1.3605464
-	// Arc  1711(steps   2). Coordinate: 0.1749470323 0.6600061 1.3597942
-	// Arc  1712(steps   2). Coordinate: 0.1746165862 0.6605741 1.3590405
-	// Arc  1713(steps   2). Coordinate: 0.1742862543 0.6611401 1.3582851
-	// Arc  1714(steps   2). Coordinate: 0.1739560373 0.6617041 1.3575282
-	// Arc  1715(steps   2). Coordinate: 0.1736259361 0.6622660 1.3567698
-	// Arc  1716(steps   2). Coordinate: 0.1732959515 0.6628260 1.3560098
-	// Arc  1717(steps   2). Coordinate: 0.1729660841 0.6633841 1.3552484
-	// Arc  1718(steps   2). Coordinate: 0.1726363346 0.6639401 1.3544855
-	// Arc  1719(steps   2). Coordinate: 0.1723067037 0.6644943 1.3537211
-	// Arc  1720(steps   2). Coordinate: 0.1719771918 0.6650466 1.3529553
-	// Arc  1721(steps   2). Coordinate: 0.1716477995 0.6655969 1.3521881
-	// Arc  1722(steps   2). Coordinate: 0.1713185273 0.6661454 1.3514196
-	// Arc  1723(steps   2). Coordinate: 0.1709893756 0.6666921 1.3506496
-	// Arc  1724(steps   2). Coordinate: 0.1706603449 0.6672369 1.3498783
-	// Arc  1725(steps   2). Coordinate: 0.1703314355 0.6677799 1.3491057
-	// Arc  1726(steps   2). Coordinate: 0.1700026477 0.6683211 1.3483317
-	// Arc  1727(steps   2). Coordinate: 0.1696739819 0.6688605 1.3475565
-	// Arc  1728(steps   2). Coordinate: 0.1693454383 0.6693982 1.3467799
-	// Arc  1729(steps   2). Coordinate: 0.1690170171 0.6699341 1.3460021
-	// Arc  1730(steps   2). Coordinate: 0.1686887187 0.6704682 1.3452231
-	// Arc  1731(steps   2). Coordinate: 0.1683605431 0.6710007 1.3444428
-	// Arc  1732(steps   2). Coordinate: 0.1680324905 0.6715314 1.3436614
-	// Arc  1733(steps   2). Coordinate: 0.1677045611 0.6720605 1.3428787
-	// Arc  1734(steps   2). Coordinate: 0.1673767549 0.6725878 1.3420949
-	// Arc  1735(steps   2). Coordinate: 0.1670490720 0.6731136 1.3413098
-	// Arc  1736(steps   2). Coordinate: 0.1667215125 0.6736376 1.3405237
-	// Arc  1737(steps   2). Coordinate: 0.1663940764 0.6741601 1.3397364
-	// Arc  1738(steps   2). Coordinate: 0.1660667638 0.6746809 1.3389480
-	// Arc  1739(steps   2). Coordinate: 0.1657395745 0.6752002 1.3381585
-	// Arc  1740(steps   2). Coordinate: 0.1654125087 0.6757178 1.3373679
-	// Arc  1741(steps   1). Coordinate: 0.1650855662 0.6762339 1.3365762
-	// Arc  1742(steps   1). Coordinate: 0.1647587470 0.6767484 1.3357834
-	// Arc  1743(steps   1). Coordinate: 0.1644320509 0.6772614 1.3349896
-	// Arc  1744(steps   1). Coordinate: 0.1641054780 0.6777729 1.3341948
-	// Arc  1745(steps   1). Coordinate: 0.1637790280 0.6782828 1.3333989
-	// Arc  1746(steps   1). Coordinate: 0.1634527009 0.6787913 1.3326021
-	// Arc  1747(steps   1). Coordinate: 0.1631264965 0.6792982 1.3318042
-	// Arc  1748(steps   1). Coordinate: 0.1628004146 0.6798037 1.3310054
-	// Arc  1749(steps   1). Coordinate: 0.1624744551 0.6803077 1.3302055
-	// Arc  1750(steps   1). Coordinate: 0.1621486177 0.6808103 1.3294047
-	// Arc  1751(steps   1). Coordinate: 0.1618229023 0.6813114 1.3286030
-	// Arc  1752(steps   1). Coordinate: 0.1614973087 0.6818111 1.3278003
-	// Arc  1753(steps   1). Coordinate: 0.1611718366 0.6823094 1.3269967
-	// Arc  1754(steps   1). Coordinate: 0.1608464858 0.6828062 1.3261922
-	// Arc  1755(steps   1). Coordinate: 0.1605212561 0.6833017 1.3253868
-	// Arc  1756(steps   1). Coordinate: 0.1601961472 0.6837958 1.3245804
-	// Arc  1757(steps   1). Coordinate: 0.1598711588 0.6842886 1.3237732
-	// Arc  1758(steps   1). Coordinate: 0.1595462906 0.6847800 1.3229651
-	// Arc  1759(steps   1). Coordinate: 0.1592215424 0.6852700 1.3221562
-	// Arc  1760(steps   1). Coordinate: 0.1588969140 0.6857587 1.3213464
-	// Arc  1761(steps   1). Coordinate: 0.1585724048 0.6862461 1.3205358
-	// Arc  1762(steps   1). Coordinate: 0.1582480148 0.6867322 1.3197243
-	// Arc  1763(steps   1). Coordinate: 0.1579237435 0.6872170 1.3189120
-	// Arc  1764(steps   1). Coordinate: 0.1575995907 0.6877005 1.3180989
-	// Arc  1765(steps   1). Coordinate: 0.1572755559 0.6881827 1.3172850
-	// Arc  1766(steps   1). Coordinate: 0.1569516389 0.6886637 1.3164702
-	// Arc  1767(steps   1). Coordinate: 0.1566278394 0.6891434 1.3156547
-	// Arc  1768(steps   1). Coordinate: 0.1563041569 0.6896218 1.3148384
-	// Arc  1769(steps   1). Coordinate: 0.1559805911 0.6900990 1.3140214
-	// Arc  1770(steps   1). Coordinate: 0.1556571417 0.6905750 1.3132036
-	// Arc  1771(steps   1). Coordinate: 0.1553338083 0.6910498 1.3123850
-	// Arc  1772(steps   1). Coordinate: 0.1550105906 0.6915233 1.3115657
-	// Arc  1773(steps   1). Coordinate: 0.1546874881 0.6919957 1.3107457
-	// Arc  1774(steps   1). Coordinate: 0.1543645004 0.6924669 1.3099249
-	// Arc  1775(steps   1). Coordinate: 0.1540416273 0.6929369 1.3091034
-	// Arc  1776(steps   1). Coordinate: 0.1537188683 0.6934057 1.3082812
-	// Arc  1777(steps   1). Coordinate: 0.1533962230 0.6938734 1.3074583
-	// Arc  1778(steps   1). Coordinate: 0.1530736910 0.6943399 1.3066346
-	// Arc  1779(steps   1). Coordinate: 0.1527512720 0.6948053 1.3058103
-	// Arc  1780(steps   1). Coordinate: 0.1524289655 0.6952695 1.3049854
-	// Arc  1781(steps   1). Coordinate: 0.1521067712 0.6957326 1.3041597
-	// Arc  1782(steps   1). Coordinate: 0.1517846886 0.6961946 1.3033334
-	// Arc  1783(steps   1). Coordinate: 0.1514627173 0.6966555 1.3025064
-	// Arc  1784(steps   1). Coordinate: 0.1511408569 0.6971153 1.3016787
-	// Arc  1785(steps   1). Coordinate: 0.1508191071 0.6975740 1.3008505
-	// Arc  1786(steps   1). Coordinate: 0.1504974673 0.6980317 1.3000215
-	// Arc  1787(steps   1). Coordinate: 0.1501759372 0.6984882 1.2991920
-	// Arc  1788(steps   1). Coordinate: 0.1498545164 0.6989437 1.2983618
-	// Arc  1789(steps   1). Coordinate: 0.1495332044 0.6993982 1.2975310
-	// Arc  1790(steps   1). Coordinate: 0.1492120008 0.6998515 1.2966995
-	// Arc  1791(steps   1). Coordinate: 0.1488909052 0.7003039 1.2958675
-	// Arc  1792(steps   1). Coordinate: 0.1485699172 0.7007552 1.2950349
-	// Arc  1793(steps   1). Coordinate: 0.1482490364 0.7012055 1.2942017
-	// Arc  1794(steps   1). Coordinate: 0.1479282622 0.7016548 1.2933678
-	// Arc  1795(steps   1). Coordinate: 0.1476075944 0.7021031 1.2925334
-	// Arc  1796(steps   1). Coordinate: 0.1472870325 0.7025503 1.2916985
-	// Arc  1797(steps   1). Coordinate: 0.1469665760 0.7029966 1.2908629
-	// Arc  1798(steps   1). Coordinate: 0.1466462245 0.7034419 1.2900268
-	// Arc  1799(steps   1). Coordinate: 0.1463259776 0.7038862 1.2891901
-	// Arc  1800(steps   1). Coordinate: 0.1460058349 0.7043295 1.2883529
-	// Arc  1801(steps   1). Coordinate: 0.1456857959 0.7047719 1.2875151
-	// Arc  1802(steps   1). Coordinate: 0.1453658602 0.7052133 1.2866768
-	// Arc  1803(steps   1). Coordinate: 0.1450460274 0.7056538 1.2858379
-	// Arc  1804(steps   1). Coordinate: 0.1447262970 0.7060933 1.2849985
-	// Arc  1805(steps   1). Coordinate: 0.1444066686 0.7065319 1.2841586
-	// Arc  1806(steps   1). Coordinate: 0.1440871418 0.7069695 1.2833181
-	// Arc  1807(steps   1). Coordinate: 0.1437677162 0.7074063 1.2824771
-	// Arc  1808(steps   1). Coordinate: 0.1434483913 0.7078421 1.2816356
-	// Arc  1809(steps   1). Coordinate: 0.1431291667 0.7082770 1.2807937
-	// Arc  1810(steps   1). Coordinate: 0.1428100420 0.7087110 1.2799512
-	// Arc  1811(steps   1). Coordinate: 0.1424910167 0.7091441 1.2791082
-	// Arc  1812(steps   1). Coordinate: 0.1421720904 0.7095763 1.2782647
-	// Arc  1813(steps   1). Coordinate: 0.1418532627 0.7100076 1.2774207
-	// Arc  1814(steps   1). Coordinate: 0.1415345331 0.7104381 1.2765762
-	// Arc  1815(steps   1). Coordinate: 0.1412159013 0.7108677 1.2757313
-	// Arc  1816(steps   1). Coordinate: 0.1408973668 0.7112964 1.2748859
-	// Arc  1817(steps   1). Coordinate: 0.1405789291 0.7117242 1.2740400
-	// Arc  1818(steps   1). Coordinate: 0.1402605879 0.7121513 1.2731936
-	// Arc  1819(steps   1). Coordinate: 0.1399423427 0.7125774 1.2723468
-	// Arc  1820(steps   1). Coordinate: 0.1396241932 0.7130027 1.2714995
-	// Arc  1821(steps   1). Coordinate: 0.1393061388 0.7134272 1.2706518
-	// Arc  1822(steps   1). Coordinate: 0.1389881792 0.7138509 1.2698036
-	// Arc  1823(steps   1). Coordinate: 0.1386703139 0.7142737 1.2689549
-	// Arc  1824(steps   1). Coordinate: 0.1383525425 0.7146957 1.2681059
-	// Arc  1825(steps   1). Coordinate: 0.1380348646 0.7151169 1.2672564
-	// Arc  1826(steps   1). Coordinate: 0.1377172799 0.7155373 1.2664064
-	// Arc  1827(steps   1). Coordinate: 0.1373997877 0.7159569 1.2655560
-	// Arc  1828(steps   1). Coordinate: 0.1370823879 0.7163757 1.2647052
-	// Arc  1829(steps   1). Coordinate: 0.1367650798 0.7167937 1.2638540
-	// Arc  1830(steps   1). Coordinate: 0.1364478632 0.7172109 1.2630023
-	// Arc  1831(steps   1). Coordinate: 0.1361307376 0.7176273 1.2621503
-	// Arc  1832(steps   1). Coordinate: 0.1358137027 0.7180430 1.2612978
-	// Arc  1833(steps   1). Coordinate: 0.1354967578 0.7184579 1.2604449
-	// Arc  1834(steps   1). Coordinate: 0.1351799028 0.7188720 1.2595917
-	// Arc  1835(steps   1). Coordinate: 0.1348631372 0.7192854 1.2587380
-	// Arc  1836(steps   1). Coordinate: 0.1345464605 0.7196980 1.2578839
-	// Arc  1837(steps   1). Coordinate: 0.1342298724 0.7201099 1.2570294
-	// Arc  1838(steps   1). Coordinate: 0.1339133724 0.7205210 1.2561745
-	// Arc  1839(steps   1). Coordinate: 0.1335969602 0.7209314 1.2553193
-	// Arc  1840(steps   1). Coordinate: 0.1332806354 0.7213411 1.2544636
-	// Arc  1841(steps   1). Coordinate: 0.1329643975 0.7217500 1.2536076
-	// Arc  1842(steps   1). Coordinate: 0.1326482461 0.7221582 1.2527512
-	// Arc  1843(steps   1). Coordinate: 0.1323321809 0.7225657 1.2518945
-	// Arc  1844(steps   1). Coordinate: 0.1320162015 0.7229725 1.2510373
-	// Arc  1845(steps   1). Coordinate: 0.1317003075 0.7233786 1.2501798
-	// Arc  1846(steps   1). Coordinate: 0.1313844984 0.7237840 1.2493219
-	// Arc  1847(steps   1). Coordinate: 0.1310687739 0.7241886 1.2484637
-	// Arc  1848(steps   1). Coordinate: 0.1307531336 0.7245926 1.2476051
-	// Arc  1849(steps   1). Coordinate: 0.1304375771 0.7249959 1.2467462
-	// Arc  1850(steps   1). Coordinate: 0.1301221041 0.7253985 1.2458869
-	// Arc  1851(steps   1). Coordinate: 0.1298067140 0.7258004 1.2450272
-	// Arc  1852(steps   1). Coordinate: 0.1294914066 0.7262016 1.2441672
-	// Arc  1853(steps   1). Coordinate: 0.1291761815 0.7266022 1.2433069
-	// Arc  1854(steps   1). Coordinate: 0.1288610383 0.7270021 1.2424462
-	// Arc  1855(steps   1). Coordinate: 0.1285459765 0.7274013 1.2415852
-	// Arc  1856(steps   1). Coordinate: 0.1282309959 0.7277999 1.2407238
-	// Arc  1857(steps   1). Coordinate: 0.1279160960 0.7281978 1.2398621
-	// Arc  1858(steps   1). Coordinate: 0.1276012765 0.7285950 1.2390001
-	// Arc  1859(steps   1). Coordinate: 0.1272865370 0.7289916 1.2381378
-	// Arc  1860(steps   1). Coordinate: 0.1269718771 0.7293876 1.2372751
-	// Arc  1861(steps   1). Coordinate: 0.1266572965 0.7297829 1.2364121
-	// Arc  1862(steps   1). Coordinate: 0.1263427947 0.7301776 1.2355488
-	// Arc  1863(steps   1). Coordinate: 0.1260283715 0.7305717 1.2346852
-	// Arc  1864(steps   1). Coordinate: 0.1257140264 0.7309652 1.2338213
-	// Arc  1865(steps   1). Coordinate: 0.1253997591 0.7313580 1.2329570
-	// Arc  1866(steps   1). Coordinate: 0.1250855692 0.7317502 1.2320924
-	// Arc  1867(steps   1). Coordinate: 0.1247714564 0.7321418 1.2312276
-	// Arc  1868(steps   1). Coordinate: 0.1244574202 0.7325327 1.2303624
-	// Arc  1869(steps   1). Coordinate: 0.1241434604 0.7329231 1.2294969
-	// Arc  1870(steps   1). Coordinate: 0.1238295766 0.7333129 1.2286312
-	// Arc  1871(steps   1). Coordinate: 0.1235157683 0.7337020 1.2277651
-	// Arc  1872(steps   1). Coordinate: 0.1232020354 0.7340906 1.2268987
-	// Arc  1873(steps   1). Coordinate: 0.1228883773 0.7344786 1.2260321
-	// Arc  1874(steps   1). Coordinate: 0.1225747938 0.7348660 1.2251651
-	// Arc  1875(steps   1). Coordinate: 0.1222612846 0.7352528 1.2242979
-	// Arc  1876(steps   1). Coordinate: 0.1219478491 0.7356390 1.2234304
-	// Arc  1877(steps   1). Coordinate: 0.1216344872 0.7360246 1.2225626
-	// Arc  1878(steps   1). Coordinate: 0.1213211985 0.7364097 1.2216945
-	// Arc  1879(steps   1). Coordinate: 0.1210079825 0.7367942 1.2208261
-	// Arc  1880(steps   1). Coordinate: 0.1206948391 0.7371781 1.2199575
-	// Arc  1881(steps   1). Coordinate: 0.1203817678 0.7375615 1.2190886
-	// Arc  1882(steps   1). Coordinate: 0.1200687682 0.7379443 1.2182194
-	// Arc  1883(steps   1). Coordinate: 0.1197558402 0.7383266 1.2173499
-	// Arc  1884(steps   1). Coordinate: 0.1194429832 0.7387083 1.2164802
-	// Arc  1885(steps   1). Coordinate: 0.1191301971 0.7390894 1.2156102
-	// Arc  1886(steps   1). Coordinate: 0.1188174813 0.7394700 1.2147399
-	// Arc  1887(steps   1). Coordinate: 0.1185048357 0.7398501 1.2138694
-	// Arc  1888(steps   1). Coordinate: 0.1181922599 0.7402296 1.2129986
-	// Arc  1889(steps   1). Coordinate: 0.1178797536 0.7406086 1.2121276
-	// Arc  1890(steps   1). Coordinate: 0.1175673163 0.7409870 1.2112563
-	// Arc  1891(steps   1). Coordinate: 0.1172549479 0.7413650 1.2103848
-	// Arc  1892(steps   1). Coordinate: 0.1169426479 0.7417424 1.2095130
-	// Arc  1893(steps   1). Coordinate: 0.1166304161 0.7421192 1.2086409
-	// Arc  1894(steps   1). Coordinate: 0.1163182521 0.7424956 1.2077686
-	// Arc  1895(steps   1). Coordinate: 0.1160061556 0.7428714 1.2068960
-	// Arc  1896(steps   1). Coordinate: 0.1156941263 0.7432467 1.2060233
-	// Arc  1897(steps   1). Coordinate: 0.1153821638 0.7436216 1.2051502
-	// Arc  1898(steps   1). Coordinate: 0.1150702679 0.7439959 1.2042769
-	// Arc  1899(steps   1). Coordinate: 0.1147584382 0.7443697 1.2034034
-	// Arc  1900(steps   1). Coordinate: 0.1144466745 0.7447430 1.2025297
-	// Arc  1901(steps   1). Coordinate: 0.1141349763 0.7451158 1.2016557
-	// Arc  1902(steps   1). Coordinate: 0.1138233434 0.7454881 1.2007814
-	// Arc  1903(steps   1). Coordinate: 0.1135117755 0.7458599 1.1999070
-	// Arc  1904(steps   1). Coordinate: 0.1132002723 0.7462312 1.1990323
-	// Arc  1905(steps   1). Coordinate: 0.1128888335 0.7466020 1.1981574
-	// Arc  1906(steps   1). Coordinate: 0.1125774587 0.7469724 1.1972822
-	// Arc  1907(steps   1). Coordinate: 0.1122661476 0.7473422 1.1964068
-	// Arc  1908(steps   1). Coordinate: 0.1119549000 0.7477116 1.1955312
-	// Arc  1909(steps   1). Coordinate: 0.1116437156 0.7480805 1.1946554
-	// Arc  1910(steps   1). Coordinate: 0.1113325940 0.7484490 1.1937794
-	// Arc  1911(steps   1). Coordinate: 0.1110215349 0.7488170 1.1929031
-	// Arc  1912(steps   1). Coordinate: 0.1107105381 0.7491845 1.1920266
-	// Arc  1913(steps   1). Coordinate: 0.1103996032 0.7495515 1.1911499
-	// Arc  1914(steps   1). Coordinate: 0.1100887300 0.7499181 1.1902730
-	// Arc  1915(steps   1). Coordinate: 0.1097779181 0.7502842 1.1893959
-	// Arc  1916(steps   1). Coordinate: 0.1094671673 0.7506499 1.1885185
-	// Arc  1917(steps   1). Coordinate: 0.1091564773 0.7510151 1.1876410
-	// Arc  1918(steps   1). Coordinate: 0.1088458478 0.7513798 1.1867632
-	// Arc  1919(steps   1). Coordinate: 0.1085352784 0.7517442 1.1858853
-	// Arc  1920(steps   1). Coordinate: 0.1082247690 0.7521080 1.1850071
-	// Arc  1921(steps   1). Coordinate: 0.1079143192 0.7524714 1.1841287
-	// Arc  1922(steps   1). Coordinate: 0.1076039287 0.7528344 1.1832501
-	// Arc  1923(steps   1). Coordinate: 0.1072935973 0.7531970 1.1823714
-	// Arc  1924(steps   1). Coordinate: 0.1069833246 0.7535591 1.1814924
-	// Arc  1925(steps   1). Coordinate: 0.1066731104 0.7539208 1.1806132
-	// Arc  1926(steps   1). Coordinate: 0.1063629544 0.7542820 1.1797338
-	// Arc  1927(steps   1). Coordinate: 0.1060528563 0.7546428 1.1788543
-	// Arc  1928(steps   1). Coordinate: 0.1057428159 0.7550032 1.1779745
-	// Arc  1929(steps   1). Coordinate: 0.1054328329 0.7553632 1.1770945
-	// Arc  1930(steps   1). Coordinate: 0.1051229069 0.7557227 1.1762144
-	// Arc  1931(steps   1). Coordinate: 0.1048130378 0.7560819 1.1753340
-	// Arc  1932(steps   1). Coordinate: 0.1045032252 0.7564406 1.1744535
-	// Arc  1933(steps   1). Coordinate: 0.1041934689 0.7567989 1.1735728
-	// Arc  1934(steps   1). Coordinate: 0.1038837686 0.7571568 1.1726919
-	// Arc  1935(steps   1). Coordinate: 0.1035741240 0.7575143 1.1718108
-	// Arc  1936(steps   1). Coordinate: 0.1032645349 0.7578714 1.1709295
-	// Arc  1937(steps   1). Coordinate: 0.1029550009 0.7582280 1.1700480
-	// Arc  1938(steps   1). Coordinate: 0.1026455219 0.7585843 1.1691664
-	// Arc  1939(steps   1). Coordinate: 0.1023360976 0.7589402 1.1682846
-	// Arc  1940(steps   1). Coordinate: 0.1020267277 0.7592957 1.1674026
-	// Arc  1941(steps   1). Coordinate: 0.1017174119 0.7596507 1.1665204
-	// Arc  1942(steps   1). Coordinate: 0.1014081500 0.7600054 1.1656380
-	// Arc  1943(steps   1). Coordinate: 0.1010989416 0.7603597 1.1647555
-	// Arc  1944(steps   1). Coordinate: 0.1007897867 0.7607137 1.1638728
-	// Arc  1945(steps   1). Coordinate: 0.1004806848 0.7610672 1.1629899
-	// Arc  1946(steps   1). Coordinate: 0.1001716358 0.7614203 1.1621069
-	// Arc  1947(steps   1). Coordinate: 0.0998626394 0.7617731 1.1612237
-	// Arc  1948(steps   1). Coordinate: 0.0995536953 0.7621255 1.1603403
-	// Arc  1949(steps   1). Coordinate: 0.0992448032 0.7624775 1.1594567
-	// Arc  1950(steps   1). Coordinate: 0.0989359630 0.7628291 1.1585730
-	// Arc  1951(steps   1). Coordinate: 0.0986271744 0.7631804 1.1576891
-	// Arc  1952(steps   1). Coordinate: 0.0983184370 0.7635313 1.1568050
-	// Arc  1953(steps   1). Coordinate: 0.0980097508 0.7638818 1.1559208
-	// Arc  1954(steps   1). Coordinate: 0.0977011153 0.7642320 1.1550364
-	// Arc  1955(steps   1). Coordinate: 0.0973925304 0.7645818 1.1541519
-	// Arc  1956(steps   1). Coordinate: 0.0970839959 0.7649312 1.1532672
-	// Arc  1957(steps   1). Coordinate: 0.0967755114 0.7652803 1.1523823
-	// Arc  1958(steps   1). Coordinate: 0.0964670767 0.7656290 1.1514973
-	// Arc  1959(steps   1). Coordinate: 0.0961586917 0.7659774 1.1506121
-	// Arc  1960(steps   1). Coordinate: 0.0958503560 0.7663254 1.1497268
-	// Arc  1961(steps   1). Coordinate: 0.0955420694 0.7666730 1.1488413
-	// Arc  1962(steps   1). Coordinate: 0.0952338316 0.7670203 1.1479556
-	// Arc  1963(steps   1). Coordinate: 0.0949256425 0.7673673 1.1470698
-	// Arc  1964(steps   1). Coordinate: 0.0946175018 0.7677139 1.1461839
-	// Arc  1965(steps   1). Coordinate: 0.0943094092 0.7680602 1.1452978
-	// Arc  1966(steps   1). Coordinate: 0.0940013645 0.7684061 1.1444115
-	// Arc  1967(steps   1). Coordinate: 0.0936933675 0.7687517 1.1435251
-	// Arc  1968(steps   1). Coordinate: 0.0933854180 0.7690969 1.1426386
-	// Arc  1969(steps   1). Coordinate: 0.0930775156 0.7694418 1.1417519
-	// Arc  1970(steps   1). Coordinate: 0.0927696602 0.7697864 1.1408650
-	// Arc  1971(steps   1). Coordinate: 0.0924618516 0.7701307 1.1399781
-	// Arc  1972(steps   1). Coordinate: 0.0921540895 0.7704746 1.1390909
-	// Arc  1973(steps   1). Coordinate: 0.0918463736 0.7708182 1.1382037
-	// Arc  1974(steps   1). Coordinate: 0.0915387038 0.7711614 1.1373162
-	// Arc  1975(steps   1). Coordinate: 0.0912310798 0.7715044 1.1364287
-	// Arc  1976(steps   1). Coordinate: 0.0909235015 0.7718470 1.1355410
-	// Arc  1977(steps   1). Coordinate: 0.0906159685 0.7721893 1.1346531
-	// Arc  1978(steps   1). Coordinate: 0.0903084806 0.7725312 1.1337652
-	// Arc  1979(steps   1). Coordinate: 0.0900010377 0.7728729 1.1328770
-	// Arc  1980(steps   1). Coordinate: 0.0896936394 0.7732142 1.1319888
-	// Arc  1981(steps   1). Coordinate: 0.0893862856 0.7735553 1.1311004
-	// Arc  1982(steps   1). Coordinate: 0.0890789761 0.7738960 1.1302119
-	// Arc  1983(steps   1). Coordinate: 0.0887717106 0.7742364 1.1293232
-	// Arc  1984(steps   1). Coordinate: 0.0884644889 0.7745765 1.1284344
-	// Arc  1985(steps   1). Coordinate: 0.0881573108 0.7749163 1.1275455
-	// Arc  1986(steps   1). Coordinate: 0.0878501761 0.7752557 1.1266564
-	// Arc  1987(steps   1). Coordinate: 0.0875430845 0.7755949 1.1257673
-	// Arc  1988(steps   1). Coordinate: 0.0872360359 0.7759338 1.1248779
-	// Arc  1989(steps   1). Coordinate: 0.0869290300 0.7762724 1.1239885
-	// Arc  1990(steps   1). Coordinate: 0.0866220666 0.7766107 1.1230989
-	// Arc  1991(steps   1). Coordinate: 0.0863151455 0.7769486 1.1222092
-	// Arc  1992(steps   1). Coordinate: 0.0860082664 0.7772863 1.1213194
-	// Arc  1993(steps   1). Coordinate: 0.0857014292 0.7776237 1.1204295
-	// Arc  1994(steps   1). Coordinate: 0.0853946337 0.7779608 1.1195394
-	// Arc  1995(steps   1). Coordinate: 0.0850878796 0.7782977 1.1186492
-	// Arc  1996(steps   1). Coordinate: 0.0847811668 0.7786342 1.1177588
-	// Arc  1997(steps   1). Coordinate: 0.0844744950 0.7789704 1.1168684
-	// Arc  1998(steps   1). Coordinate: 0.0841678640 0.7793064 1.1159778
-	// Arc  1999(steps   1). Coordinate: 0.0838612736 0.7796421 1.1150871
-	// Arc  2000(steps   1). Coordinate: 0.0835547236 0.7799774 1.1141963
-	// Arc  2001(steps   1). Coordinate: 0.0832482138 0.7803126 1.1133054
-	// Arc  2002(steps   1). Coordinate: 0.0829417439 0.7806474 1.1124144
-	// Arc  2003(steps   1). Coordinate: 0.0826353139 0.7809819 1.1115232
-	// Arc  2004(steps   1). Coordinate: 0.0823289234 0.7813162 1.1106319
-	// Arc  2005(steps   1). Coordinate: 0.0820225723 0.7816502 1.1097405
-	// Arc  2006(steps   1). Coordinate: 0.0817162604 0.7819840 1.1088490
-	// Arc  2007(steps   1). Coordinate: 0.0814099875 0.7823174 1.1079574
-	// Arc  2008(steps   1). Coordinate: 0.0811037533 0.7826506 1.1070656
-	// Arc  2009(steps   1). Coordinate: 0.0807975577 0.7829836 1.1061738
-	// Arc  2010(steps   1). Coordinate: 0.0804914005 0.7833162 1.1052818
-	// Arc  2011(steps   1). Coordinate: 0.0801852814 0.7836486 1.1043897
-	// Arc  2012(steps   1). Coordinate: 0.0798792003 0.7839808 1.1034976
-	// Arc  2013(steps   1). Coordinate: 0.0795731570 0.7843126 1.1026053
-	// Arc  2014(steps   1). Coordinate: 0.0792671513 0.7846442 1.1017129
-	// Arc  2015(steps   1). Coordinate: 0.0789611830 0.7849756 1.1008203
-	// Arc  2016(steps   1). Coordinate: 0.0786552518 0.7853067 1.0999277
-	// Arc  2017(steps   1). Coordinate: 0.0783493577 0.7856375 1.0990350
-	// Arc  2018(steps   1). Coordinate: 0.0780435003 0.7859681 1.0981421
-	// Arc  2019(steps   1). Coordinate: 0.0777376795 0.7862985 1.0972492
-	// Arc  2020(steps   1). Coordinate: 0.0774318952 0.7866286 1.0963561
-	// Arc  2021(steps   1). Coordinate: 0.0771261471 0.7869584 1.0954630
-	// Arc  2022(steps   1). Coordinate: 0.0768204350 0.7872880 1.0945697
-	// Arc  2023(steps   1). Coordinate: 0.0765147588 0.7876173 1.0936764
-	// Arc  2024(steps   1). Coordinate: 0.0762091182 0.7879464 1.0927829
-	// Arc  2025(steps   1). Coordinate: 0.0759035131 0.7882753 1.0918893
-	// Arc  2026(steps   1). Coordinate: 0.0755979432 0.7886039 1.0909957
-	// Arc  2027(steps   1). Coordinate: 0.0752924084 0.7889323 1.0901019
-	// Arc  2028(steps   1). Coordinate: 0.0749869086 0.7892604 1.0892080
-	// Arc  2029(steps   1). Coordinate: 0.0746814434 0.7895883 1.0883141
-	// Arc  2030(steps   1). Coordinate: 0.0743760128 0.7899160 1.0874200
-	// Arc  2031(steps   1). Coordinate: 0.0740706165 0.7902434 1.0865258
-	// Arc  2032(steps   1). Coordinate: 0.0737652544 0.7905706 1.0856316
-	// Arc  2033(steps   1). Coordinate: 0.0734599263 0.7908975 1.0847372
-	// Arc  2034(steps   1). Coordinate: 0.0731546319 0.7912242 1.0838428
-	// Arc  2035(steps   1). Coordinate: 0.0728493711 0.7915507 1.0829482
-	// Arc  2036(steps   1). Coordinate: 0.0725441438 0.7918770 1.0820536
-	// Arc  2037(steps   1). Coordinate: 0.0722389497 0.7922030 1.0811588
-	// Arc  2038(steps   1). Coordinate: 0.0719337887 0.7925289 1.0802640
-	// Arc  2039(steps   1). Coordinate: 0.0716286606 0.7928544 1.0793691
-	// Arc  2040(steps   1). Coordinate: 0.0713235651 0.7931798 1.0784741
-	// Arc  2041(steps   1). Coordinate: 0.0710185022 0.7935050 1.0775790
-	// Arc  2042(steps   1). Coordinate: 0.0707134717 0.7938299 1.0766838
-	// Arc  2043(steps   1). Coordinate: 0.0704084733 0.7941546 1.0757885
-	// Arc  2044(steps   1). Coordinate: 0.0701035069 0.7944791 1.0748931
-	// Arc  2045(steps   1). Coordinate: 0.0697985723 0.7948033 1.0739976
-	// Arc  2046(steps   1). Coordinate: 0.0694936693 0.7951274 1.0731021
-	// Arc  2047(steps   1). Coordinate: 0.0691887978 0.7954512 1.0722064
-	// Arc  2048(steps   1). Coordinate: 0.0688839576 0.7957749 1.0713107
-	// Arc  2049(steps   1). Coordinate: 0.0685791486 0.7960983 1.0704149
-	// Arc  2050(steps   1). Coordinate: 0.0682743704 0.7964215 1.0695190
-	// Arc  2051(steps   1). Coordinate: 0.0679696230 0.7967445 1.0686230
-	// Arc  2052(steps   1). Coordinate: 0.0676649062 0.7970673 1.0677269
-	// Arc  2053(steps   1). Coordinate: 0.0673602199 0.7973899 1.0668307
-	// Arc  2054(steps   1). Coordinate: 0.0670555637 0.7977122 1.0659345
-	// Arc  2055(steps   1). Coordinate: 0.0667509377 0.7980344 1.0650382
-	// Arc  2056(steps   1). Coordinate: 0.0664463415 0.7983564 1.0641417
-	// Arc  2057(steps   1). Coordinate: 0.0661417751 0.7986782 1.0632453
-	// Arc  2058(steps   1). Coordinate: 0.0658372383 0.7989997 1.0623487
-	// Arc  2059(steps   1). Coordinate: 0.0655327309 0.7993211 1.0614520
-	// Arc  2060(steps   1). Coordinate: 0.0652282527 0.7996423 1.0605553
-	// Arc  2061(steps   1). Coordinate: 0.0649238035 0.7999632 1.0596585
-	// Arc  2062(steps   1). Coordinate: 0.0646193833 0.8002840 1.0587616
-	// Arc  2063(steps   1). Coordinate: 0.0643149917 0.8006046 1.0578646
-	// Arc  2064(steps   1). Coordinate: 0.0640106288 0.8009250 1.0569675
-	// Arc  2065(steps   1). Coordinate: 0.0637062942 0.8012452 1.0560704
-	// Arc  2066(steps   1). Coordinate: 0.0634019879 0.8015652 1.0551732
-	// Arc  2067(steps   1). Coordinate: 0.0630977096 0.8018851 1.0542759
-	// Arc  2068(steps   1). Coordinate: 0.0627934592 0.8022047 1.0533785
-	// Arc  2069(steps   1). Coordinate: 0.0624892366 0.8025241 1.0524811
-	// Arc  2070(steps   1). Coordinate: 0.0621850415 0.8028434 1.0515836
-	// Arc  2071(steps   1). Coordinate: 0.0618808738 0.8031625 1.0506860
-	// Arc  2072(steps   1). Coordinate: 0.0615767334 0.8034814 1.0497883
-	// Arc  2073(steps   1). Coordinate: 0.0612726201 0.8038001 1.0488906
-	// Arc  2074(steps   1). Coordinate: 0.0609685337 0.8041186 1.0479928
-	// Arc  2075(steps   1). Coordinate: 0.0606644741 0.8044370 1.0470949
-	// Arc  2076(steps   1). Coordinate: 0.0603604410 0.8047552 1.0461969
-	// Arc  2077(steps   1). Coordinate: 0.0600564344 0.8050731 1.0452989
-	// Arc  2078(steps   1). Coordinate: 0.0597524541 0.8053910 1.0444008
-	// Arc  2079(steps   1). Coordinate: 0.0594484999 0.8057086 1.0435026
-	// Arc  2080(steps   1). Coordinate: 0.0591445716 0.8060261 1.0426044
-	// Arc  2081(steps   1). Coordinate: 0.0588406692 0.8063434 1.0417061
-	// Arc  2082(steps   1). Coordinate: 0.0585367924 0.8066605 1.0408077
-	// Arc  2083(steps   1). Coordinate: 0.0582329411 0.8069775 1.0399092
-	// Arc  2084(steps   1). Coordinate: 0.0579291151 0.8072942 1.0390107
-	// Arc  2085(steps   1). Coordinate: 0.0576253143 0.8076109 1.0381121
-	// Arc  2086(steps   1). Coordinate: 0.0573215386 0.8079273 1.0372135
-	// Arc  2087(steps   1). Coordinate: 0.0570177876 0.8082436 1.0363147
-	// Arc  2088(steps   1). Coordinate: 0.0567140614 0.8085597 1.0354159
-	// Arc  2089(steps   1). Coordinate: 0.0564103598 0.8088757 1.0345171
-	// Arc  2090(steps   1). Coordinate: 0.0561066825 0.8091914 1.0336182
-	// Arc  2091(steps   1). Coordinate: 0.0558030295 0.8095071 1.0327192
-	// Arc  2092(steps   1). Coordinate: 0.0554994006 0.8098225 1.0318201
-	// Arc  2093(steps   1). Coordinate: 0.0551957956 0.8101378 1.0309210
-	// Arc  2094(steps   1). Coordinate: 0.0548922144 0.8104530 1.0300218
-	// Arc  2095(steps   1). Coordinate: 0.0545886568 0.8107680 1.0291226
-	// Arc  2096(steps   1). Coordinate: 0.0542851227 0.8110828 1.0282233
-	// Arc  2097(steps   1). Coordinate: 0.0539816119 0.8113975 1.0273239
-	// Arc  2098(steps   1). Coordinate: 0.0536781243 0.8117120 1.0264245
-	// Arc  2099(steps   1). Coordinate: 0.0533746597 0.8120264 1.0255250
-	// Arc  2100(steps   1). Coordinate: 0.0530712180 0.8123406 1.0246255
-	// Arc  2101(steps   1). Coordinate: 0.0527677991 0.8126547 1.0237259
-	// Arc  2102(steps   1). Coordinate: 0.0524644027 0.8129686 1.0228262
-	// Arc  2103(steps   1). Coordinate: 0.0521610287 0.8132823 1.0219265
-	// Arc  2104(steps   1). Coordinate: 0.0518576770 0.8135960 1.0210267
-	// Arc  2105(steps   1). Coordinate: 0.0515543474 0.8139094 1.0201268
-	// Arc  2106(steps   1). Coordinate: 0.0512510398 0.8142227 1.0192269
-	// Arc  2107(steps   1). Coordinate: 0.0509477540 0.8145359 1.0183269
-	// Arc  2108(steps   1). Coordinate: 0.0506444899 0.8148490 1.0174269
-	// Arc  2109(steps   1). Coordinate: 0.0503412474 0.8151619 1.0165268
-	// Arc  2110(steps   1). Coordinate: 0.0500380262 0.8154746 1.0156267
-	// Arc  2111(steps   1). Coordinate: 0.0497348263 0.8157872 1.0147265
-	// Arc  2112(steps   1). Coordinate: 0.0494316475 0.8160997 1.0138263
-	// Arc  2113(steps   1). Coordinate: 0.0491284896 0.8164120 1.0129260
-	// Arc  2114(steps   1). Coordinate: 0.0488253525 0.8167242 1.0120256
-	// Arc  2115(steps   1). Coordinate: 0.0485222361 0.8170362 1.0111252
-	// Arc  2116(steps   1). Coordinate: 0.0482191402 0.8173482 1.0102247
-	// Arc  2117(steps   1). Coordinate: 0.0479160647 0.8176599 1.0093242
-	// Arc  2118(steps   1). Coordinate: 0.0476130094 0.8179716 1.0084236
-	// Arc  2119(steps   1). Coordinate: 0.0473099741 0.8182831 1.0075230
-	// Arc  2120(steps   1). Coordinate: 0.0470069588 0.8185945 1.0066223
-	// Arc  2121(steps   1). Coordinate: 0.0467039634 0.8189057 1.0057216
-	// Arc  2122(steps   1). Coordinate: 0.0464009875 0.8192169 1.0048208
-	// Arc  2123(steps   1). Coordinate: 0.0460980312 0.8195278 1.0039200
-	// Arc  2124(steps   1). Coordinate: 0.0457950942 0.8198387 1.0030191
-	// Arc  2125(steps   1). Coordinate: 0.0454921765 0.8201494 1.0021182
-	// Arc  2126(steps   1). Coordinate: 0.0451892778 0.8204601 1.0012172
-	// Arc  2127(steps   1). Coordinate: 0.0448863981 0.8207705 1.0003161
-	// Arc  2128(steps   1). Coordinate: 0.0445835372 0.8210809 0.9994150
-	// Arc  2129(steps   1). Coordinate: 0.0442806950 0.8213911 0.9985139
-	// Arc  2130(steps   1). Coordinate: 0.0439778712 0.8217012 0.9976127
-	// Arc  2131(steps   1). Coordinate: 0.0436750659 0.8220112 0.9967115
-	// Arc  2132(steps   1). Coordinate: 0.0433722788 0.8223211 0.9958102
-	// Arc  2133(steps   1). Coordinate: 0.0430695098 0.8226309 0.9949089
-	// Arc  2134(steps   1). Coordinate: 0.0427667587 0.8229405 0.9940075
-	// Arc  2135(steps   1). Coordinate: 0.0424640255 0.8232500 0.9931061
-	// Arc  2136(steps   1). Coordinate: 0.0421613100 0.8235594 0.9922047
-	// Arc  2137(steps   1). Coordinate: 0.0418586120 0.8238687 0.9913031
-	// Arc  2138(steps   1). Coordinate: 0.0415559314 0.8241779 0.9904016
-	// Arc  2139(steps   1). Coordinate: 0.0412532681 0.8244869 0.9895000
-	// Arc  2140(steps   1). Coordinate: 0.0409506219 0.8247959 0.9885984
-	// Arc  2141(steps   1). Coordinate: 0.0406479927 0.8251047 0.9876967
-	// Arc  2142(steps   1). Coordinate: 0.0403453804 0.8254134 0.9867949
-	// Arc  2143(steps   1). Coordinate: 0.0400427848 0.8257220 0.9858932
-	// Arc  2144(steps   1). Coordinate: 0.0397402058 0.8260305 0.9849913
-	// Arc  2145(steps   1). Coordinate: 0.0394376432 0.8263389 0.9840895
-	// Arc  2146(steps   1). Coordinate: 0.0391350970 0.8266472 0.9831876
-	// Arc  2147(steps   1). Coordinate: 0.0388325669 0.8269554 0.9822856
-	// Arc  2148(steps   1). Coordinate: 0.0385300529 0.8272634 0.9813836
-	// Arc  2149(steps   1). Coordinate: 0.0382275548 0.8275714 0.9804816
-	// Arc  2150(steps   1). Coordinate: 0.0379250724 0.8278793 0.9795796
-	// Arc  2151(steps   1). Coordinate: 0.0376226057 0.8281870 0.9786774
-	// Arc  2152(steps   1). Coordinate: 0.0373201545 0.8284947 0.9777753
-	// Arc  2153(steps   1). Coordinate: 0.0370177187 0.8288022 0.9768731
-	// Arc  2154(steps   1). Coordinate: 0.0367152981 0.8291097 0.9759709
-	// Arc  2155(steps   1). Coordinate: 0.0364128926 0.8294171 0.9750686
-	// Arc  2156(steps   1). Coordinate: 0.0361105021 0.8297243 0.9741663
-	// Arc  2157(steps   1). Coordinate: 0.0358081264 0.8300315 0.9732640
-	// Arc  2158(steps   1). Coordinate: 0.0355057654 0.8303385 0.9723616
-	// Arc  2159(steps   1). Coordinate: 0.0352034190 0.8306455 0.9714592
-	// Arc  2160(steps   1). Coordinate: 0.0349010870 0.8309524 0.9705567
-	// Arc  2161(steps   1). Coordinate: 0.0345987694 0.8312592 0.9696542
-	// Arc  2162(steps   1). Coordinate: 0.0342964659 0.8315658 0.9687517
-	// Arc  2163(steps   1). Coordinate: 0.0339941764 0.8318724 0.9678491
-	// Arc  2164(steps   1). Coordinate: 0.0336919009 0.8321789 0.9669465
-	// Arc  2165(steps   1). Coordinate: 0.0333896391 0.8324854 0.9660439
-	// Arc  2166(steps   1). Coordinate: 0.0330873910 0.8327917 0.9651412
-	// Arc  2167(steps   1). Coordinate: 0.0327851564 0.8330979 0.9642385
-	// Arc  2168(steps   1). Coordinate: 0.0324829352 0.8334041 0.9633358
-	// Arc  2169(steps   1). Coordinate: 0.0321807273 0.8337101 0.9624330
-	// Arc  2170(steps   1). Coordinate: 0.0318785324 0.8340161 0.9615302
-	// Arc  2171(steps   1). Coordinate: 0.0315763506 0.8343220 0.9606274
-	// Arc  2172(steps   1). Coordinate: 0.0312741816 0.8346278 0.9597245
-	// Arc  2173(steps   1). Coordinate: 0.0309720254 0.8349335 0.9588216
-	// Arc  2174(steps   1). Coordinate: 0.0306698818 0.8352391 0.9579187
-	// Arc  2175(steps   1). Coordinate: 0.0303677507 0.8355447 0.9570157
-	// Arc  2176(steps   1). Coordinate: 0.0300656319 0.8358502 0.9561127
-	// Arc  2177(steps   1). Coordinate: 0.0297635253 0.8361556 0.9552097
-	// Arc  2178(steps   1). Coordinate: 0.0294614308 0.8364609 0.9543066
-	// Arc  2179(steps   1). Coordinate: 0.0291593483 0.8367661 0.9534035
-	// Arc  2180(steps   1). Coordinate: 0.0288572776 0.8370713 0.9525004
-	// Arc  2181(steps   1). Coordinate: 0.0285552186 0.8373764 0.9515972
-	// Arc  2182(steps   1). Coordinate: 0.0282531712 0.8376814 0.9506941
-	// Arc  2183(steps   1). Coordinate: 0.0279511353 0.8379863 0.9497908
-	// Arc  2184(steps   1). Coordinate: 0.0276491107 0.8382912 0.9488876
-	// Arc  2185(steps   1). Coordinate: 0.0273470972 0.8385959 0.9479843
-	// Arc  2186(steps   1). Coordinate: 0.0270450949 0.8389007 0.9470810
-	// Arc  2187(steps   1). Coordinate: 0.0267431034 0.8392053 0.9461777
-	// Arc  2188(steps   1). Coordinate: 0.0264411228 0.8395099 0.9452744
-	// Arc  2189(steps   1). Coordinate: 0.0261391529 0.8398144 0.9443710
-	// Arc  2190(steps   1). Coordinate: 0.0258371936 0.8401188 0.9434676
-	// Arc  2191(steps   1). Coordinate: 0.0255352446 0.8404232 0.9425641
-	// Arc  2192(steps   1). Coordinate: 0.0252333060 0.8407275 0.9416607
-	// Arc  2193(steps   1). Coordinate: 0.0249313776 0.8410317 0.9407572
-	// Arc  2194(steps   1). Coordinate: 0.0246294592 0.8413359 0.9398537
-	// Arc  2195(steps   1). Coordinate: 0.0243275508 0.8416400 0.9389502
-	// Arc  2196(steps   1). Coordinate: 0.0240256521 0.8419440 0.9380466
-	// Arc  2197(steps   1). Coordinate: 0.0237237632 0.8422480 0.9371430
-	// Arc  2198(steps   1). Coordinate: 0.0234218838 0.8425519 0.9362394
-	// Arc  2199(steps   1). Coordinate: 0.0231200138 0.8428557 0.9353358
-	// Arc  2200(steps   1). Coordinate: 0.0228181531 0.8431595 0.9344321
-	// Arc  2201(steps   1). Coordinate: 0.0225163016 0.8434632 0.9335284
-	// Arc  2202(steps   1). Coordinate: 0.0222144592 0.8437669 0.9326247
-	// Arc  2203(steps   1). Coordinate: 0.0219126257 0.8440705 0.9317210
-	// Arc  2204(steps   1). Coordinate: 0.0216108009 0.8443741 0.9308173
-	// Arc  2205(steps   1). Coordinate: 0.0213089849 0.8446776 0.9299135
-	// Arc  2206(steps   1). Coordinate: 0.0210071775 0.8449810 0.9290097
-	// Arc  2207(steps   1). Coordinate: 0.0207053784 0.8452844 0.9281059
-	// Arc  2208(steps   1). Coordinate: 0.0204035877 0.8455877 0.9272021
-	// Arc  2209(steps   1). Coordinate: 0.0201018051 0.8458910 0.9262982
-	// Arc  2210(steps   1). Coordinate: 0.0198000307 0.8461942 0.9253943
-	// Arc  2211(steps   1). Coordinate: 0.0194982641 0.8464974 0.9244904
-	// Arc  2212(steps   1). Coordinate: 0.0191965054 0.8468005 0.9235865
-	// Arc  2213(steps   1). Coordinate: 0.0188947544 0.8471036 0.9226826
-	// Arc  2214(steps   1). Coordinate: 0.0185930109 0.8474066 0.9217786
-	// Arc  2215(steps   1). Coordinate: 0.0182912749 0.8477096 0.9208747
-	// Arc  2216(steps   1). Coordinate: 0.0179895461 0.8480125 0.9199707
-	// Arc  2217(steps   1). Coordinate: 0.0176878246 0.8483154 0.9190667
-	// Arc  2218(steps   1). Coordinate: 0.0173861102 0.8486182 0.9181627
-	// Arc  2219(steps   1). Coordinate: 0.0170844027 0.8489210 0.9172586
-	// Arc  2220(steps   1). Coordinate: 0.0167827021 0.8492237 0.9163546
-	// Arc  2221(steps   1). Coordinate: 0.0164810081 0.8495264 0.9154505
-	// Arc  2222(steps   1). Coordinate: 0.0161793208 0.8498291 0.9145464
-	// Arc  2223(steps   1). Coordinate: 0.0158776399 0.8501317 0.9136423
-	// Arc  2224(steps   1). Coordinate: 0.0155759653 0.8504343 0.9127382
-	// Arc  2225(steps   1). Coordinate: 0.0152742970 0.8507368 0.9118340
-	// Arc  2226(steps   1). Coordinate: 0.0149726348 0.8510393 0.9109299
-	// Arc  2227(steps   1). Coordinate: 0.0146709785 0.8513418 0.9100257
-	// Arc  2228(steps   1). Coordinate: 0.0143693281 0.8516442 0.9091215
-	// Arc  2229(steps   1). Coordinate: 0.0140676834 0.8519466 0.9082173
-	// Arc  2230(steps   1). Coordinate: 0.0137660444 0.8522489 0.9073131
-	// Arc  2231(steps   1). Coordinate: 0.0134644108 0.8525512 0.9064089
-	// Arc  2232(steps   1). Coordinate: 0.0131627826 0.8528535 0.9055046
-	// Arc  2233(steps   1). Coordinate: 0.0128611596 0.8531557 0.9046004
-	// Arc  2234(steps   1). Coordinate: 0.0125595418 0.8534579 0.9036961
-	// Arc  2235(steps   1). Coordinate: 0.0122579290 0.8537601 0.9027918
-	// Arc  2236(steps   1). Coordinate: 0.0119563210 0.8540622 0.9018875
-	// Arc  2237(steps   1). Coordinate: 0.0116547178 0.8543643 0.9009832
-	// Arc  2238(steps   1). Coordinate: 0.0113531193 0.8546664 0.9000789
-	// Arc  2239(steps   1). Coordinate: 0.0110515252 0.8549685 0.8991746
-	// Arc  2240(steps   1). Coordinate: 0.0107499356 0.8552705 0.8982702
-	// Arc  2241(steps   1). Coordinate: 0.0104483502 0.8555725 0.8973659
-	// Arc  2242(steps   1). Coordinate: 0.0101467690 0.8558745 0.8964615
-	// Arc  2243(steps   1). Coordinate: 0.0098451919 0.8561764 0.8955572
-	// Arc  2244(steps   1). Coordinate: 0.0095436186 0.8564783 0.8946528
-	// Arc  2245(steps   1). Coordinate: 0.0092420492 0.8567802 0.8937484
-	// Arc  2246(steps   1). Coordinate: 0.0089404834 0.8570821 0.8928440
-	// Arc  2247(steps   1). Coordinate: 0.0086389212 0.8573839 0.8919396
-	// Arc  2248(steps   1). Coordinate: 0.0083373624 0.8576857 0.8910352
-	// Arc  2249(steps   1). Coordinate: 0.0080358069 0.8579875 0.8901307
-	// Arc  2250(steps   1). Coordinate: 0.0077342546 0.8582893 0.8892263
-	// Arc  2251(steps   1). Coordinate: 0.0074327054 0.8585911 0.8883219
-	// Arc  2252(steps   1). Coordinate: 0.0071311592 0.8588928 0.8874174
-	// Arc  2253(steps   1). Coordinate: 0.0068296158 0.8591945 0.8865130
-	// Arc  2254(steps   1). Coordinate: 0.0065280750 0.8594962 0.8856085
-	// Arc  2255(steps   1). Coordinate: 0.0062265369 0.8597979 0.8847040
-	// Arc  2256(steps   1). Coordinate: 0.0059250013 0.8600996 0.8837996
-	// Arc  2257(steps   1). Coordinate: 0.0056234680 0.8604012 0.8828951
-	// Arc  2258(steps   1). Coordinate: 0.0053219369 0.8607029 0.8819906
-	// Arc  2259(steps   1). Coordinate: 0.0050204080 0.8610045 0.8810861
-	// Arc  2260(steps   1). Coordinate: 0.0047188810 0.8613061 0.8801816
-	// Arc  2261(steps   1). Coordinate: 0.0044173560 0.8616077 0.8792771
-	// Arc  2262(steps   1). Coordinate: 0.0041158326 0.8619093 0.8783726
-	// Arc  2263(steps   1). Coordinate: 0.0038143109 0.8622109 0.8774681
-	// Arc  2264(steps   1). Coordinate: 0.0035127907 0.8625124 0.8765636
-	// Arc  2265(steps   1). Coordinate: 0.0032112720 0.8628140 0.8756591
-	// Arc  2266(steps   1). Coordinate: 0.0029097545 0.8631156 0.8747546
-	// Arc  2267(steps   1). Coordinate: 0.0026082381 0.8634171 0.8738500
-	// Arc  2268(steps   1). Coordinate: 0.0023067228 0.8637186 0.8729455
-	// Arc  2269(steps   1). Coordinate: 0.0020052084 0.8640202 0.8720410
-	// Arc  2270(steps   1). Coordinate: 0.0017036948 0.8643217 0.8711365
-	// Arc  2271(steps   1). Coordinate: 0.0014021818 0.8646232 0.8702319
-	// Arc  2272(steps   1). Coordinate: 0.0011006694 0.8649247 0.8693274
-	// Arc  2273(steps   1). Coordinate: 0.0007991575 0.8652262 0.8684229
-	// Arc  2274(steps   1). Coordinate: 0.0004976459 0.8655278 0.8675183
-	// Arc  2275(steps   1). Coordinate: 0.0001961344 0.8658293 0.8666138
-	// Arc  2276(steps   1). Coordinate: -0.0001053769 0.8661308 0.8657093
-	// Arc  2277(steps   1). Coordinate: -0.0004068883 0.8664323 0.8648047
-	// Arc  2278(steps   1). Coordinate: -0.0007083999 0.8667338 0.8639002
-	// Arc  2279(steps   1). Coordinate: -0.0010099117 0.8670353 0.8629957
-	// Arc  2280(steps   1). Coordinate: -0.0013114239 0.8673368 0.8620911
-	// Arc  2281(steps   1). Coordinate: -0.0016129367 0.8676384 0.8611866
-	// Arc  2282(steps   1). Coordinate: -0.0019144501 0.8679399 0.8602821
-	// Arc  2283(steps   1). Coordinate: -0.0022159642 0.8682414 0.8593776
-	// Arc  2284(steps   1). Coordinate: -0.0025174793 0.8685429 0.8584730
-	// Arc  2285(steps   1). Coordinate: -0.0028189953 0.8688445 0.8575685
-	// Arc  2286(steps   1). Coordinate: -0.0031205125 0.8691460 0.8566640
-	// Arc  2287(steps   1). Coordinate: -0.0034220308 0.8694476 0.8557595
-	// Arc  2288(steps   1). Coordinate: -0.0037235506 0.8697492 0.8548550
-	// Arc  2289(steps   1). Coordinate: -0.0040250718 0.8700507 0.8539504
-	// Arc  2290(steps   1). Coordinate: -0.0043265946 0.8703523 0.8530459
-	// Arc  2291(steps   1). Coordinate: -0.0046281192 0.8706539 0.8521414
-	// Arc  2292(steps   1). Coordinate: -0.0049296456 0.8709555 0.8512369
-	// Arc  2293(steps   1). Coordinate: -0.0052311739 0.8712572 0.8503325
-	// Arc  2294(steps   1). Coordinate: -0.0055327043 0.8715588 0.8494280
-	// Arc  2295(steps   1). Coordinate: -0.0058342369 0.8718604 0.8485235
-	// Arc  2296(steps   1). Coordinate: -0.0061357718 0.8721621 0.8476190
-	// Arc  2297(steps   1). Coordinate: -0.0064373092 0.8724638 0.8467145
-	// Arc  2298(steps   1). Coordinate: -0.0067388491 0.8727655 0.8458101
-	// Arc  2299(steps   1). Coordinate: -0.0070403917 0.8730672 0.8449056
-	// Arc  2300(steps   1). Coordinate: -0.0073419371 0.8733689 0.8440012
-	// Arc  2301(steps   1). Coordinate: -0.0076434854 0.8736707 0.8430967
-	// Arc  2302(steps   1). Coordinate: -0.0079450368 0.8739724 0.8421923
-	// Arc  2303(steps   1). Coordinate: -0.0082465913 0.8742742 0.8412879
-	// Arc  2304(steps   1). Coordinate: -0.0085481490 0.8745761 0.8403835
-	// Arc  2305(steps   1). Coordinate: -0.0088497102 0.8748779 0.8394790
-	// Arc  2306(steps   1). Coordinate: -0.0091512749 0.8751797 0.8385746
-	// Arc  2307(steps   1). Coordinate: -0.0094528432 0.8754816 0.8376703
-	// Arc  2308(steps   1). Coordinate: -0.0097544153 0.8757835 0.8367659
-	// Arc  2309(steps   1). Coordinate: -0.0100559913 0.8760855 0.8358615
-	// Arc  2310(steps   1). Coordinate: -0.0103575713 0.8763874 0.8349571
-	// Arc  2311(steps   1). Coordinate: -0.0106591554 0.8766894 0.8340528
-	// Arc  2312(steps   1). Coordinate: -0.0109607437 0.8769914 0.8331484
-	// Arc  2313(steps   1). Coordinate: -0.0112623364 0.8772935 0.8322441
-	// Arc  2314(steps   1). Coordinate: -0.0115639336 0.8775955 0.8313398
-	// Arc  2315(steps   1). Coordinate: -0.0118655353 0.8778976 0.8304355
-	// Arc  2316(steps   1). Coordinate: -0.0121671418 0.8781998 0.8295312
-	// Arc  2317(steps   1). Coordinate: -0.0124687532 0.8785019 0.8286269
-	// Arc  2318(steps   1). Coordinate: -0.0127703695 0.8788041 0.8277226
-	// Arc  2319(steps   1). Coordinate: -0.0130719909 0.8791063 0.8268184
-	// Arc  2320(steps   1). Coordinate: -0.0133736175 0.8794086 0.8259141
-	// Arc  2321(steps   1). Coordinate: -0.0136752495 0.8797109 0.8250099
-	// Arc  2322(steps   1). Coordinate: -0.0139768869 0.8800132 0.8241057
-	// Arc  2323(steps   1). Coordinate: -0.0142785299 0.8803156 0.8232015
-	// Arc  2324(steps   1). Coordinate: -0.0145801785 0.8806180 0.8222973
-	// Arc  2325(steps   1). Coordinate: -0.0148818330 0.8809204 0.8213931
-	// Arc  2326(steps   1). Coordinate: -0.0151834934 0.8812229 0.8204890
-	// Arc  2327(steps   1). Coordinate: -0.0154851599 0.8815254 0.8195848
-	// Arc  2328(steps   1). Coordinate: -0.0157868326 0.8818280 0.8186807
-	// Arc  2329(steps   1). Coordinate: -0.0160885116 0.8821306 0.8177766
-	// Arc  2330(steps   1). Coordinate: -0.0163901969 0.8824333 0.8168725
-	// Arc  2331(steps   1). Coordinate: -0.0166918889 0.8827359 0.8159684
-	// Arc  2332(steps   1). Coordinate: -0.0169935875 0.8830387 0.8150643
-	// Arc  2333(steps   1). Coordinate: -0.0172952929 0.8833414 0.8141603
-	// Arc  2334(steps   1). Coordinate: -0.0175970052 0.8836443 0.8132562
-	// Arc  2335(steps   1). Coordinate: -0.0178987246 0.8839471 0.8123522
-	// Arc  2336(steps   1). Coordinate: -0.0182004511 0.8842500 0.8114482
-	// Arc  2337(steps   1). Coordinate: -0.0185021850 0.8845530 0.8105443
-	// Arc  2338(steps   1). Coordinate: -0.0188039262 0.8848560 0.8096403
-	// Arc  2339(steps   1). Coordinate: -0.0191056749 0.8851591 0.8087364
-	// Arc  2340(steps   1). Coordinate: -0.0194074313 0.8854622 0.8078324
-	// Arc  2341(steps   1). Coordinate: -0.0197091955 0.8857653 0.8069285
-	// Arc  2342(steps   1). Coordinate: -0.0200109676 0.8860685 0.8060247
-	// Arc  2343(steps   1). Coordinate: -0.0203127477 0.8863718 0.8051208
-	// Arc  2344(steps   1). Coordinate: -0.0206145359 0.8866751 0.8042170
-	// Arc  2345(steps   1). Coordinate: -0.0209163325 0.8869785 0.8033132
-	// Arc  2346(steps   1). Coordinate: -0.0212181374 0.8872819 0.8024094
-	// Arc  2347(steps   1). Coordinate: -0.0215199508 0.8875854 0.8015056
-	// Arc  2348(steps   1). Coordinate: -0.0218217729 0.8878889 0.8006018
-	// Arc  2349(steps   1). Coordinate: -0.0221236037 0.8881925 0.7996981
-	// Arc  2350(steps   1). Coordinate: -0.0224254435 0.8884962 0.7987944
-	// Arc  2351(steps   1). Coordinate: -0.0227272922 0.8887999 0.7978907
-	// Arc  2352(steps   1). Coordinate: -0.0230291501 0.8891036 0.7969870
-	// Arc  2353(steps   1). Coordinate: -0.0233310173 0.8894075 0.7960834
-	// Arc  2354(steps   1). Coordinate: -0.0236328939 0.8897114 0.7951798
-	// Arc  2355(steps   1). Coordinate: -0.0239347799 0.8900153 0.7942762
-	// Arc  2356(steps   1). Coordinate: -0.0242366756 0.8903193 0.7933726
-	// Arc  2357(steps   1). Coordinate: -0.0245385811 0.8906234 0.7924691
-	// Arc  2358(steps   1). Coordinate: -0.0248404965 0.8909276 0.7915656
-	// Arc  2359(steps   1). Coordinate: -0.0251424219 0.8912318 0.7906621
-	// Arc  2360(steps   1). Coordinate: -0.0254443574 0.8915360 0.7897586
-	// Arc  2361(steps   1). Coordinate: -0.0257463032 0.8918404 0.7888552
-	// Arc  2362(steps   1). Coordinate: -0.0260482594 0.8921448 0.7879518
-	// Arc  2363(steps   1). Coordinate: -0.0263502262 0.8924493 0.7870484
-	// Arc  2364(steps   1). Coordinate: -0.0266522035 0.8927538 0.7861450
-	// Arc  2365(steps   1). Coordinate: -0.0269541917 0.8930584 0.7852417
-	// Arc  2366(steps   1). Coordinate: -0.0272561907 0.8933631 0.7843384
-	// Arc  2367(steps   1). Coordinate: -0.0275582008 0.8936679 0.7834351
-	// Arc  2368(steps   1). Coordinate: -0.0278602221 0.8939727 0.7825318
-	// Arc  2369(steps   1). Coordinate: -0.0281622546 0.8942776 0.7816286
-	// Arc  2370(steps   1). Coordinate: -0.0284642985 0.8945826 0.7807254
-	// Arc  2371(steps   1). Coordinate: -0.0287663540 0.8948877 0.7798223
-	// Arc  2372(steps   1). Coordinate: -0.0290684212 0.8951928 0.7789191
-	// Arc  2373(steps   1). Coordinate: -0.0293705001 0.8954980 0.7780160
-	// Arc  2374(steps   1). Coordinate: -0.0296725910 0.8958033 0.7771130
-	// Arc  2375(steps   1). Coordinate: -0.0299746939 0.8961087 0.7762099
-	// Arc  2376(steps   1). Coordinate: -0.0302768090 0.8964142 0.7753069
-	// Arc  2377(steps   1). Coordinate: -0.0305789364 0.8967197 0.7744039
-	// Arc  2378(steps   1). Coordinate: -0.0308810763 0.8970253 0.7735010
-	// Arc  2379(steps   1). Coordinate: -0.0311832287 0.8973310 0.7725981
-	// Arc  2380(steps   1). Coordinate: -0.0314853938 0.8976368 0.7716952
-	// Arc  2381(steps   1). Coordinate: -0.0317875717 0.8979426 0.7707924
-	// Arc  2382(steps   1). Coordinate: -0.0320897626 0.8982486 0.7698895
-	// Arc  2383(steps   1). Coordinate: -0.0323919666 0.8985546 0.7689868
-	// Arc  2384(steps   1). Coordinate: -0.0326941838 0.8988607 0.7680840
-	// Arc  2385(steps   1). Coordinate: -0.0329964144 0.8991669 0.7671813
-	// Arc  2386(steps   1). Coordinate: -0.0332986584 0.8994732 0.7662786
-	// Arc  2387(steps   1). Coordinate: -0.0336009160 0.8997796 0.7653760
-	// Arc  2388(steps   1). Coordinate: -0.0339031874 0.9000861 0.7644734
-	// Arc  2389(steps   1). Coordinate: -0.0342054727 0.9003927 0.7635708
-	// Arc  2390(steps   1). Coordinate: -0.0345077719 0.9006993 0.7626682
-	// Arc  2391(steps   1). Coordinate: -0.0348100853 0.9010061 0.7617657
-	// Arc  2392(steps   1). Coordinate: -0.0351124130 0.9013129 0.7608633
-	// Arc  2393(steps   1). Coordinate: -0.0354147550 0.9016199 0.7599608
-	// Arc  2394(steps   1). Coordinate: -0.0357171116 0.9019269 0.7590585
-	// Arc  2395(steps   1). Coordinate: -0.0360194828 0.9022340 0.7581561
-	// Arc  2396(steps   1). Coordinate: -0.0363218689 0.9025413 0.7572538
-	// Arc  2397(steps   1). Coordinate: -0.0366242699 0.9028486 0.7563515
-	// Arc  2398(steps   1). Coordinate: -0.0369266859 0.9031560 0.7554493
-	// Arc  2399(steps   1). Coordinate: -0.0372291171 0.9034635 0.7545471
-	// Arc  2400(steps   1). Coordinate: -0.0375315637 0.9037712 0.7536449
-	// Arc  2401(steps   1). Coordinate: -0.0378340257 0.9040789 0.7527428
-	// Arc  2402(steps   1). Coordinate: -0.0381365033 0.9043867 0.7518407
-	// Arc  2403(steps   1). Coordinate: -0.0384389967 0.9046947 0.7509387
-	// Arc  2404(steps   1). Coordinate: -0.0387415059 0.9050027 0.7500367
-	// Arc  2405(steps   1). Coordinate: -0.0390440311 0.9053108 0.7491347
-	// Arc  2406(steps   1). Coordinate: -0.0393465725 0.9056191 0.7482328
-	// Arc  2407(steps   1). Coordinate: -0.0396491301 0.9059275 0.7473309
-	// Arc  2408(steps   1). Coordinate: -0.0399517042 0.9062359 0.7464291
-	// Arc  2409(steps   1). Coordinate: -0.0402542948 0.9065445 0.7455273
-	// Arc  2410(steps   1). Coordinate: -0.0405569021 0.9068532 0.7446256
-	// Arc  2411(steps   1). Coordinate: -0.0408595261 0.9071620 0.7437239
-	// Arc  2412(steps   1). Coordinate: -0.0411621672 0.9074709 0.7428222
-	// Arc  2413(steps   1). Coordinate: -0.0414648253 0.9077799 0.7419206
-	// Arc  2414(steps   1). Coordinate: -0.0417675007 0.9080890 0.7410190
-	// Arc  2415(steps   1). Coordinate: -0.0420701934 0.9083983 0.7401175
-	// Arc  2416(steps   1). Coordinate: -0.0423729037 0.9087076 0.7392160
-	// Arc  2417(steps   1). Coordinate: -0.0426756315 0.9090171 0.7383146
-	// Arc  2418(steps   1). Coordinate: -0.0429783772 0.9093267 0.7374132
-	// Arc  2419(steps   1). Coordinate: -0.0432811408 0.9096364 0.7365119
-	// Arc  2420(steps   1). Coordinate: -0.0435839224 0.9099463 0.7356106
-	// Arc  2421(steps   1). Coordinate: -0.0438867223 0.9102562 0.7347093
-	// Arc  2422(steps   1). Coordinate: -0.0441895405 0.9105663 0.7338082
-	// Arc  2423(steps   1). Coordinate: -0.0444923771 0.9108765 0.7329070
-	// Arc  2424(steps   1). Coordinate: -0.0447952324 0.9111868 0.7320059
-	// Arc  2425(steps   1). Coordinate: -0.0450981064 0.9114973 0.7311049
-	// Arc  2426(steps   1). Coordinate: -0.0454009994 0.9118079 0.7302039
-	// Arc  2427(steps   1). Coordinate: -0.0457039113 0.9121185 0.7293029
-	// Arc  2428(steps   1). Coordinate: -0.0460068425 0.9124294 0.7284020
-	// Arc  2429(steps   1). Coordinate: -0.0463097930 0.9127403 0.7275012
-	// Arc  2430(steps   1). Coordinate: -0.0466127629 0.9130514 0.7266004
-	// Arc  2431(steps   1). Coordinate: -0.0469157525 0.9133626 0.7256996
-	// Arc  2432(steps   1). Coordinate: -0.0472187618 0.9136740 0.7247989
-	// Arc  2433(steps   1). Coordinate: -0.0475217910 0.9139854 0.7238983
-	// Arc  2434(steps   1). Coordinate: -0.0478248403 0.9142970 0.7229977
-	// Arc  2435(steps   1). Coordinate: -0.0481279097 0.9146088 0.7220971
-	// Arc  2436(steps   1). Coordinate: -0.0484309995 0.9149207 0.7211967
-	// Arc  2437(steps   1). Coordinate: -0.0487341097 0.9152327 0.7202962
-	// Arc  2438(steps   1). Coordinate: -0.0490372405 0.9155448 0.7193959
-	// Arc  2439(steps   1). Coordinate: -0.0493403921 0.9158571 0.7184955
-	// Arc  2440(steps   1). Coordinate: -0.0496435646 0.9161695 0.7175953
-	// Arc  2441(steps   1). Coordinate: -0.0499467582 0.9164821 0.7166951
-	// Arc  2442(steps   1). Coordinate: -0.0502499730 0.9167948 0.7157949
-	// Arc  2443(steps   1). Coordinate: -0.0505532091 0.9171077 0.7148948
-	// Arc  2444(steps   1). Coordinate: -0.0508564666 0.9174206 0.7139948
-	// Arc  2445(steps   1). Coordinate: -0.0511597459 0.9177338 0.7130948
-	// Arc  2446(steps   1). Coordinate: -0.0514630469 0.9180471 0.7121949
-	// Arc  2447(steps   1). Coordinate: -0.0517663698 0.9183605 0.7112950
-	// Arc  2448(steps   1). Coordinate: -0.0520697149 0.9186741 0.7103952
-	// Arc  2449(steps   1). Coordinate: -0.0523730821 0.9189878 0.7094954
-	// Arc  2450(steps   1). Coordinate: -0.0526764718 0.9193016 0.7085958
-	// Arc  2451(steps   1). Coordinate: -0.0529798839 0.9196157 0.7076961
-	// Arc  2452(steps   1). Coordinate: -0.0532833188 0.9199298 0.7067966
-	// Arc  2453(steps   1). Coordinate: -0.0535867764 0.9202442 0.7058970
-	// Arc  2454(steps   1). Coordinate: -0.0538902571 0.9205586 0.7049976
-	// Arc  2455(steps   1). Coordinate: -0.0541937609 0.9208733 0.7040982
-	// Arc  2456(steps   1). Coordinate: -0.0544972879 0.9211880 0.7031989
-	// Arc  2457(steps   1). Coordinate: -0.0548008384 0.9215030 0.7022996
-	// Arc  2458(steps   1). Coordinate: -0.0551044125 0.9218181 0.7014004
-	// Arc  2459(steps   1). Coordinate: -0.0554080103 0.9221333 0.7005013
-	// Arc  2460(steps   1). Coordinate: -0.0557116320 0.9224488 0.6996022
-	// Arc  2461(steps   1). Coordinate: -0.0560152778 0.9227643 0.6987032
-	// Arc  2462(steps   1). Coordinate: -0.0563189477 0.9230801 0.6978043
-	// Arc  2463(steps   1). Coordinate: -0.0566226420 0.9233960 0.6969054
-	// Arc  2464(steps   1). Coordinate: -0.0569263608 0.9237120 0.6960066
-	// Arc  2465(steps   1). Coordinate: -0.0572301043 0.9240283 0.6951079
-	// Arc  2466(steps   1). Coordinate: -0.0575338726 0.9243447 0.6942092
-	// Arc  2467(steps   1). Coordinate: -0.0578376658 0.9246612 0.6933106
-	// Arc  2468(steps   1). Coordinate: -0.0581414842 0.9249780 0.6924120
-	// Arc  2469(steps   1). Coordinate: -0.0584453279 0.9252949 0.6915136
-	// Arc  2470(steps   1). Coordinate: -0.0587491970 0.9256120 0.6906152
-	// Arc  2471(steps   1). Coordinate: -0.0590530917 0.9259292 0.6897168
-	// Arc  2472(steps   1). Coordinate: -0.0593570121 0.9262466 0.6888186
-	// Arc  2473(steps   1). Coordinate: -0.0596609585 0.9265642 0.6879204
-	// Arc  2474(steps   1). Coordinate: -0.0599649309 0.9268820 0.6870223
-	// Arc  2475(steps   1). Coordinate: -0.0602689296 0.9271999 0.6861242
-	// Arc  2476(steps   1). Coordinate: -0.0605729547 0.9275180 0.6852262
-	// Arc  2477(steps   1). Coordinate: -0.0608770063 0.9278363 0.6843283
-	// Arc  2478(steps   1). Coordinate: -0.0611810846 0.9281548 0.6834305
-	// Arc  2479(steps   1). Coordinate: -0.0614851899 0.9284735 0.6825327
-	// Arc  2480(steps   1). Coordinate: -0.0617893221 0.9287923 0.6816350
-	// Arc  2481(steps   1). Coordinate: -0.0620934815 0.9291113 0.6807374
-	// Arc  2482(steps   1). Coordinate: -0.0623976683 0.9294305 0.6798399
-	// Arc  2483(steps   1). Coordinate: -0.0627018827 0.9297499 0.6789424
-	// Arc  2484(steps   1). Coordinate: -0.0630061247 0.9300695 0.6780450
-	// Arc  2485(steps   1). Coordinate: -0.0633103945 0.9303893 0.6771477
-	// Arc  2486(steps   1). Coordinate: -0.0636146924 0.9307092 0.6762505
-	// Arc  2487(steps   1). Coordinate: -0.0639190185 0.9310294 0.6753533
-	// Arc  2488(steps   1). Coordinate: -0.0642233729 0.9313497 0.6744562
-	// Arc  2489(steps   1). Coordinate: -0.0645277558 0.9316703 0.6735592
-	// Arc  2490(steps   1). Coordinate: -0.0648321674 0.9319910 0.6726623
-	// Arc  2491(steps   1). Coordinate: -0.0651366078 0.9323119 0.6717655
-	// Arc  2492(steps   1). Coordinate: -0.0654410772 0.9326330 0.6708687
-	// Arc  2493(steps   1). Coordinate: -0.0657455759 0.9329543 0.6699720
-	// Arc  2494(steps   1). Coordinate: -0.0660501038 0.9332758 0.6690754
-	// Arc  2495(steps   1). Coordinate: -0.0663546613 0.9335975 0.6681789
-	// Arc  2496(steps   1). Coordinate: -0.0666592485 0.9339195 0.6672825
-	// Arc  2497(steps   1). Coordinate: -0.0669638655 0.9342416 0.6663861
-	// Arc  2498(steps   1). Coordinate: -0.0672685126 0.9345639 0.6654898
-	// Arc  2499(steps   1). Coordinate: -0.0675731898 0.9348864 0.6645937
-	// Arc  2500(steps   1). Coordinate: -0.0678778974 0.9352091 0.6636976
-	// Arc  2501(steps   1). Coordinate: -0.0681826356 0.9355321 0.6628015
-	// Arc  2502(steps   1). Coordinate: -0.0684874045 0.9358552 0.6619056
-	// Arc  2503(steps   1). Coordinate: -0.0687922042 0.9361786 0.6610098
-	// Arc  2504(steps   1). Coordinate: -0.0690970350 0.9365021 0.6601140
-	// Arc  2505(steps   1). Coordinate: -0.0694018971 0.9368259 0.6592183
-	// Arc  2506(steps   1). Coordinate: -0.0697067905 0.9371499 0.6583227
-	// Arc  2507(steps   1). Coordinate: -0.0700117156 0.9374741 0.6574272
-	// Arc  2508(steps   1). Coordinate: -0.0703166724 0.9377985 0.6565318
-	// Arc  2509(steps   1). Coordinate: -0.0706216611 0.9381232 0.6556365
-	// Arc  2510(steps   1). Coordinate: -0.0709266820 0.9384480 0.6547413
-	// Arc  2511(steps   1). Coordinate: -0.0712317352 0.9387731 0.6538462
-	// Arc  2512(steps   1). Coordinate: -0.0715368208 0.9390984 0.6529511
-	// Arc  2513(steps   1). Coordinate: -0.0718419391 0.9394239 0.6520562
-	// Arc  2514(steps   1). Coordinate: -0.0721470902 0.9397497 0.6511613
-	// Arc  2515(steps   1). Coordinate: -0.0724522743 0.9400756 0.6502665
-	// Arc  2516(steps   1). Coordinate: -0.0727574916 0.9404018 0.6493719
-	// Arc  2517(steps   1). Coordinate: -0.0730627422 0.9407283 0.6484773
-	// Arc  2518(steps   1). Coordinate: -0.0733680265 0.9410549 0.6475828
-	// Arc  2519(steps   1). Coordinate: -0.0736733444 0.9413818 0.6466884
-	// Arc  2520(steps   1). Coordinate: -0.0739786963 0.9417089 0.6457941
-	// Arc  2521(steps   1). Coordinate: -0.0742840823 0.9420363 0.6448999
-	// Arc  2522(steps   1). Coordinate: -0.0745895025 0.9423639 0.6440058
-	// Arc  2523(steps   1). Coordinate: -0.0748949573 0.9426917 0.6431118
-	// Arc  2524(steps   1). Coordinate: -0.0752004467 0.9430197 0.6422180
-	// Arc  2525(steps   1). Coordinate: -0.0755059709 0.9433480 0.6413242
-	// Arc  2526(steps   1). Coordinate: -0.0758115302 0.9436766 0.6404305
-	// Arc  2527(steps   1). Coordinate: -0.0761171247 0.9440054 0.6395369
-	// Arc  2528(steps   1). Coordinate: -0.0764227546 0.9443344 0.6386434
-	// Arc  2529(steps   1). Coordinate: -0.0767284201 0.9446637 0.6377500
-	// Arc  2530(steps   1). Coordinate: -0.0770341213 0.9449932 0.6368567
-	// Arc  2531(steps   1). Coordinate: -0.0773398586 0.9453229 0.6359635
-	// Arc  2532(steps   1). Coordinate: -0.0776456320 0.9456529 0.6350704
-	// Arc  2533(steps   1). Coordinate: -0.0779514418 0.9459832 0.6341774
-	// Arc  2534(steps   1). Coordinate: -0.0782572881 0.9463137 0.6332846
-	// Arc  2535(steps   1). Coordinate: -0.0785631711 0.9466445 0.6323918
-	// Arc  2536(steps   1). Coordinate: -0.0788690911 0.9469755 0.6314991
-	// Arc  2537(steps   1). Coordinate: -0.0791750483 0.9473068 0.6306066
-	// Arc  2538(steps   1). Coordinate: -0.0794810427 0.9476383 0.6297142
-	// Arc  2539(steps   1). Coordinate: -0.0797870747 0.9479701 0.6288218
-	// Arc  2540(steps   1). Coordinate: -0.0800931444 0.9483022 0.6279296
-	// Arc  2541(steps   1). Coordinate: -0.0803992520 0.9486345 0.6270375
-	// Arc  2542(steps   1). Coordinate: -0.0807053977 0.9489671 0.6261455
-	// Arc  2543(steps   1). Coordinate: -0.0810115818 0.9492999 0.6252536
-	// Arc  2544(steps   1). Coordinate: -0.0813178043 0.9496330 0.6243618
-	// Arc  2545(steps   1). Coordinate: -0.0816240655 0.9499664 0.6234702
-	// Arc  2546(steps   1). Coordinate: -0.0819303657 0.9503001 0.6225786
-	// Arc  2547(steps   1). Coordinate: -0.0822367050 0.9506340 0.6216872
-	// Arc  2548(steps   1). Coordinate: -0.0825430836 0.9509682 0.6207959
-	// Arc  2549(steps   1). Coordinate: -0.0828495017 0.9513027 0.6199047
-	// Arc  2550(steps   1). Coordinate: -0.0831559595 0.9516374 0.6190136
-	// Arc  2551(steps   1). Coordinate: -0.0834624572 0.9519725 0.6181226
-	// Arc  2552(steps   1). Coordinate: -0.0837689951 0.9523078 0.6172318
-	// Arc  2553(steps   1). Coordinate: -0.0840755733 0.9526434 0.6163411
-	// Arc  2554(steps   1). Coordinate: -0.0843821921 0.9529792 0.6154505
-	// Arc  2555(steps   1). Coordinate: -0.0846888516 0.9533154 0.6145600
-	// Arc  2556(steps   1). Coordinate: -0.0849955521 0.9536518 0.6136696
-	// Arc  2557(steps   1). Coordinate: -0.0853022937 0.9539886 0.6127794
-	// Arc  2558(steps   1). Coordinate: -0.0856090768 0.9543256 0.6118893
-	// Arc  2559(steps   1). Coordinate: -0.0859159014 0.9546629 0.6109993
-	// Arc  2560(steps   1). Coordinate: -0.0862227678 0.9550005 0.6101094
-	// Arc  2561(steps   1). Coordinate: -0.0865296762 0.9553384 0.6092197
-	// Arc  2562(steps   1). Coordinate: -0.0868366269 0.9556766 0.6083301
-	// Arc  2563(steps   1). Coordinate: -0.0871436200 0.9560151 0.6074406
-	// Arc  2564(steps   1). Coordinate: -0.0874506557 0.9563538 0.6065512
-	// Arc  2565(steps   1). Coordinate: -0.0877577344 0.9566929 0.6056620
-	// Arc  2566(steps   1). Coordinate: -0.0880648561 0.9570323 0.6047729
-	// Arc  2567(steps   1). Coordinate: -0.0883720211 0.9573720 0.6038839
-	// Arc  2568(steps   1). Coordinate: -0.0886792296 0.9577120 0.6029951
-	// Arc  2569(steps   1). Coordinate: -0.0889864819 0.9580523 0.6021064
-	// Arc  2570(steps   1). Coordinate: -0.0892937782 0.9583930 0.6012178
-	// Arc  2571(steps   1). Coordinate: -0.0896011186 0.9587339 0.6003294
-	// Arc  2572(steps   1). Coordinate: -0.0899085034 0.9590751 0.5994411
-	// Arc  2573(steps   1). Coordinate: -0.0902159329 0.9594167 0.5985530
-	// Arc  2574(steps   1). Coordinate: -0.0905234072 0.9597586 0.5976649
-	// Arc  2575(steps   1). Coordinate: -0.0908309266 0.9601008 0.5967771
-	// Arc  2576(steps   1). Coordinate: -0.0911384913 0.9604433 0.5958893
-	// Arc  2577(steps   1). Coordinate: -0.0914461015 0.9607861 0.5950017
-	// Arc  2578(steps   1). Coordinate: -0.0917537575 0.9611293 0.5941143
-	// Arc  2579(steps   1). Coordinate: -0.0920614595 0.9614728 0.5932269
-	// Arc  2580(steps   1). Coordinate: -0.0923692076 0.9618166 0.5923398
-	// Arc  2581(steps   1). Coordinate: -0.0926770023 0.9621607 0.5914527
-	// Arc  2582(steps   1). Coordinate: -0.0929848435 0.9625052 0.5905658
-	// Arc  2583(steps   1). Coordinate: -0.0932927317 0.9628500 0.5896791
-	// Arc  2584(steps   1). Coordinate: -0.0936006671 0.9631952 0.5887925
-	// Arc  2585(steps   1). Coordinate: -0.0939086497 0.9635407 0.5879061
-	// Arc  2586(steps   1). Coordinate: -0.0942166800 0.9638865 0.5870198
-	// Arc  2587(steps   1). Coordinate: -0.0945247582 0.9642327 0.5861336
-	// Arc  2588(steps   1). Coordinate: -0.0948328844 0.9645792 0.5852476
-	// Arc  2589(steps   1). Coordinate: -0.0951410589 0.9649260 0.5843618
-	// Arc  2590(steps   1). Coordinate: -0.0954492820 0.9652732 0.5834761
-	// Arc  2591(steps   1). Coordinate: -0.0957575539 0.9656208 0.5825905
-	// Arc  2592(steps   1). Coordinate: -0.0960658748 0.9659687 0.5817052
-	// Arc  2593(steps   1). Coordinate: -0.0963742450 0.9663169 0.5808199
-	// Arc  2594(steps   1). Coordinate: -0.0966826647 0.9666655 0.5799349
-	// Arc  2595(steps   1). Coordinate: -0.0969911341 0.9670145 0.5790500
-	// Arc  2596(steps   1). Coordinate: -0.0972996536 0.9673638 0.5781652
-	// Arc  2597(steps   1). Coordinate: -0.0976082233 0.9677135 0.5772806
-	// Arc  2598(steps   1). Coordinate: -0.0979168435 0.9680636 0.5763962
-	// Arc  2599(steps   1). Coordinate: -0.0982255144 0.9684140 0.5755119
-	// Arc  2600(steps   1). Coordinate: -0.0985342364 0.9687647 0.5746278
-	// Arc  2601(steps   1). Coordinate: -0.0988430095 0.9691159 0.5737439
-	// Arc  2602(steps   1). Coordinate: -0.0991518342 0.9694674 0.5728601
-	// Arc  2603(steps   1). Coordinate: -0.0994607106 0.9698193 0.5719765
-	// Arc  2604(steps   1). Coordinate: -0.0997696390 0.9701716 0.5710930
-	// Arc  2605(steps   1). Coordinate: -0.1000786197 0.9705242 0.5702098
-	// Arc  2606(steps   1). Coordinate: -0.1003876529 0.9708773 0.5693267
-	// Arc  2607(steps   1). Coordinate: -0.1006967388 0.9712307 0.5684437
-	// Arc  2608(steps   1). Coordinate: -0.1010058777 0.9715845 0.5675610
-	// Arc  2609(steps   1). Coordinate: -0.1013150700 0.9719387 0.5666784
-	// Arc  2610(steps   1). Coordinate: -0.1016243157 0.9722933 0.5657960
-	// Arc  2611(steps   1). Coordinate: -0.1019336153 0.9726482 0.5649138
-	// Arc  2612(steps   1). Coordinate: -0.1022429689 0.9730036 0.5640317
-	// Arc  2613(steps   1). Coordinate: -0.1025523768 0.9733593 0.5631498
-	// Arc  2614(steps   1). Coordinate: -0.1028618393 0.9737155 0.5622681
-	// Arc  2615(steps   1). Coordinate: -0.1031713567 0.9740720 0.5613866
-	// Arc  2616(steps   1). Coordinate: -0.1034809292 0.9744290 0.5605053
-	// Arc  2617(steps   1). Coordinate: -0.1037905570 0.9747864 0.5596241
-	// Arc  2618(steps   1). Coordinate: -0.1041002405 0.9751441 0.5587432
-	// Arc  2619(steps   1). Coordinate: -0.1044099800 0.9755023 0.5578624
-	// Arc  2620(steps   1). Coordinate: -0.1047197756 0.9758609 0.5569818
-	// Arc  2621(steps   1). Coordinate: -0.1050296277 0.9762199 0.5561014
-	// Arc  2622(steps   1). Coordinate: -0.1053395365 0.9765793 0.5552212
-	// Arc  2623(steps   1). Coordinate: -0.1056495023 0.9769392 0.5543412
-	// Arc  2624(steps   1). Coordinate: -0.1059595255 0.9772995 0.5534614
-	// Arc  2625(steps   1). Coordinate: -0.1062696061 0.9776601 0.5525817
-	// Arc  2626(steps   1). Coordinate: -0.1065797447 0.9780213 0.5517023
-	// Arc  2627(steps   1). Coordinate: -0.1068899413 0.9783828 0.5508230
-	// Arc  2628(steps   1). Coordinate: -0.1072001963 0.9787448 0.5499440
-	// Arc  2629(steps   1). Coordinate: -0.1075105100 0.9791072 0.5490652
-	// Arc  2630(steps   1). Coordinate: -0.1078208827 0.9794701 0.5481865
-	// Arc  2631(steps   1). Coordinate: -0.1081313147 0.9798333 0.5473081
-	// Arc  2632(steps   1). Coordinate: -0.1084418061 0.9801971 0.5464299
-	// Arc  2633(steps   1). Coordinate: -0.1087523574 0.9805613 0.5455518
-	// Arc  2634(steps   1). Coordinate: -0.1090629688 0.9809259 0.5446740
-	// Arc  2635(steps   1). Coordinate: -0.1093736406 0.9812910 0.5437964
-	// Arc  2636(steps   1). Coordinate: -0.1096843730 0.9816565 0.5429190
-	// Arc  2637(steps   1). Coordinate: -0.1099951665 0.9820225 0.5420418
-	// Arc  2638(steps   1). Coordinate: -0.1103060212 0.9823889 0.5411648
-	// Arc  2639(steps   1). Coordinate: -0.1106169375 0.9827558 0.5402881
-	// Arc  2640(steps   1). Coordinate: -0.1109279156 0.9831232 0.5394115
-	// Arc  2641(steps   1). Coordinate: -0.1112389559 0.9834910 0.5385352
-	// Arc  2642(steps   1). Coordinate: -0.1115500587 0.9838593 0.5376591
-	// Arc  2643(steps   1). Coordinate: -0.1118612242 0.9842281 0.5367832
-	// Arc  2644(steps   1). Coordinate: -0.1121724527 0.9845973 0.5359075
-	// Arc  2645(steps   1). Coordinate: -0.1124837447 0.9849670 0.5350321
-	// Arc  2646(steps   1). Coordinate: -0.1127951002 0.9853373 0.5341569
-	// Arc  2647(steps   1). Coordinate: -0.1131065198 0.9857079 0.5332819
-	// Arc  2648(steps   1). Coordinate: -0.1134180036 0.9860791 0.5324071
-	// Arc  2649(steps   1). Coordinate: -0.1137295520 0.9864508 0.5315326
-	// Arc  2650(steps   1). Coordinate: -0.1140411653 0.9868229 0.5306583
-	// Arc  2651(steps   1). Coordinate: -0.1143528437 0.9871956 0.5297842
-	// Arc  2652(steps   1). Coordinate: -0.1146645877 0.9875687 0.5289104
-	// Arc  2653(steps   1). Coordinate: -0.1149763975 0.9879424 0.5280368
-	// Arc  2654(steps   1). Coordinate: -0.1152882735 0.9883165 0.5271634
-	// Arc  2655(steps   1). Coordinate: -0.1156002158 0.9886912 0.5262903
-	// Arc  2656(steps   1). Coordinate: -0.1159122250 0.9890664 0.5254175
-	// Arc  2657(steps   1). Coordinate: -0.1162243012 0.9894420 0.5245448
-	// Arc  2658(steps   1). Coordinate: -0.1165364449 0.9898182 0.5236725
-	// Arc  2659(steps   1). Coordinate: -0.1168486563 0.9901949 0.5228003
-	// Arc  2660(steps   1). Coordinate: -0.1171609357 0.9905722 0.5219284
-	// Arc  2661(steps   1). Coordinate: -0.1174732835 0.9909500 0.5210568
-	// Arc  2662(steps   1). Coordinate: -0.1177857000 0.9913282 0.5201854
-	// Arc  2663(steps   1). Coordinate: -0.1180981855 0.9917071 0.5193143
-	// Arc  2664(steps   1). Coordinate: -0.1184107404 0.9920864 0.5184435
-	// Arc  2665(steps   1). Coordinate: -0.1187233650 0.9924663 0.5175729
-	// Arc  2666(steps   1). Coordinate: -0.1190360595 0.9928468 0.5167025
-	// Arc  2667(steps   1). Coordinate: -0.1193488245 0.9932278 0.5158325
-	// Arc  2668(steps   1). Coordinate: -0.1196616601 0.9936093 0.5149627
-	// Arc  2669(steps   1). Coordinate: -0.1199745667 0.9939914 0.5140931
-	// Arc  2670(steps   1). Coordinate: -0.1202875447 0.9943740 0.5132238
-	// Arc  2671(steps   1). Coordinate: -0.1206005943 0.9947572 0.5123548
-	// Arc  2672(steps   1). Coordinate: -0.1209137160 0.9951410 0.5114861
-	// Arc  2673(steps   1). Coordinate: -0.1212269101 0.9955253 0.5106177
-	// Arc  2674(steps   1). Coordinate: -0.1215401769 0.9959102 0.5097495
-	// Arc  2675(steps   1). Coordinate: -0.1218535168 0.9962957 0.5088816
-	// Arc  2676(steps   1). Coordinate: -0.1221669300 0.9966817 0.5080140
-	// Arc  2677(steps   1). Coordinate: -0.1224804170 0.9970684 0.5071467
-	// Arc  2678(steps   1). Coordinate: -0.1227939782 0.9974556 0.5062797
-	// Arc  2679(steps   1). Coordinate: -0.1231076137 0.9978434 0.5054129
-	// Arc  2680(steps   1). Coordinate: -0.1234213241 0.9982318 0.5045465
-	// Arc  2681(steps   1). Coordinate: -0.1237351096 0.9986207 0.5036803
-	// Arc  2682(steps   1). Coordinate: -0.1240489707 0.9990103 0.5028144
-	// Arc  2683(steps   1). Coordinate: -0.1243629076 0.9994005 0.5019489
-	// Arc  2684(steps   1). Coordinate: -0.1246769207 0.9997913 0.5010836
-	// Arc  2685(steps   1). Coordinate: -0.1249910104 1.0001827 0.5002187
-	// Arc  2686(steps   1). Coordinate: -0.1253051771 1.0005747 0.4993540
-	// Arc  2687(steps   1). Coordinate: -0.1256194211 1.0009673 0.4984897
-	// Arc  2688(steps   1). Coordinate: -0.1259337427 1.0013606 0.4976256
-	// Arc  2689(steps   1). Coordinate: -0.1262481424 1.0017545 0.4967619
-	// Arc  2690(steps   1). Coordinate: -0.1265626205 1.0021490 0.4958985
-	// Arc  2691(steps   1). Coordinate: -0.1268771773 1.0025441 0.4950354
-	// Arc  2692(steps   1). Coordinate: -0.1271918133 1.0029399 0.4941727
-	// Arc  2693(steps   1). Coordinate: -0.1275065288 1.0033363 0.4933102
-	// Arc  2694(steps   1). Coordinate: -0.1278213242 1.0037334 0.4924481
-	// Arc  2695(steps   1). Coordinate: -0.1281361998 1.0041311 0.4915863
-	// Arc  2696(steps   1). Coordinate: -0.1284511561 1.0045295 0.4907249
-	// Arc  2697(steps   1). Coordinate: -0.1287661934 1.0049285 0.4898637
-	// Arc  2698(steps   1). Coordinate: -0.1290813121 1.0053282 0.4890030
-	// Arc  2699(steps   1). Coordinate: -0.1293965125 1.0057286 0.4881425
-	// Arc  2700(steps   1). Coordinate: -0.1297117951 1.0061296 0.4872824
-	// Arc  2701(steps   1). Coordinate: -0.1300271602 1.0065313 0.4864227
-	// Arc  2702(steps   1). Coordinate: -0.1303426083 1.0069337 0.4855633
-	// Arc  2703(steps   1). Coordinate: -0.1306581396 1.0073368 0.4847042
-	// Arc  2704(steps   1). Coordinate: -0.1309737546 1.0077405 0.4838455
-	// Arc  2705(steps   1). Coordinate: -0.1312894537 1.0081450 0.4829872
-	// Arc  2706(steps   1). Coordinate: -0.1316052373 1.0085501 0.4821292
-	// Arc  2707(steps   1). Coordinate: -0.1319211057 1.0089560 0.4812716
-	// Arc  2708(steps   1). Coordinate: -0.1322370594 1.0093625 0.4804143
-	// Arc  2709(steps   1). Coordinate: -0.1325530987 1.0097698 0.4795574
-	// Arc  2710(steps   1). Coordinate: -0.1328692241 1.0101778 0.4787009
-	// Arc  2711(steps   1). Coordinate: -0.1331854359 1.0105865 0.4778448
-	// Arc  2712(steps   1). Coordinate: -0.1335017345 1.0109960 0.4769890
-	// Arc  2713(steps   1). Coordinate: -0.1338181204 1.0114061 0.4761337
-	// Arc  2714(steps   1). Coordinate: -0.1341345939 1.0118171 0.4752787
-	// Arc  2715(steps   1). Coordinate: -0.1344511554 1.0122287 0.4744241
-	// Arc  2716(steps   1). Coordinate: -0.1347678054 1.0126411 0.4735699
-	// Arc  2717(steps   1). Coordinate: -0.1350845442 1.0130543 0.4727161
-	// Arc  2718(steps   1). Coordinate: -0.1354013723 1.0134682 0.4718627
-	// Arc  2719(steps   1). Coordinate: -0.1357182901 1.0138828 0.4710097
-	// Arc  2720(steps   1). Coordinate: -0.1360352979 1.0142983 0.4701571
-	// Arc  2721(steps   1). Coordinate: -0.1363523961 1.0147145 0.4693049
-	// Arc  2722(steps   1). Coordinate: -0.1366695853 1.0151315 0.4684531
-	// Arc  2723(steps   1). Coordinate: -0.1369868658 1.0155492 0.4676018
-	// Arc  2724(steps   1). Coordinate: -0.1373042379 1.0159678 0.4667508
-	// Arc  2725(steps   1). Coordinate: -0.1376217023 1.0163871 0.4659003
-	// Arc  2726(steps   1). Coordinate: -0.1379392591 1.0168073 0.4650503
-	// Arc  2727(steps   1). Coordinate: -0.1382569089 1.0172282 0.4642006
-	// Arc  2728(steps   1). Coordinate: -0.1385746521 1.0176500 0.4633514
-	// Arc  2729(steps   1). Coordinate: -0.1388924891 1.0180726 0.4625026
-	// Arc  2730(steps   1). Coordinate: -0.1392104202 1.0184960 0.4616543
-	// Arc  2731(steps   1). Coordinate: -0.1395284461 1.0189202 0.4608064
-	// Arc  2732(steps   1). Coordinate: -0.1398465669 1.0193453 0.4599590
-	// Arc  2733(steps   1). Coordinate: -0.1401647833 1.0197712 0.4591121
-	// Arc  2734(steps   1). Coordinate: -0.1404830955 1.0201979 0.4582656
-	// Arc  2735(steps   1). Coordinate: -0.1408015041 1.0206255 0.4574195
-	// Arc  2736(steps   1). Coordinate: -0.1411200094 1.0210540 0.4565740
-	// Arc  2737(steps   1). Coordinate: -0.1414386119 1.0214833 0.4557289
-	// Arc  2738(steps   1). Coordinate: -0.1417573120 1.0219135 0.4548843
-	// Arc  2739(steps   1). Coordinate: -0.1420761101 1.0223446 0.4540401
-	// Arc  2740(steps   1). Coordinate: -0.1423950067 1.0227765 0.4531965
-	// Arc  2741(steps   1). Coordinate: -0.1427140022 1.0232094 0.4523533
-	// Arc  2742(steps   1). Coordinate: -0.1430330969 1.0236431 0.4515107
-	// Arc  2743(steps   1). Coordinate: -0.1433522914 1.0240777 0.4506686
-	// Arc  2744(steps   1). Coordinate: -0.1436715861 1.0245133 0.4498269
-	// Arc  2745(steps   1). Coordinate: -0.1439909814 1.0249497 0.4489858
-	// Arc  2746(steps   1). Coordinate: -0.1443104776 1.0253871 0.4481452
-	// Arc  2747(steps   1). Coordinate: -0.1446300754 1.0258254 0.4473051
-	// Arc  2748(steps   1). Coordinate: -0.1449497750 1.0262646 0.4464655
-	// Arc  2749(steps   1). Coordinate: -0.1452695769 1.0267048 0.4456265
-	// Arc  2750(steps   1). Coordinate: -0.1455894816 1.0271459 0.4447880
-	// Arc  2751(steps   1). Coordinate: -0.1459094895 1.0275880 0.4439501
-	// Arc  2752(steps   1). Coordinate: -0.1462296009 1.0280311 0.4431127
-	// Arc  2753(steps   1). Coordinate: -0.1465498164 1.0284751 0.4422758
-	// Arc  2754(steps   1). Coordinate: -0.1468701364 1.0289201 0.4414395
-	// Arc  2755(steps   1). Coordinate: -0.1471905612 1.0293660 0.4406038
-	// Arc  2756(steps   1). Coordinate: -0.1475110914 1.0298130 0.4397686
-	// Arc  2757(steps   1). Coordinate: -0.1478317273 1.0302610 0.4389341
-	// Arc  2758(steps   1). Coordinate: -0.1481524694 1.0307100 0.4381001
-	// Arc  2759(steps   1). Coordinate: -0.1484733180 1.0311599 0.4372667
-	// Arc  2760(steps   1). Coordinate: -0.1487942737 1.0316110 0.4364339
-	// Arc  2761(steps   1). Coordinate: -0.1491153369 1.0320630 0.4356016
-	// Arc  2762(steps   1). Coordinate: -0.1494365079 1.0325161 0.4347700
-	// Arc  2763(steps   1). Coordinate: -0.1497577872 1.0329702 0.4339390
-	// Arc  2764(steps   1). Coordinate: -0.1500791753 1.0334254 0.4331087
-	// Arc  2765(steps   1). Coordinate: -0.1504006724 1.0338816 0.4322789
-	// Arc  2766(steps   1). Coordinate: -0.1507222792 1.0343389 0.4314498
-	// Arc  2767(steps   1). Coordinate: -0.1510439958 1.0347973 0.4306213
-	// Arc  2768(steps   1). Coordinate: -0.1513658229 1.0352568 0.4297935
-	// Arc  2769(steps   1). Coordinate: -0.1516877608 1.0357173 0.4289663
-	// Arc  2770(steps   1). Coordinate: -0.1520098098 1.0361790 0.4281398
-	// Arc  2771(steps   1). Coordinate: -0.1523319705 1.0366418 0.4273139
-	// Arc  2772(steps   1). Coordinate: -0.1526542432 1.0371057 0.4264887
-	// Arc  2773(steps   1). Coordinate: -0.1529766283 1.0375707 0.4256642
-	// Arc  2774(steps   1). Coordinate: -0.1532991262 1.0380369 0.4248404
-	// Arc  2775(steps   1). Coordinate: -0.1536217373 1.0385042 0.4240173
-	// Arc  2776(steps   1). Coordinate: -0.1539444621 1.0389727 0.4231948
-	// Arc  2777(steps   1). Coordinate: -0.1542673008 1.0394423 0.4223731
-	// Arc  2778(steps   1). Coordinate: -0.1545902539 1.0399132 0.4215521
-	// Arc  2779(steps   1). Coordinate: -0.1549133218 1.0403852 0.4207319
-	// Arc  2780(steps   1). Coordinate: -0.1552365048 1.0408584 0.4199123
-	// Arc  2781(steps   1). Coordinate: -0.1555598034 1.0413328 0.4190935
-	// Arc  2782(steps   1). Coordinate: -0.1558832178 1.0418084 0.4182755
-	// Arc  2783(steps   1). Coordinate: -0.1562067485 1.0422852 0.4174582
-	// Arc  2784(steps   1). Coordinate: -0.1565303958 1.0427633 0.4166417
-	// Arc  2785(steps   1). Coordinate: -0.1568541601 1.0432426 0.4158260
-	// Arc  2786(steps   1). Coordinate: -0.1571780417 1.0437232 0.4150110
-	// Arc  2787(steps   1). Coordinate: -0.1575020410 1.0442050 0.4141968
-	// Arc  2788(steps   1). Coordinate: -0.1578261583 1.0446881 0.4133835
-	// Arc  2789(steps   1). Coordinate: -0.1581503939 1.0451725 0.4125709
-	// Arc  2790(steps   1). Coordinate: -0.1584747481 1.0456582 0.4117592
-	// Arc  2791(steps   1). Coordinate: -0.1587992214 1.0461452 0.4109483
-	// Arc  2792(steps   1). Coordinate: -0.1591238139 1.0466335 0.4101383
-	// Arc  2793(steps   1). Coordinate: -0.1594485260 1.0471232 0.4093291
-	// Arc  2794(steps   1). Coordinate: -0.1597733580 1.0476142 0.4085207
-	// Arc  2795(steps   1). Coordinate: -0.1600983102 1.0481065 0.4077133
-	// Arc  2796(steps   1). Coordinate: -0.1604233828 1.0486002 0.4069067
-	// Arc  2797(steps   1). Coordinate: -0.1607485762 1.0490953 0.4061010
-	// Arc  2798(steps   1). Coordinate: -0.1610738905 1.0495917 0.4052962
-	// Arc  2799(steps   1). Coordinate: -0.1613993260 1.0500896 0.4044923
-	// Arc  2800(steps   1). Coordinate: -0.1617248830 1.0505889 0.4036893
-	// Arc  2801(steps   1). Coordinate: -0.1620505617 1.0510896 0.4028873
-	// Arc  2802(steps   1). Coordinate: -0.1623763624 1.0515917 0.4020862
-	// Arc  2803(steps   1). Coordinate: -0.1627022851 1.0520953 0.4012861
-	// Arc  2804(steps   1). Coordinate: -0.1630283301 1.0526003 0.4004870
-	// Arc  2805(steps   1). Coordinate: -0.1633544977 1.0531068 0.3996888
-	// Arc  2806(steps   1). Coordinate: -0.1636807878 1.0536148 0.3988916
-	// Arc  2807(steps   1). Coordinate: -0.1640072008 1.0541243 0.3980955
-	// Arc  2808(steps   1). Coordinate: -0.1643337367 1.0546353 0.3973003
-	// Arc  2809(steps   1). Coordinate: -0.1646603957 1.0551478 0.3965062
-	// Arc  2810(steps   1). Coordinate: -0.1649871778 1.0556619 0.3957131
-	// Arc  2811(steps   1). Coordinate: -0.1653140832 1.0561775 0.3949211
-	// Arc  2812(steps   2). Coordinate: -0.1656411119 1.0566947 0.3941302
-	// Arc  2813(steps   2). Coordinate: -0.1659682640 1.0572134 0.3933404
-	// Arc  2814(steps   2). Coordinate: -0.1662955395 1.0577338 0.3925516
-	// Arc  2815(steps   2). Coordinate: -0.1666229384 1.0582557 0.3917640
-	// Arc  2816(steps   2). Coordinate: -0.1669504608 1.0587793 0.3909775
-	// Arc  2817(steps   2). Coordinate: -0.1672781065 1.0593045 0.3901921
-	// Arc  2818(steps   2). Coordinate: -0.1676058756 1.0598314 0.3894079
-	// Arc  2819(steps   2). Coordinate: -0.1679337680 1.0603600 0.3886249
-	// Arc  2820(steps   2). Coordinate: -0.1682617835 1.0608902 0.3878431
-	// Arc  2821(steps   2). Coordinate: -0.1685899221 1.0614221 0.3870624
-	// Arc  2822(steps   2). Coordinate: -0.1689181836 1.0619558 0.3862830
-	// Arc  2823(steps   2). Coordinate: -0.1692465678 1.0624911 0.3855049
-	// Arc  2824(steps   2). Coordinate: -0.1695750745 1.0630283 0.3847280
-	// Arc  2825(steps   2). Coordinate: -0.1699037036 1.0635671 0.3839523
-	// Arc  2826(steps   2). Coordinate: -0.1702324547 1.0641078 0.3831780
-	// Arc  2827(steps   2). Coordinate: -0.1705613275 1.0646503 0.3824049
-	// Arc  2828(steps   2). Coordinate: -0.1708903218 1.0651945 0.3816332
-	// Arc  2829(steps   2). Coordinate: -0.1712194371 1.0657406 0.3808629
-	// Arc  2830(steps   2). Coordinate: -0.1715486730 1.0662886 0.3800939
-	// Arc  2831(steps   2). Coordinate: -0.1718780292 1.0668384 0.3793263
-	// Arc  2832(steps   2). Coordinate: -0.1722075052 1.0673901 0.3785600
-	// Arc  2833(steps   2). Coordinate: -0.1725371004 1.0679436 0.3777952
-	// Arc  2834(steps   2). Coordinate: -0.1728668142 1.0684992 0.3770319
-	// Arc  2835(steps   2). Coordinate: -0.1731966462 1.0690566 0.3762700
-	// Arc  2836(steps   2). Coordinate: -0.1735265956 1.0696160 0.3755096
-	// Arc  2837(steps   2). Coordinate: -0.1738566618 1.0701774 0.3747507
-	// Arc  2838(steps   2). Coordinate: -0.1741868440 1.0707407 0.3739934
-	// Arc  2839(steps   2). Coordinate: -0.1745171414 1.0713061 0.3732375
-	// Arc  2840(steps   2). Coordinate: -0.1748475532 1.0718735 0.3724833
-	// Arc  2841(steps   2). Coordinate: -0.1751780785 1.0724430 0.3717307
-	// Arc  2842(steps   2). Coordinate: -0.1755087164 1.0730145 0.3709797
-	// Arc  2843(steps   2). Coordinate: -0.1758394658 1.0735881 0.3702303
-	// Arc  2844(steps   2). Coordinate: -0.1761703256 1.0741639 0.3694826
-	// Arc  2845(steps   2). Coordinate: -0.1765012948 1.0747418 0.3687366
-	// Arc  2846(steps   2). Coordinate: -0.1768323721 1.0753218 0.3679923
-	// Arc  2847(steps   2). Coordinate: -0.1771635563 1.0759040 0.3672498
-	// Arc  2848(steps   2). Coordinate: -0.1774948459 1.0764884 0.3665090
-	// Arc  2849(steps   2). Coordinate: -0.1778262396 1.0770750 0.3657700
-	// Arc  2850(steps   2). Coordinate: -0.1781577360 1.0776639 0.3650329
-	// Arc  2851(steps   2). Coordinate: -0.1784893333 1.0782550 0.3642976
-	// Arc  2852(steps   2). Coordinate: -0.1788210300 1.0788484 0.3635643
-	// Arc  2853(steps   2). Coordinate: -0.1791528243 1.0794441 0.3628328
-	// Arc  2854(steps   2). Coordinate: -0.1794847143 1.0800422 0.3621033
-	// Arc  2855(steps   2). Coordinate: -0.1798166982 1.0806426 0.3613758
-	// Arc  2856(steps   2). Coordinate: -0.1801487739 1.0812453 0.3606502
-	// Arc  2857(steps   2). Coordinate: -0.1804809392 1.0818505 0.3599268
-	// Arc  2858(steps   2). Coordinate: -0.1808131920 1.0824581 0.3592054
-	// Arc  2859(steps   2). Coordinate: -0.1811455299 1.0830682 0.3584861
-	// Arc  2860(steps   2). Coordinate: -0.1814779504 1.0836808 0.3577690
-	// Arc  2861(steps   2). Coordinate: -0.1818104509 1.0842958 0.3570540
-	// Arc  2862(steps   2). Coordinate: -0.1821430288 1.0849134 0.3563413
-	// Arc  2863(steps   2). Coordinate: -0.1824756811 1.0855335 0.3556308
-	// Arc  2864(steps   2). Coordinate: -0.1828084050 1.0861562 0.3549226
-	// Arc  2865(steps   2). Coordinate: -0.1831411974 1.0867815 0.3542167
-	// Arc  2866(steps   2). Coordinate: -0.1834740549 1.0874095 0.3535133
-	// Arc  2867(steps   2). Coordinate: -0.1838069742 1.0880401 0.3528122
-	// Arc  2868(steps   2). Coordinate: -0.1841399517 1.0886734 0.3521136
-	// Arc  2869(steps   2). Coordinate: -0.1844729837 1.0893094 0.3514175
-	// Arc  2870(steps   2). Coordinate: -0.1848060663 1.0899481 0.3507239
-	// Arc  2871(steps   2). Coordinate: -0.1851391955 1.0905896 0.3500329
-	// Arc  2872(steps   2). Coordinate: -0.1854723670 1.0912340 0.3493445
-	// Arc  2873(steps   2). Coordinate: -0.1858055764 1.0918811 0.3486588
-	// Arc  2874(steps   2). Coordinate: -0.1861388191 1.0925311 0.3479758
-	// Arc  2875(steps   2). Coordinate: -0.1864720902 1.0931840 0.3472956
-	// Arc  2876(steps   2). Coordinate: -0.1868053846 1.0938398 0.3466182
-	// Arc  2877(steps   2). Coordinate: -0.1871386972 1.0944985 0.3459437
-	// Arc  2878(steps   2). Coordinate: -0.1874720223 1.0951602 0.3452721
-	// Arc  2879(steps   2). Coordinate: -0.1878053544 1.0958249 0.3446035
-	// Arc  2880(steps   2). Coordinate: -0.1881386873 1.0964926 0.3439379
-	// Arc  2881(steps   2). Coordinate: -0.1884720150 1.0971634 0.3432754
-	// Arc  2882(steps   2). Coordinate: -0.1888053307 1.0978373 0.3426160
-	// Arc  2883(steps   2). Coordinate: -0.1891386278 1.0985143 0.3419598
-	// Arc  2884(steps   2). Coordinate: -0.1894718993 1.0991945 0.3413069
-	// Arc  2885(steps   2). Coordinate: -0.1898051376 1.0998779 0.3406573
-	// Arc  2886(steps   2). Coordinate: -0.1901383352 1.1005644 0.3400111
-	// Arc  2887(steps   2). Coordinate: -0.1904714840 1.1012543 0.3393683
-	// Arc  2888(steps   2). Coordinate: -0.1908045757 1.1019474 0.3387291
-	// Arc  2889(steps   2). Coordinate: -0.1911376016 1.1026438 0.3380934
-	// Arc  2890(steps   2). Coordinate: -0.1914705527 1.1033435 0.3374613
-	// Arc  2891(steps   2). Coordinate: -0.1918034195 1.1040467 0.3368330
-	// Arc  2892(steps   2). Coordinate: -0.1921361921 1.1047532 0.3362084
-	// Arc  2893(steps   2). Coordinate: -0.1924688605 1.1054632 0.3355877
-	// Arc  2894(steps   2). Coordinate: -0.1928014138 1.1061766 0.3349710
-	// Arc  2895(steps   2). Coordinate: -0.1931338411 1.1068936 0.3343582
-	// Arc  2896(steps   2). Coordinate: -0.1934661309 1.1076141 0.3337496
-	// Arc  2897(steps   2). Coordinate: -0.1937982710 1.1083381 0.3331451
-	// Arc  2898(steps   2). Coordinate: -0.1941302492 1.1090658 0.3325448
-	// Arc  2899(steps   2). Coordinate: -0.1944620522 1.1097971 0.3319489
-	// Arc  2900(steps   2). Coordinate: -0.1947936668 1.1105320 0.3313573
-	// Arc  2901(steps   2). Coordinate: -0.1951250787 1.1112707 0.3307703
-	// Arc  2902(steps   2). Coordinate: -0.1954562734 1.1120130 0.3301879
-	// Arc  2903(steps   2). Coordinate: -0.1957872358 1.1127591 0.3296102
-	// Arc  2904(steps   2). Coordinate: -0.1961179501 1.1135090 0.3290372
-	// Arc  2905(steps   2). Coordinate: -0.1964483998 1.1142627 0.3284691
-	// Arc  2906(steps   2). Coordinate: -0.1967785679 1.1150203 0.3279060
-	// Arc  2907(steps   2). Coordinate: -0.1971084367 1.1157817 0.3273480
-	// Arc  2908(steps   2). Coordinate: -0.1974379879 1.1165470 0.3267951
-	// Arc  2909(steps   2). Coordinate: -0.1977672024 1.1173163 0.3262475
-	// Arc  2910(steps   2). Coordinate: -0.1980960604 1.1180895 0.3257052
-	// Arc  2911(steps   2). Coordinate: -0.1984245413 1.1188666 0.3251685
-	// Arc  2912(steps   2). Coordinate: -0.1987526238 1.1196478 0.3246373
-	// Arc  2913(steps   2). Coordinate: -0.1990802858 1.1204330 0.3241119
-	// Arc  2914(steps   2). Coordinate: -0.1994075044 1.1212223 0.3235923
-	// Arc  2915(steps   2). Coordinate: -0.1997342557 1.1220156 0.3230786
-	// Arc  2916(steps   2). Coordinate: -0.2000605153 1.1228130 0.3225710
-	// Arc  2917(steps   2). Coordinate: -0.2003862574 1.1236146 0.3220695
-	// Arc  2918(steps   2). Coordinate: -0.2007114558 1.1244202 0.3215744
-	// Arc  2919(steps   2). Coordinate: -0.2010360831 1.1252300 0.3210857
-	// Arc  2920(steps   2). Coordinate: -0.2013601109 1.1260440 0.3206035
-	// Arc  2921(steps   2). Coordinate: -0.2016835100 1.1268621 0.3201281
-	// Arc  2922(steps   2). Coordinate: -0.2020062502 1.1276845 0.3196595
-	// Arc  2923(steps   2). Coordinate: -0.2023283000 1.1285110 0.3191978
-	// Arc  2924(steps   2). Coordinate: -0.2026496273 1.1293417 0.3187432
-	// Arc  2925(steps   2). Coordinate: -0.2029701987 1.1301766 0.3182958
-	// Arc  2926(steps   2). Coordinate: -0.2032899797 1.1310158 0.3178559
-	// Arc  2927(steps   2). Coordinate: -0.2036089348 1.1318591 0.3174234
-	// Arc  2928(steps   2). Coordinate: -0.2039270275 1.1327067 0.3169986
-	// Arc  2929(steps   2). Coordinate: -0.2042442200 1.1335584 0.3165815
-	// Arc  2930(steps   2). Coordinate: -0.2045604736 1.1344144 0.3161725
-	// Arc  2931(steps   2). Coordinate: -0.2048757483 1.1352745 0.3157715
-	// Arc  2932(steps   2). Coordinate: -0.2051900031 1.1361388 0.3153788
-	// Arc  2933(steps   2). Coordinate: -0.2055031958 1.1370073 0.3149945
-	// Arc  2934(steps   2). Coordinate: -0.2058152831 1.1378798 0.3146187
-	// Arc  2935(steps   2). Coordinate: -0.2061262207 1.1387565 0.3142517
-	// Arc  2936(steps   2). Coordinate: -0.2064359630 1.1396373 0.3138935
-	// Arc  2937(steps   2). Coordinate: -0.2067444636 1.1405221 0.3135443
-	// Arc  2938(steps   2). Coordinate: -0.2070516746 1.1414109 0.3132042
-	// Arc  2939(steps   2). Coordinate: -0.2073575475 1.1423037 0.3128735
-	// Arc  2940(steps   2). Coordinate: -0.2076620326 1.1432005 0.3125523
-	// Arc  2941(steps   2). Coordinate: -0.2079650790 1.1441010 0.3122407
-	// Arc  2942(steps   2). Coordinate: -0.2082666353 1.1450055 0.3119389
-	// Arc  2943(steps   2). Coordinate: -0.2085666488 1.1459137 0.3116471
-	// Arc  2944(steps   2). Coordinate: -0.2088650662 1.1468256 0.3113653
-	// Arc  2945(steps   2). Coordinate: -0.2091618331 1.1477411 0.3110938
-	// Arc  2946(steps   2). Coordinate: -0.2094568947 1.1486602 0.3108326
-	// Arc  2947(steps   2). Coordinate: -0.2097501954 1.1495828 0.3105820
-	// Arc  2948(steps   2). Coordinate: -0.2100416788 1.1505088 0.3103420
-	// Arc  2949(steps   2). Coordinate: -0.2103312883 1.1514381 0.3101129
-	// Arc  2950(steps   2). Coordinate: -0.2106189667 1.1523706 0.3098948
-	// Arc  2951(steps   2). Coordinate: -0.2109046563 1.1533063 0.3096877
-	// Arc  2952(steps   2). Coordinate: -0.2111882994 1.1542450 0.3094918
-	// Arc  2953(steps   2). Coordinate: -0.2114698380 1.1551867 0.3093073
-	// Arc  2954(steps   2). Coordinate: -0.2117492141 1.1561311 0.3091343
-	// Arc  2955(steps   2). Coordinate: -0.2120263697 1.1570783 0.3089728
-	// Arc  2956(steps   2). Coordinate: -0.2123012470 1.1580280 0.3088230
-	// Arc  2957(steps   2). Coordinate: -0.2125737887 1.1589802 0.3086851
-	// Arc  2958(steps   2). Coordinate: -0.2128439375 1.1599348 0.3085590
-	// Arc  2959(steps   2). Coordinate: -0.2131116369 1.1608915 0.3084449
-	// Arc  2960(steps   2). Coordinate: -0.2133768312 1.1618503 0.3083430
-	// Arc  2961(steps   2). Coordinate: -0.2136394652 1.1628110 0.3082531
-	// Arc  2962(steps   2). Coordinate: -0.2138994848 1.1637735 0.3081755
-	// Arc  2963(steps   2). Coordinate: -0.2141568368 1.1647376 0.3081102
-	// Arc  2964(steps   1). Coordinate: -0.2144114695 1.1657032 0.3080573
-	// Arc  2965(steps   1). Coordinate: -0.2146633322 1.1666701 0.3080167
-	// Arc  2966(steps   1). Coordinate: -0.2149123758 1.1676382 0.3079887
-	// Arc  2967(steps   1). Coordinate: -0.2151585526 1.1686073 0.3079730
-	// Arc  2968(steps   1). Coordinate: -0.2154018166 1.1695772 0.3079699
-	// Arc  2969(steps   1). Coordinate: -0.2156421238 1.1705479 0.3079794
-	// Arc  2970(steps   1). Coordinate: -0.2158794319 1.1715190 0.3080013
-	// Arc  2971(steps   1). Coordinate: -0.2161137005 1.1724906 0.3080358
-	// Arc  2972(steps   1). Coordinate: -0.2163448914 1.1734624 0.3080828
-	// Arc  2973(steps   1). Coordinate: -0.2165729686 1.1744342 0.3081423
-	// Arc  2974(steps   1). Coordinate: -0.2167978983 1.1754059 0.3082143
-	// Arc  2975(steps   1). Coordinate: -0.2170196488 1.1763774 0.3082988
-	// Arc  2976(steps   1). Coordinate: -0.2172381910 1.1773484 0.3083956
-	// Arc  2977(steps   1). Coordinate: -0.2174534982 1.1783188 0.3085048
-	// Arc  2978(steps   1). Coordinate: -0.2176655459 1.1792885 0.3086263
-	// Arc  2979(steps   1). Coordinate: -0.2178743124 1.1802572 0.3087600
-	// Arc  2980(steps   1). Coordinate: -0.2180797782 1.1812250 0.3089059
-	// Arc  2981(steps   1). Coordinate: -0.2182819265 1.1821915 0.3090638
-	// Arc  2982(steps   1). Coordinate: -0.2184807429 1.1831567 0.3092337
-	// Arc  2983(steps   1). Coordinate: -0.2186762154 1.1841204 0.3094156
-	// Arc  2984(steps   2). Coordinate: -0.2188683348 1.1850825 0.3096092
-	// Arc  2985(steps   2). Coordinate: -0.2190570940 1.1860428 0.3098144
-	// Arc  2986(steps   2). Coordinate: -0.2192424884 1.1870013 0.3100313
-	// Arc  2987(steps   2). Coordinate: -0.2194245158 1.1879577 0.3102596
-	// Arc  2988(steps   2). Coordinate: -0.2196031764 1.1889120 0.3104993
-	// Arc  2989(steps   2). Coordinate: -0.2197784724 1.1898640 0.3107501
-	// Arc  2990(steps   2). Coordinate: -0.2199504085 1.1908136 0.3110120
-	// Arc  2991(steps   2). Coordinate: -0.2201189914 1.1917608 0.3112848
-	// Arc  2992(steps   2). Coordinate: -0.2202842297 1.1927054 0.3115685
-	// Arc  2993(steps   2). Coordinate: -0.2204461343 1.1936473 0.3118628
-	// Arc  2994(steps   2). Coordinate: -0.2206047177 1.1945864 0.3121676
-	// Arc  2995(steps   2). Coordinate: -0.2207599943 1.1955227 0.3124827
-	// Arc  2996(steps   2). Coordinate: -0.2209119804 1.1964560 0.3128081
-	// Arc  2997(steps   2). Coordinate: -0.2210606937 1.1973862 0.3131435
-	// Arc  2998(steps   2). Coordinate: -0.2212061537 1.1983134 0.3134888
-	// Arc  2999(steps   2). Coordinate: -0.2213483810 1.1992374 0.3138438
-	// Arc  3000(steps   2). Coordinate: -0.2214873980 1.2001581 0.3142085
-	// Arc  3001(steps   2). Coordinate: -0.2216232281 1.2010755 0.3145826
-	// Arc  3002(steps   2). Coordinate: -0.2217558961 1.2019895 0.3149659
-	// Arc  3003(steps   2). Coordinate: -0.2218854276 1.2029001 0.3153584
-	// Arc  3004(steps   2). Coordinate: -0.2220118496 1.2038072 0.3157598
-	// Arc  3005(steps   2). Coordinate: -0.2221351899 1.2047108 0.3161700
-	// Arc  3006(steps   2). Coordinate: -0.2222554771 1.2056108 0.3165889
-	// Arc  3007(steps   2). Coordinate: -0.2223727406 1.2065073 0.3170163
-	// Arc  3008(steps   2). Coordinate: -0.2224870105 1.2074001 0.3174520
-	// Arc  3009(steps   2). Coordinate: -0.2225983177 1.2082892 0.3178959
-	// Arc  3010(steps   2). Coordinate: -0.2227066935 1.2091747 0.3183479
-	// Arc  3011(steps   2). Coordinate: -0.2228121696 1.2100564 0.3188077
-	// Arc  3012(steps   2). Coordinate: -0.2229147784 1.2109344 0.3192753
-	// Arc  3013(steps   2). Coordinate: -0.2230145524 1.2118086 0.3197504
-	// Arc  3014(steps   2). Coordinate: -0.2231115247 1.2126791 0.3202330
-	// Arc  3015(steps   2). Coordinate: -0.2232057282 1.2135458 0.3207228
-	// Arc  3016(steps   2). Coordinate: -0.2232971965 1.2144087 0.3212199
-	// Arc  3017(steps   2). Coordinate: -0.2233859631 1.2152678 0.3217239
-	// Arc  3018(steps   2). Coordinate: -0.2234720614 1.2161231 0.3222348
-	// Arc  3019(steps   2). Coordinate: -0.2235555252 1.2169746 0.3227525
-	// Arc  3020(steps   2). Coordinate: -0.2236363882 1.2178223 0.3232767
-	// Arc  3021(steps   2). Coordinate: -0.2237146839 1.2186662 0.3238075
-	// Arc  3022(steps   2). Coordinate: -0.2237904460 1.2195063 0.3243445
-	// Arc  3023(steps   2). Coordinate: -0.2238637078 1.2203427 0.3248878
-	// Arc  3024(steps   2). Coordinate: -0.2239345028 1.2211752 0.3254372
-	// Arc  3025(steps   2). Coordinate: -0.2240028640 1.2220040 0.3259926
-	// Arc  3026(steps   2). Coordinate: -0.2240688245 1.2228291 0.3265538
-	// Arc  3027(steps   2). Coordinate: -0.2241324170 1.2236504 0.3271207
-	// Arc  3028(steps   2). Coordinate: -0.2241936740 1.2244680 0.3276933
-	// Arc  3029(steps   2). Coordinate: -0.2242526277 1.2252818 0.3282713
-	// Arc  3030(steps   2). Coordinate: -0.2243093103 1.2260920 0.3288548
-	// Arc  3031(steps   2). Coordinate: -0.2243637532 1.2268985 0.3294435
-	// Arc  3032(steps   2). Coordinate: -0.2244159880 1.2277013 0.3300374
-	// Arc  3033(steps   2). Coordinate: -0.2244660456 1.2285005 0.3306364
-	// Arc  3034(steps   2). Coordinate: -0.2245139568 1.2292961 0.3312403
-	// Arc  3035(steps   2). Coordinate: -0.2245597520 1.2300881 0.3318491
-	// Arc  3036(steps   2). Coordinate: -0.2246034610 1.2308765 0.3324627
-	// Arc  3037(steps   2). Coordinate: -0.2246451137 1.2316614 0.3330810
-	// Arc  3038(steps   2). Coordinate: -0.2246847392 1.2324428 0.3337038
-	// Arc  3039(steps   2). Coordinate: -0.2247223664 1.2332206 0.3343311
-	// Arc  3040(steps   2). Coordinate: -0.2247580238 1.2339950 0.3349629
-	// Arc  3041(steps   2). Coordinate: -0.2247917397 1.2347659 0.3355989
-	// Arc  3042(steps   2). Coordinate: -0.2248235416 1.2355334 0.3362392
-	// Arc  3043(steps   2). Coordinate: -0.2248534569 1.2362974 0.3368836
-	// Arc  3044(steps   2). Coordinate: -0.2248815126 1.2370582 0.3375321
-	// Arc  3045(steps   2). Coordinate: -0.2249077352 1.2378155 0.3381846
-	// Arc  3046(steps   2). Coordinate: -0.2249321508 1.2385696 0.3388410
-	// Arc  3047(steps   2). Coordinate: -0.2249547852 1.2393203 0.3395012
-	// Arc  3048(steps   2). Coordinate: -0.2249756637 1.2400678 0.3401651
-	// Arc  3049(steps   2). Coordinate: -0.2249948114 1.2408120 0.3408328
-	// Arc  3050(steps   2). Coordinate: -0.2250122527 1.2415530 0.3415040
-	// Arc  3051(steps   2). Coordinate: -0.2250280118 1.2422909 0.3421788
-	// Arc  3052(steps   2). Coordinate: -0.2250421126 1.2430255 0.3428571
-	// Arc  3053(steps   2). Coordinate: -0.2250545784 1.2437571 0.3435388
-	// Arc  3054(steps   2). Coordinate: -0.2250654323 1.2444855 0.3442238
-	// Arc  3055(steps   2). Coordinate: -0.2250746969 1.2452109 0.3449121
-	// Arc  3056(steps   2). Coordinate: -0.2250823945 1.2459332 0.3456036
-	// Arc  3057(steps   2). Coordinate: -0.2250885470 1.2466525 0.3462983
-	// Arc  3058(steps   2). Coordinate: -0.2250931759 1.2473688 0.3469961
-	// Arc  3059(steps   2). Coordinate: -0.2250963024 1.2480821 0.3476969
-	// Arc  3060(steps   2). Coordinate: -0.2250979474 1.2487925 0.3484007
-	// Arc  3061(steps   2). Coordinate: -0.2250981312 1.2495000 0.3491075
-	// Arc  3062(steps   2). Coordinate: -0.2250968740 1.2502046 0.3498171
-	// Arc  3063(steps   2). Coordinate: -0.2250941956 1.2509063 0.3505295
-	// Arc  3064(steps   2). Coordinate: -0.2250901154 1.2516052 0.3512447
-	// Arc  3065(steps   2). Coordinate: -0.2250846525 1.2523013 0.3519627
-	// Arc  3066(steps   2). Coordinate: -0.2250778258 1.2529946 0.3526833
-	// Arc  3067(steps   2). Coordinate: -0.2250696536 1.2536851 0.3534065
-	// Arc  3068(steps   2). Coordinate: -0.2250601540 1.2543729 0.3541323
-	// Arc  3069(steps   2). Coordinate: -0.2250493450 1.2550581 0.3548607
-	// Arc  3070(steps   2). Coordinate: -0.2250372441 1.2557405 0.3555915
-	// Arc  3071(steps   2). Coordinate: -0.2250238683 1.2564203 0.3563248
-	// Arc  3072(steps   2). Coordinate: -0.2250092348 1.2570974 0.3570605
-	// Arc  3073(steps   2). Coordinate: -0.2249933600 1.2577720 0.3577986
-	// Arc  3074(steps   2). Coordinate: -0.2249762603 1.2584440 0.3585389
-	// Arc  3075(steps   2). Coordinate: -0.2249579518 1.2591134 0.3592816
-	// Arc  3076(steps   2). Coordinate: -0.2249384503 1.2597803 0.3600265
-	// Arc  3077(steps   2). Coordinate: -0.2249177712 1.2604447 0.3607736
-	// Arc  3078(steps   2). Coordinate: -0.2248959298 1.2611066 0.3615229
-	// Arc  3079(steps   2). Coordinate: -0.2248729411 1.2617660 0.3622743
-	// Arc  3080(steps   2). Coordinate: -0.2248488198 1.2624230 0.3630278
-	// Arc  3081(steps   2). Coordinate: -0.2248235803 1.2630776 0.3637833
-	// Arc  3082(steps   2). Coordinate: -0.2247972369 1.2637298 0.3645409
-	// Arc  3083(steps   2). Coordinate: -0.2247698035 1.2643797 0.3653005
-	// Arc  3084(steps   2). Coordinate: -0.2247412939 1.2650272 0.3660620
-	// Arc  3085(steps   2). Coordinate: -0.2247117215 1.2656724 0.3668255
-	// Arc  3086(steps   2). Coordinate: -0.2246810997 1.2663152 0.3675908
-	// Arc  3087(steps   2). Coordinate: -0.2246494415 1.2669558 0.3683581
-	// Arc  3088(steps   2). Coordinate: -0.2246167596 1.2675942 0.3691271
-	// Arc  3089(steps   2). Coordinate: -0.2245830668 1.2682303 0.3698980
-	// Arc  3090(steps   2). Coordinate: -0.2245483753 1.2688641 0.3706706
-	// Arc  3091(steps   2). Coordinate: -0.2245126975 1.2694958 0.3714450
-	// Arc  3092(steps   2). Coordinate: -0.2244760451 1.2701253 0.3722212
-	// Arc  3093(steps   2). Coordinate: -0.2244384301 1.2707527 0.3729990
-	// Arc  3094(steps   2). Coordinate: -0.2243998639 1.2713779 0.3737785
-	// Arc  3095(steps   2). Coordinate: -0.2243603581 1.2720010 0.3745596
-	// Arc  3096(steps   2). Coordinate: -0.2243199237 1.2726221 0.3753424
-	// Arc  3097(steps   2). Coordinate: -0.2242785718 1.2732410 0.3761267
-	// Arc  3098(steps   2). Coordinate: -0.2242363131 1.2738579 0.3769126
-	// Arc  3099(steps   2). Coordinate: -0.2241931585 1.2744727 0.3777001
-	// Arc  3100(steps   2). Coordinate: -0.2241491182 1.2750856 0.3784891
-	// Arc  3101(steps   2). Coordinate: -0.2241042027 1.2756964 0.3792796
-	// Arc  3102(steps   2). Coordinate: -0.2240584220 1.2763052 0.3800715
-	// Arc  3103(steps   2). Coordinate: -0.2240117861 1.2769121 0.3808650
-	// Arc  3104(steps   2). Coordinate: -0.2239643048 1.2775170 0.3816598
-	// Arc  3105(steps   2). Coordinate: -0.2239159878 1.2781201 0.3824561
-	// Arc  3106(steps   2). Coordinate: -0.2238668445 1.2787211 0.3832538
-	// Arc  3107(steps   2). Coordinate: -0.2238168843 1.2793203 0.3840528
-	// Arc  3108(steps   2). Coordinate: -0.2237661164 1.2799177 0.3848532
-	// Arc  3109(steps   2). Coordinate: -0.2237145497 1.2805131 0.3856549
-	// Arc  3110(steps   2). Coordinate: -0.2236621933 1.2811067 0.3864580
-	// Arc  3111(steps   2). Coordinate: -0.2236090558 1.2816985 0.3872623
-	// Arc  3112(steps   2). Coordinate: -0.2235551459 1.2822885 0.3880679
-	// Arc  3113(steps   2). Coordinate: -0.2235004720 1.2828767 0.3888748
-	// Arc  3114(steps   2). Coordinate: -0.2234450425 1.2834631 0.3896829
-	// Arc  3115(steps   2). Coordinate: -0.2233888655 1.2840477 0.3904923
-	// Arc  3116(steps   2). Coordinate: -0.2233319493 1.2846306 0.3913028
-	// Arc  3117(steps   1). Coordinate: -0.2232743017 1.2852118 0.3921146
-	// Arc  3118(steps   1). Coordinate: -0.2232159306 1.2857912 0.3929275
-	// Arc  3119(steps   1). Coordinate: -0.2231568436 1.2863690 0.3937416
-	// Arc  3120(steps   1). Coordinate: -0.2230970485 1.2869450 0.3945568
-	// Arc  3121(steps   1). Coordinate: -0.2230365526 1.2875194 0.3953732
-	// Arc  3122(steps   1). Coordinate: -0.2229753633 1.2880921 0.3961906
-	// Arc  3123(steps   1). Coordinate: -0.2229134879 1.2886632 0.3970092
-	// Arc  3124(steps   1). Coordinate: -0.2228509335 1.2892326 0.3978289
-	// Arc  3125(steps   1). Coordinate: -0.2227877072 1.2898004 0.3986496
-	// Arc  3126(steps   1). Coordinate: -0.2227238159 1.2903666 0.3994714
-	// Arc  3127(steps   1). Coordinate: -0.2226592664 1.2909312 0.4002942
-	// Arc  3128(steps   1). Coordinate: -0.2225940654 1.2914943 0.4011180
-	// Arc  3129(steps   1). Coordinate: -0.2225282196 1.2920558 0.4019429
-	// Arc  3130(steps   1). Coordinate: -0.2224617354 1.2926157 0.4027688
-	// Arc  3131(steps   1). Coordinate: -0.2223946194 1.2931741 0.4035956
-	// Arc  3132(steps   1). Coordinate: -0.2223268778 1.2937310 0.4044234
-	// Arc  3133(steps   1). Coordinate: -0.2222585169 1.2942863 0.4052522
-	// Arc  3134(steps   1). Coordinate: -0.2221895428 1.2948402 0.4060820
-	// Arc  3135(steps   1). Coordinate: -0.2221199616 1.2953925 0.4069127
-	// Arc  3136(steps   1). Coordinate: -0.2220497793 1.2959434 0.4077443
-	// Arc  3137(steps   1). Coordinate: -0.2219790018 1.2964929 0.4085768
-	// Arc  3138(steps   1). Coordinate: -0.2219076347 1.2970408 0.4094103
-	// Arc  3139(steps   1). Coordinate: -0.2218356840 1.2975874 0.4102446
-	// Arc  3140(steps   1). Coordinate: -0.2217631552 1.2981325 0.4110799
-	// Arc  3141(steps   1). Coordinate: -0.2216900538 1.2986762 0.4119160
-	// Arc  3142(steps   1). Coordinate: -0.2216163854 1.2992185 0.4127529
-	// Arc  3143(steps   1). Coordinate: -0.2215421553 1.2997593 0.4135907
-	// Arc  3144(steps   1). Coordinate: -0.2214673688 1.3002988 0.4144294
-	// Arc  3145(steps   1). Coordinate: -0.2213920313 1.3008370 0.4152689
-	// Arc  3146(steps   1). Coordinate: -0.2213161479 1.3013738 0.4161092
-	// Arc  3147(steps   1). Coordinate: -0.2212397237 1.3019092 0.4169503
-	// Arc  3148(steps   1). Coordinate: -0.2211627637 1.3024433 0.4177922
-	// Arc  3149(steps   1). Coordinate: -0.2210852729 1.3029760 0.4186349
-	// Arc  3150(steps   1). Coordinate: -0.2210072562 1.3035074 0.4194784
-	// Arc  3151(steps   1). Coordinate: -0.2209287184 1.3040376 0.4203227
-	// Arc  3152(steps   1). Coordinate: -0.2208496644 1.3045664 0.4211677
-	// Arc  3153(steps   1). Coordinate: -0.2207700987 1.3050939 0.4220135
-	// Arc  3154(steps   1). Coordinate: -0.2206900260 1.3056202 0.4228601
-	// Arc  3155(steps   1). Coordinate: -0.2206094509 1.3061452 0.4237074
-	// Arc  3156(steps   1). Coordinate: -0.2205283779 1.3066689 0.4245554
-	// Arc  3157(steps   1). Coordinate: -0.2204468115 1.3071914 0.4254041
-	// Arc  3158(steps   1). Coordinate: -0.2203647561 1.3077126 0.4262536
-	// Arc  3159(steps   1). Coordinate: -0.2202822159 1.3082326 0.4271038
-	// Arc  3160(steps   1). Coordinate: -0.2201991953 1.3087514 0.4279546
-	// Arc  3161(steps   1). Coordinate: -0.2201156984 1.3092690 0.4288062
-	// Arc  3162(steps   1). Coordinate: -0.2200317296 1.3097853 0.4296584
-	// Arc  3163(steps   1). Coordinate: -0.2199472928 1.3103005 0.4305113
-	// Arc  3164(steps   1). Coordinate: -0.2198623921 1.3108145 0.4313649
-	// Arc  3165(steps   1). Coordinate: -0.2197770315 1.3113273 0.4322192
-	// Arc  3166(steps   1). Coordinate: -0.2196912150 1.3118389 0.4330741
-	// Arc  3167(steps   1). Coordinate: -0.2196049465 1.3123494 0.4339296
-	// Arc  3168(steps   1). Coordinate: -0.2195182298 1.3128587 0.4347858
-	// Arc  3169(steps   1). Coordinate: -0.2194310688 1.3133669 0.4356427
-	// Arc  3170(steps   1). Coordinate: -0.2193434671 1.3138740 0.4365001
-	// Arc  3171(steps   1). Coordinate: -0.2192554286 1.3143799 0.4373582
-	// Arc  3172(steps   1). Coordinate: -0.2191669568 1.3148847 0.4382169
-	// Arc  3173(steps   1). Coordinate: -0.2190780554 1.3153884 0.4390762
-	// Arc  3174(steps   1). Coordinate: -0.2189887279 1.3158910 0.4399361
-	// Arc  3175(steps   1). Coordinate: -0.2188989779 1.3163925 0.4407966
-	// Arc  3176(steps   1). Coordinate: -0.2188088088 1.3168929 0.4416576
-	// Arc  3177(steps   1). Coordinate: -0.2187182242 1.3173922 0.4425193
-	// Arc  3178(steps   1). Coordinate: -0.2186272273 1.3178905 0.4433816
-	// Arc  3179(steps   1). Coordinate: -0.2185358215 1.3183877 0.4442444
-	// Arc  3180(steps   1). Coordinate: -0.2184440103 1.3188838 0.4451077
-	// Arc  3181(steps   1). Coordinate: -0.2183517967 1.3193789 0.4459717
-	// Arc  3182(steps   1). Coordinate: -0.2182591841 1.3198729 0.4468362
-	// Arc  3183(steps   1). Coordinate: -0.2181661756 1.3203659 0.4477012
-	// Arc  3184(steps   1). Coordinate: -0.2180727745 1.3208579 0.4485668
-	// Arc  3185(steps   1). Coordinate: -0.2179789838 1.3213489 0.4494329
-	// Arc  3186(steps   1). Coordinate: -0.2178848065 1.3218388 0.4502996
-	// Arc  3187(steps   1). Coordinate: -0.2177902459 1.3223277 0.4511668
-	// Arc  3188(steps   1). Coordinate: -0.2176953047 1.3228157 0.4520345
-	// Arc  3189(steps   1). Coordinate: -0.2175999861 1.3233026 0.4529027
-	// Arc  3190(steps   1). Coordinate: -0.2175042930 1.3237886 0.4537714
-	// Arc  3191(steps   1). Coordinate: -0.2174082282 1.3242735 0.4546406
-	// Arc  3192(steps   1). Coordinate: -0.2173117947 1.3247575 0.4555104
-	// Arc  3193(steps   1). Coordinate: -0.2172149952 1.3252406 0.4563806
-	// Arc  3194(steps   1). Coordinate: -0.2171178327 1.3257227 0.4572513
-	// Arc  3195(steps   1). Coordinate: -0.2170203097 1.3262038 0.4581225
-	// Arc  3196(steps   1). Coordinate: -0.2169224291 1.3266840 0.4589942
-	// Arc  3197(steps   1). Coordinate: -0.2168241936 1.3271632 0.4598664
-	// Arc  3198(steps   1). Coordinate: -0.2167256059 1.3276415 0.4607391
-	// Arc  3199(steps   1). Coordinate: -0.2166266686 1.3281188 0.4616122
-	// Arc  3200(steps   1). Coordinate: -0.2165273843 1.3285953 0.4624858
-	// Arc  3201(steps   1). Coordinate: -0.2164277555 1.3290708 0.4633598
-	// Arc  3202(steps   1). Coordinate: -0.2163277850 1.3295454 0.4642343
-	// Arc  3203(steps   1). Coordinate: -0.2162274751 1.3300191 0.4651092
-	// Arc  3204(steps   1). Coordinate: -0.2161268284 1.3304920 0.4659846
-	// Arc  3205(steps   1). Coordinate: -0.2160258474 1.3309639 0.4668605
-	// Arc  3206(steps   1). Coordinate: -0.2159245345 1.3314349 0.4677368
-	// Arc  3207(steps   1). Coordinate: -0.2158228920 1.3319050 0.4686135
-	// Arc  3208(steps   1). Coordinate: -0.2157209225 1.3323743 0.4694906
-	// Arc  3209(steps   1). Coordinate: -0.2156186283 1.3328427 0.4703682
-	// Arc  3210(steps   1). Coordinate: -0.2155160116 1.3333102 0.4712462
-	// Arc  3211(steps   1). Coordinate: -0.2154130749 1.3337769 0.4721246
-	// Arc  3212(steps   1). Coordinate: -0.2153098203 1.3342427 0.4730035
-	// Arc  3213(steps   1). Coordinate: -0.2152062503 1.3347077 0.4738827
-	// Arc  3214(steps   1). Coordinate: -0.2151023669 1.3351718 0.4747624
-	// Arc  3215(steps   1). Coordinate: -0.2149981724 1.3356351 0.4756424
-	// Arc  3216(steps   1). Coordinate: -0.2148936691 1.3360976 0.4765229
-	// Arc  3217(steps   1). Coordinate: -0.2147888590 1.3365592 0.4774038
-	// Arc  3218(steps   1). Coordinate: -0.2146837443 1.3370200 0.4782850
-	// Arc  3219(steps   1). Coordinate: -0.2145783272 1.3374800 0.4791667
-	// Arc  3220(steps   1). Coordinate: -0.2144726097 1.3379391 0.4800487
-	// Arc  3221(steps   1). Coordinate: -0.2143665939 1.3383975 0.4809311
-	// Arc  3222(steps   1). Coordinate: -0.2142602819 1.3388550 0.4818139
-	// Arc  3223(steps   1). Coordinate: -0.2141536756 1.3393118 0.4826971
-	// Arc  3224(steps   1). Coordinate: -0.2140467772 1.3397678 0.4835807
-	// Arc  3225(steps   1). Coordinate: -0.2139395885 1.3402229 0.4844646
-	// Arc  3226(steps   1). Coordinate: -0.2138321116 1.3406773 0.4853489
-	// Arc  3227(steps   1). Coordinate: -0.2137243484 1.3411309 0.4862335
-	// Arc  3228(steps   1). Coordinate: -0.2136163009 1.3415838 0.4871186
-	// Arc  3229(steps   1). Coordinate: -0.2135079709 1.3420358 0.4880040
-	// Arc  3230(steps   1). Coordinate: -0.2133993604 1.3424871 0.4888897
-	// Arc  3231(steps   1). Coordinate: -0.2132904711 1.3429377 0.4897758
-	// Arc  3232(steps   1). Coordinate: -0.2131813050 1.3433874 0.4906622
-	// Arc  3233(steps   1). Coordinate: -0.2130718639 1.3438365 0.4915490
-	// Arc  3234(steps   1). Coordinate: -0.2129621496 1.3442848 0.4924362
-	// Arc  3235(steps   1). Coordinate: -0.2128521640 1.3447323 0.4933236
-	// Arc  3236(steps   1). Coordinate: -0.2127419087 1.3451791 0.4942114
-	// Arc  3237(steps   1). Coordinate: -0.2126313855 1.3456251 0.4950996
-	// Arc  3238(steps   1). Coordinate: -0.2125205962 1.3460705 0.4959881
-	// Arc  3239(steps   1). Coordinate: -0.2124095425 1.3465151 0.4968769
-	// Arc  3240(steps   1). Coordinate: -0.2122982262 1.3469590 0.4977660
-	// Arc  3241(steps   1). Coordinate: -0.2121866488 1.3474021 0.4986555
-	// Arc  3242(steps   1). Coordinate: -0.2120748122 1.3478446 0.4995453
-	// Arc  3243(steps   1). Coordinate: -0.2119627178 1.3482863 0.5004354
-	// Arc  3244(steps   1). Coordinate: -0.2118503675 1.3487273 0.5013259
-	// Arc  3245(steps   1). Coordinate: -0.2117377627 1.3491677 0.5022166
-	// Arc  3246(steps   1). Coordinate: -0.2116249052 1.3496073 0.5031077
-	// Arc  3247(steps   1). Coordinate: -0.2115117965 1.3500462 0.5039990
-	// Arc  3248(steps   1). Coordinate: -0.2113984382 1.3504845 0.5048907
-	// Arc  3249(steps   1). Coordinate: -0.2112848318 1.3509220 0.5057827
-	// Arc  3250(steps   1). Coordinate: -0.2111709789 1.3513589 0.5066750
-	// Arc  3251(steps   1). Coordinate: -0.2110568811 1.3517951 0.5075676
-	// Arc  3252(steps   1). Coordinate: -0.2109425399 1.3522306 0.5084605
-	// Arc  3253(steps   1). Coordinate: -0.2108279567 1.3526655 0.5093536
-	// Arc  3254(steps   1). Coordinate: -0.2107131330 1.3530997 0.5102471
-	// Arc  3255(steps   1). Coordinate: -0.2105980704 1.3535332 0.5111409
-	// Arc  3256(steps   1). Coordinate: -0.2104827703 1.3539660 0.5120349
-	// Arc  3257(steps   1). Coordinate: -0.2103672341 1.3543982 0.5129293
-	// Arc  3258(steps   1). Coordinate: -0.2102514633 1.3548298 0.5138239
-	// Arc  3259(steps   1). Coordinate: -0.2101354593 1.3552607 0.5147188
-	// Arc  3260(steps   1). Coordinate: -0.2100192235 1.3556909 0.5156140
-	// Arc  3261(steps   1). Coordinate: -0.2099027573 1.3561205 0.5165095
-	// Arc  3262(steps   1). Coordinate: -0.2097860621 1.3565495 0.5174053
-	// Arc  3263(steps   1). Coordinate: -0.2096691393 1.3569778 0.5183013
-	// Arc  3264(steps   1). Coordinate: -0.2095519902 1.3574055 0.5191976
-	// Arc  3265(steps   1). Coordinate: -0.2094346161 1.3578326 0.5200941
-	// Arc  3266(steps   1). Coordinate: -0.2093170184 1.3582591 0.5209910
-	// Arc  3267(steps   1). Coordinate: -0.2091991985 1.3586849 0.5218881
-	// Arc  3268(steps   1). Coordinate: -0.2090811576 1.3591101 0.5227855
-	// Arc  3269(steps   1). Coordinate: -0.2089628970 1.3595347 0.5236831
-	// Arc  3270(steps   1). Coordinate: -0.2088444180 1.3599586 0.5245810
-	// Arc  3271(steps   1). Coordinate: -0.2087257219 1.3603820 0.5254791
-	// Arc  3272(steps   1). Coordinate: -0.2086068100 1.3608048 0.5263775
-	// Arc  3273(steps   1). Coordinate: -0.2084876834 1.3612269 0.5272762
-	// Arc  3274(steps   1). Coordinate: -0.2083683435 1.3616485 0.5281751
-	// Arc  3275(steps   1). Coordinate: -0.2082487915 1.3620694 0.5290743
-	// Arc  3276(steps   1). Coordinate: -0.2081290285 1.3624898 0.5299737
-	// Arc  3277(steps   1). Coordinate: -0.2080090559 1.3629096 0.5308734
-	// Arc  3278(steps   1). Coordinate: -0.2078888747 1.3633288 0.5317733
-	// Arc  3279(steps   1). Coordinate: -0.2077684862 1.3637474 0.5326734
-	// Arc  3280(steps   1). Coordinate: -0.2076478916 1.3641654 0.5335738
-	// Arc  3281(steps   1). Coordinate: -0.2075270920 1.3645828 0.5344745
-	// Arc  3282(steps   1). Coordinate: -0.2074060885 1.3649997 0.5353753
-	// Arc  3283(steps   1). Coordinate: -0.2072848824 1.3654160 0.5362765
-	// Arc  3284(steps   1). Coordinate: -0.2071634747 1.3658317 0.5371778
-	// Arc  3285(steps   1). Coordinate: -0.2070418667 1.3662469 0.5380794
-	// Arc  3286(steps   1). Coordinate: -0.2069200593 1.3666614 0.5389812
-	// Arc  3287(steps   1). Coordinate: -0.2067980537 1.3670755 0.5398833
-	// Arc  3288(steps   1). Coordinate: -0.2066758510 1.3674889 0.5407855
-	// Arc  3289(steps   1). Coordinate: -0.2065534524 1.3679019 0.5416880
-	// Arc  3290(steps   1). Coordinate: -0.2064308588 1.3683142 0.5425908
-	// Arc  3291(steps   1). Coordinate: -0.2063080713 1.3687260 0.5434937
-	// Arc  3292(steps   1). Coordinate: -0.2061850911 1.3691373 0.5443969
-	// Arc  3293(steps   1). Coordinate: -0.2060619191 1.3695480 0.5453003
-	// Arc  3294(steps   1). Coordinate: -0.2059385564 1.3699582 0.5462040
-	// Arc  3295(steps   1). Coordinate: -0.2058150040 1.3703678 0.5471078
-	// Arc  3296(steps   1). Coordinate: -0.2056912630 1.3707769 0.5480119
-	// Arc  3297(steps   1). Coordinate: -0.2055673344 1.3711855 0.5489161
-	// Arc  3298(steps   1). Coordinate: -0.2054432191 1.3715935 0.5498206
-	// Arc  3299(steps   1). Coordinate: -0.2053189182 1.3720010 0.5507253
-	// Arc  3300(steps   1). Coordinate: -0.2051944327 1.3724080 0.5516303
-	// Arc  3301(steps   1). Coordinate: -0.2050697636 1.3728144 0.5525354
-	// Arc  3302(steps   1). Coordinate: -0.2049449118 1.3732204 0.5534407
-	// Arc  3303(steps   1). Coordinate: -0.2048198783 1.3736258 0.5543463
-	// Arc  3304(steps   1). Coordinate: -0.2046946641 1.3740307 0.5552520
-	// Arc  3305(steps   1). Coordinate: -0.2045692701 1.3744350 0.5561580
-	// Arc  3306(steps   1). Coordinate: -0.2044436973 1.3748389 0.5570641
-	// Arc  3307(steps   1). Coordinate: -0.2043179465 1.3752423 0.5579705
-	// Arc  3308(steps   1). Coordinate: -0.2041920188 1.3756451 0.5588770
-	// Arc  3309(steps   1). Coordinate: -0.2040659150 1.3760475 0.5597838
-	// Arc  3310(steps   1). Coordinate: -0.2039396361 1.3764493 0.5606908
-	// Arc  3311(steps   1). Coordinate: -0.2038131830 1.3768507 0.5615979
-	// Arc  3312(steps   1). Coordinate: -0.2036865565 1.3772515 0.5625053
-	// Arc  3313(steps   1). Coordinate: -0.2035597576 1.3776519 0.5634128
-	// Arc  3314(steps   1). Coordinate: -0.2034327872 1.3780517 0.5643206
-	// Arc  3315(steps   1). Coordinate: -0.2033056461 1.3784511 0.5652285
-	// Arc  3316(steps   1). Coordinate: -0.2031783351 1.3788500 0.5661366
-	// Arc  3317(steps   1). Coordinate: -0.2030508553 1.3792484 0.5670449
-	// Arc  3318(steps   1). Coordinate: -0.2029232074 1.3796463 0.5679534
-	// Arc  3319(steps   1). Coordinate: -0.2027953922 1.3800437 0.5688621
-	// Arc  3320(steps   1). Coordinate: -0.2026674107 1.3804406 0.5697710
-	// Arc  3321(steps   1). Coordinate: -0.2025392636 1.3808371 0.5706801
-	// Arc  3322(steps   1). Coordinate: -0.2024109518 1.3812331 0.5715893
-	// Arc  3323(steps   1). Coordinate: -0.2022824762 1.3816286 0.5724987
-	// Arc  3324(steps   1). Coordinate: -0.2021538374 1.3820237 0.5734083
-	// Arc  3325(steps   1). Coordinate: -0.2020250364 1.3824183 0.5743181
-	// Arc  3326(steps   1). Coordinate: -0.2018960740 1.3828124 0.5752281
-	// Arc  3327(steps   1). Coordinate: -0.2017669509 1.3832060 0.5761382
-	// Arc  3328(steps   1). Coordinate: -0.2016376680 1.3835992 0.5770486
-	// Arc  3329(steps   1). Coordinate: -0.2015082260 1.3839920 0.5779591
-	// Arc  3330(steps   1). Coordinate: -0.2013786258 1.3843842 0.5788697
-	// Arc  3331(steps   1). Coordinate: -0.2012488680 1.3847760 0.5797806
-	// Arc  3332(steps   1). Coordinate: -0.2011189535 1.3851674 0.5806916
-	// Arc  3333(steps   1). Coordinate: -0.2009888830 1.3855583 0.5816028
-	// Arc  3334(steps   1). Coordinate: -0.2008586573 1.3859488 0.5825141
-	// Arc  3335(steps   1). Coordinate: -0.2007282771 1.3863388 0.5834257
-	// Arc  3336(steps   1). Coordinate: -0.2005977433 1.3867284 0.5843374
-	// Arc  3337(steps   1). Coordinate: -0.2004670564 1.3871175 0.5852493
-	// Arc  3338(steps   1). Coordinate: -0.2003362174 1.3875062 0.5861613
-	// Arc  3339(steps   1). Coordinate: -0.2002052268 1.3878944 0.5870735
-	// Arc  3340(steps   1). Coordinate: -0.2000740855 1.3882822 0.5879859
-	// Arc  3341(steps   1). Coordinate: -0.1999427941 1.3886696 0.5888984
-	// Arc  3342(steps   1). Coordinate: -0.1998113533 1.3890565 0.5898111
-	// Arc  3343(steps   1). Coordinate: -0.1996797640 1.3894430 0.5907239
-	// Arc  3344(steps   1). Coordinate: -0.1995480267 1.3898291 0.5916369
-	// Arc  3345(steps   1). Coordinate: -0.1994161421 1.3902147 0.5925501
-	// Arc  3346(steps   1). Coordinate: -0.1992841111 1.3905999 0.5934635
-	// Arc  3347(steps   1). Coordinate: -0.1991519342 1.3909847 0.5943770
-	// Arc  3348(steps   1). Coordinate: -0.1990196121 1.3913691 0.5952906
-	// Arc  3349(steps   1). Coordinate: -0.1988871456 1.3917530 0.5962044
-	// Arc  3350(steps   1). Coordinate: -0.1987545352 1.3921365 0.5971184
-	// Arc  3351(steps   1). Coordinate: -0.1986217817 1.3925196 0.5980325
-	// Arc  3352(steps   1). Coordinate: -0.1984888858 1.3929023 0.5989468
-	// Arc  3353(steps   1). Coordinate: -0.1983558480 1.3932846 0.5998612
-	// Arc  3354(steps   1). Coordinate: -0.1982226691 1.3936664 0.6007758
-	// Arc  3355(steps   1). Coordinate: -0.1980893496 1.3940479 0.6016905
-	// Arc  3356(steps   1). Coordinate: -0.1979558904 1.3944289 0.6026054
-	// Arc  3357(steps   1). Coordinate: -0.1978222918 1.3948095 0.6035204
-	// Arc  3358(steps   1). Coordinate: -0.1976885547 1.3951898 0.6044356
-	// Arc  3359(steps   1). Coordinate: -0.1975546797 1.3955696 0.6053509
-	// Arc  3360(steps   1). Coordinate: -0.1974206673 1.3959490 0.6062663
-	// Arc  3361(steps   1). Coordinate: -0.1972865182 1.3963280 0.6071820
-	// Arc  3362(steps   1). Coordinate: -0.1971522331 1.3967067 0.6080977
-	// Arc  3363(steps   1). Coordinate: -0.1970178125 1.3970849 0.6090136
-	// Arc  3364(steps   1). Coordinate: -0.1968832570 1.3974627 0.6099297
-	// Arc  3365(steps   1). Coordinate: -0.1967485673 1.3978401 0.6108459
-	// Arc  3366(steps   1). Coordinate: -0.1966137439 1.3982172 0.6117622
-	// Arc  3367(steps   1). Coordinate: -0.1964787875 1.3985938 0.6126787
-	// Arc  3368(steps   1). Coordinate: -0.1963436986 1.3989701 0.6135953
-	// Arc  3369(steps   1). Coordinate: -0.1962084779 1.3993459 0.6145120
-	// Arc  3370(steps   1). Coordinate: -0.1960731259 1.3997214 0.6154289
-	// Arc  3371(steps   1). Coordinate: -0.1959376432 1.4000965 0.6163460
-	// Arc  3372(steps   1). Coordinate: -0.1958020304 1.4004712 0.6172631
-	// Arc  3373(steps   1). Coordinate: -0.1956662880 1.4008456 0.6181804
-	// Arc  3374(steps   1). Coordinate: -0.1955304166 1.4012195 0.6190979
-	// Arc  3375(steps   1). Coordinate: -0.1953944169 1.4015931 0.6200154
-	// Arc  3376(steps   1). Coordinate: -0.1952582892 1.4019663 0.6209332
-	// Arc  3377(steps   1). Coordinate: -0.1951220343 1.4023391 0.6218510
-	// Arc  3378(steps   1). Coordinate: -0.1949856527 1.4027116 0.6227690
-	// Arc  3379(steps   1). Coordinate: -0.1948491449 1.4030837 0.6236871
-	// Arc  3380(steps   1). Coordinate: -0.1947125114 1.4034554 0.6246053
-	// Arc  3381(steps   1). Coordinate: -0.1945757529 1.4038267 0.6255237
-	// Arc  3382(steps   1). Coordinate: -0.1944388698 1.4041977 0.6264422
-	// Arc  3383(steps   1). Coordinate: -0.1943018626 1.4045683 0.6273608
-	// Arc  3384(steps   1). Coordinate: -0.1941647320 1.4049385 0.6282796
-	// Arc  3385(steps   1). Coordinate: -0.1940274784 1.4053084 0.6291985
-	// Arc  3386(steps   1). Coordinate: -0.1938901024 1.4056779 0.6301175
-	// Arc  3387(steps   1). Coordinate: -0.1937526045 1.4060470 0.6310366
-	// Arc  3388(steps   1). Coordinate: -0.1936149852 1.4064158 0.6319559
-	// Arc  3389(steps   1). Coordinate: -0.1934772451 1.4067843 0.6328753
-	// Arc  3390(steps   1). Coordinate: -0.1933393845 1.4071523 0.6337948
-	// Arc  3391(steps   1). Coordinate: -0.1932014042 1.4075201 0.6347145
-	// Arc  3392(steps   1). Coordinate: -0.1930633044 1.4078874 0.6356342
-	// Arc  3393(steps   1). Coordinate: -0.1929250858 1.4082545 0.6365541
-	// Arc  3394(steps   1). Coordinate: -0.1927867489 1.4086211 0.6374741
-	// Arc  3395(steps   1). Coordinate: -0.1926482941 1.4089874 0.6383943
-	// Arc  3396(steps   1). Coordinate: -0.1925097220 1.4093534 0.6393145
-	// Arc  3397(steps   1). Coordinate: -0.1923710330 1.4097190 0.6402349
-	// Arc  3398(steps   1). Coordinate: -0.1922322276 1.4100843 0.6411554
-	// Arc  3399(steps   1). Coordinate: -0.1920933063 1.4104492 0.6420760
-	// Arc  3400(steps   1). Coordinate: -0.1919542696 1.4108138 0.6429967
-	// Arc  3401(steps   1). Coordinate: -0.1918151180 1.4111780 0.6439176
-	// Arc  3402(steps   1). Coordinate: -0.1916758518 1.4115419 0.6448385
-	// Arc  3403(steps   1). Coordinate: -0.1915364717 1.4119055 0.6457596
-	// Arc  3404(steps   1). Coordinate: -0.1913969781 1.4122687 0.6466808
-	// Arc  3405(steps   1). Coordinate: -0.1912573713 1.4126316 0.6476021
-	// Arc  3406(steps   1). Coordinate: -0.1911176520 1.4129942 0.6485236
-	// Arc  3407(steps   1). Coordinate: -0.1909778205 1.4133564 0.6494451
-	// Arc  3408(steps   1). Coordinate: -0.1908378774 1.4137183 0.6503668
-	// Arc  3409(steps   1). Coordinate: -0.1906978230 1.4140798 0.6512885
-	// Arc  3410(steps   1). Coordinate: -0.1905576578 1.4144411 0.6522104
-	// Arc  3411(steps   1). Coordinate: -0.1904173823 1.4148020 0.6531324
-	// Arc  3412(steps   1). Coordinate: -0.1902769969 1.4151625 0.6540545
-	// Arc  3413(steps   1). Coordinate: -0.1901365020 1.4155228 0.6549767
-	// Arc  3414(steps   1). Coordinate: -0.1899958981 1.4158827 0.6558991
-	// Arc  3415(steps   1). Coordinate: -0.1898551857 1.4162423 0.6568215
-	// Arc  3416(steps   1). Coordinate: -0.1897143651 1.4166015 0.6577441
-	// Arc  3417(steps   1). Coordinate: -0.1895734367 1.4169605 0.6586667
-	// Arc  3418(steps   1). Coordinate: -0.1894324011 1.4173191 0.6595895
-	// Arc  3419(steps   1). Coordinate: -0.1892912587 1.4176774 0.6605124
-	// Arc  3420(steps   1). Coordinate: -0.1891500098 1.4180354 0.6614353
-	// Arc  3421(steps   1). Coordinate: -0.1890086549 1.4183931 0.6623584
-	// Arc  3422(steps   1). Coordinate: -0.1888671944 1.4187504 0.6632816
-	// Arc  3423(steps   1). Coordinate: -0.1887256288 1.4191074 0.6642049
-	// Arc  3424(steps   1). Coordinate: -0.1885839583 1.4194642 0.6651283
-	// Arc  3425(steps   1). Coordinate: -0.1884421835 1.4198206 0.6660518
-	// Arc  3426(steps   1). Coordinate: -0.1883003048 1.4201767 0.6669755
-	// Arc  3427(steps   1). Coordinate: -0.1881583225 1.4205325 0.6678992
-	// Arc  3428(steps   1). Coordinate: -0.1880162371 1.4208879 0.6688230
-	// Arc  3429(steps   1). Coordinate: -0.1878740490 1.4212431 0.6697469
-	// Arc  3430(steps   1). Coordinate: -0.1877317585 1.4215980 0.6706710
-	// Arc  3431(steps   1). Coordinate: -0.1875893661 1.4219525 0.6715951
-	// Arc  3432(steps   1). Coordinate: -0.1874468721 1.4223068 0.6725193
-	// Arc  3433(steps   1). Coordinate: -0.1873042769 1.4226607 0.6734436
-	// Arc  3434(steps   1). Coordinate: -0.1871615810 1.4230144 0.6743681
-	// Arc  3435(steps   1). Coordinate: -0.1870187847 1.4233677 0.6752926
-	// Arc  3436(steps   1). Coordinate: -0.1868758885 1.4237208 0.6762172
-	// Arc  3437(steps   1). Coordinate: -0.1867328926 1.4240735 0.6771420
-	// Arc  3438(steps   1). Coordinate: -0.1865897974 1.4244260 0.6780668
-	// Arc  3439(steps   1). Coordinate: -0.1864466034 1.4247781 0.6789917
-	// Arc  3440(steps   1). Coordinate: -0.1863033110 1.4251300 0.6799167
-	// Arc  3441(steps   1). Coordinate: -0.1861599204 1.4254815 0.6808419
-	// Arc  3442(steps   1). Coordinate: -0.1860164320 1.4258328 0.6817671
-	// Arc  3443(steps   1). Coordinate: -0.1858728463 1.4261838 0.6826924
-	// Arc  3444(steps   1). Coordinate: -0.1857291637 1.4265344 0.6836178
-	// Arc  3445(steps   1). Coordinate: -0.1855853843 1.4268848 0.6845433
-	// Arc  3446(steps   1). Coordinate: -0.1854415087 1.4272349 0.6854689
-	// Arc  3447(steps   1). Coordinate: -0.1852975372 1.4275847 0.6863946
-	// Arc  3448(steps   1). Coordinate: -0.1851534701 1.4279343 0.6873204
-	// Arc  3449(steps   1). Coordinate: -0.1850093078 1.4282835 0.6882463
-	// Arc  3450(steps   1). Coordinate: -0.1848650507 1.4286324 0.6891722
-	// Arc  3451(steps   1). Coordinate: -0.1847206991 1.4289811 0.6900983
-	// Arc  3452(steps   1). Coordinate: -0.1845762533 1.4293295 0.6910245
-	// Arc  3453(steps   1). Coordinate: -0.1844317137 1.4296776 0.6919507
-	// Arc  3454(steps   1). Coordinate: -0.1842870807 1.4300254 0.6928770
-	// Arc  3455(steps   1). Coordinate: -0.1841423546 1.4303729 0.6938035
-	// Arc  3456(steps   1). Coordinate: -0.1839975357 1.4307201 0.6947300
-	// Arc  3457(steps   1). Coordinate: -0.1838526244 1.4310671 0.6956566
-	// Arc  3458(steps   1). Coordinate: -0.1837076211 1.4314138 0.6965833
-	// Arc  3459(steps   1). Coordinate: -0.1835625259 1.4317602 0.6975101
-	// Arc  3460(steps   1). Coordinate: -0.1834173394 1.4321064 0.6984370
-	// Arc  3461(steps   1). Coordinate: -0.1832720617 1.4324522 0.6993640
-	// Arc  3462(steps   1). Coordinate: -0.1831266934 1.4327978 0.7002910
-	// Arc  3463(steps   1). Coordinate: -0.1829812346 1.4331431 0.7012182
-	// Arc  3464(steps   1). Coordinate: -0.1828356857 1.4334881 0.7021454
-	// Arc  3465(steps   1). Coordinate: -0.1826900470 1.4338329 0.7030727
-	// Arc  3466(steps   1). Coordinate: -0.1825443189 1.4341774 0.7040001
-	// Arc  3467(steps   1). Coordinate: -0.1823985017 1.4345216 0.7049276
-	// Arc  3468(steps   1). Coordinate: -0.1822525957 1.4348656 0.7058552
-	// Arc  3469(steps   1). Coordinate: -0.1821066012 1.4352093 0.7067829
-	// Arc  3470(steps   1). Coordinate: -0.1819605185 1.4355527 0.7077106
-	// Arc  3471(steps   1). Coordinate: -0.1818143479 1.4358959 0.7086385
-	// Arc  3472(steps   1). Coordinate: -0.1816680899 1.4362387 0.7095664
-	// Arc  3473(steps   1). Coordinate: -0.1815217446 1.4365814 0.7104944
-	// Arc  3474(steps   1). Coordinate: -0.1813753123 1.4369237 0.7114225
-	// Arc  3475(steps   1). Coordinate: -0.1812287935 1.4372658 0.7123506
-	// Arc  3476(steps   1). Coordinate: -0.1810821884 1.4376077 0.7132789
-	// Arc  3477(steps   1). Coordinate: -0.1809354972 1.4379492 0.7142072
-	// Arc  3478(steps   1). Coordinate: -0.1807887204 1.4382905 0.7151357
-	// Arc  3479(steps   1). Coordinate: -0.1806418582 1.4386316 0.7160642
-	// Arc  3480(steps   1). Coordinate: -0.1804949108 1.4389724 0.7169927
-	// Arc  3481(steps   1). Coordinate: -0.1803478787 1.4393129 0.7179214
-	// Arc  3482(steps   1). Coordinate: -0.1802007620 1.4396532 0.7188502
-	// Arc  3483(steps   1). Coordinate: -0.1800535612 1.4399932 0.7197790
-	// Arc  3484(steps   1). Coordinate: -0.1799062764 1.4403330 0.7207079
-	// Arc  3485(steps   1). Coordinate: -0.1797589081 1.4406725 0.7216369
-	// Arc  3486(steps   1). Coordinate: -0.1796114563 1.4410118 0.7225659
-	// Arc  3487(steps   1). Coordinate: -0.1794639216 1.4413508 0.7234951
-	// Arc  3488(steps   1). Coordinate: -0.1793163040 1.4416895 0.7244243
-	// Arc  3489(steps   1). Coordinate: -0.1791686041 1.4420280 0.7253536
-	// Arc  3490(steps   1). Coordinate: -0.1790208219 1.4423663 0.7262830
-	// Arc  3491(steps   1). Coordinate: -0.1788729578 1.4427043 0.7272124
-	// Arc  3492(steps   1). Coordinate: -0.1787250121 1.4430420 0.7281420
-	// Arc  3493(steps   1). Coordinate: -0.1785769850 1.4433795 0.7290716
-	// Arc  3494(steps   1). Coordinate: -0.1784288769 1.4437168 0.7300013
-	// Arc  3495(steps   1). Coordinate: -0.1782806880 1.4440538 0.7309310
-	// Arc  3496(steps   1). Coordinate: -0.1781324185 1.4443906 0.7318609
-	// Arc  3497(steps   1). Coordinate: -0.1779840688 1.4447271 0.7327908
-	// Arc  3498(steps   1). Coordinate: -0.1778356392 1.4450634 0.7337208
-	// Arc  3499(steps   1). Coordinate: -0.1776871298 1.4453994 0.7346509
-	// Arc  3500(steps   1). Coordinate: -0.1775385411 1.4457352 0.7355810
-	// Arc  3501(steps   1). Coordinate: -0.1773898731 1.4460707 0.7365112
-	// Arc  3502(steps   1). Coordinate: -0.1772411263 1.4464060 0.7374415
-	// Arc  3503(steps   1). Coordinate: -0.1770923008 1.4467411 0.7383719
-	// Arc  3504(steps   1). Coordinate: -0.1769433970 1.4470759 0.7393023
-	// Arc  3505(steps   1). Coordinate: -0.1767944150 1.4474105 0.7402328
-	// Arc  3506(steps   1). Coordinate: -0.1766453552 1.4477448 0.7411634
-	// Arc  3507(steps   1). Coordinate: -0.1764962179 1.4480790 0.7420941
-	// Arc  3508(steps   1). Coordinate: -0.1763470032 1.4484128 0.7430248
-	// Arc  3509(steps   1). Coordinate: -0.1761977114 1.4487465 0.7439556
-	// Arc  3510(steps   1). Coordinate: -0.1760483428 1.4490799 0.7448865
-	// Arc  3511(steps   1). Coordinate: -0.1758988977 1.4494130 0.7458175
-	// Arc  3512(steps   1). Coordinate: -0.1757493762 1.4497460 0.7467485
-	// Arc  3513(steps   1). Coordinate: -0.1755997787 1.4500787 0.7476796
-	// Arc  3514(steps   1). Coordinate: -0.1754501054 1.4504111 0.7486107
-	// Arc  3515(steps   1). Coordinate: -0.1753003566 1.4507434 0.7495420
-	// Arc  3516(steps   1). Coordinate: -0.1751505324 1.4510754 0.7504733
-	// Arc  3517(steps   1). Coordinate: -0.1750006332 1.4514072 0.7514046
-	// Arc  3518(steps   1). Coordinate: -0.1748506592 1.4517387 0.7523361
-	// Arc  3519(steps   1). Coordinate: -0.1747006106 1.4520700 0.7532676
-	// Arc  3520(steps   1). Coordinate: -0.1745504877 1.4524011 0.7541992
-	// Arc  3521(steps   1). Coordinate: -0.1744002907 1.4527320 0.7551308
-	// Arc  3522(steps   1). Coordinate: -0.1742500198 1.4530626 0.7560625
-	// Arc  3523(steps   1). Coordinate: -0.1740996754 1.4533930 0.7569943
-	// Arc  3524(steps   1). Coordinate: -0.1739492576 1.4537232 0.7579262
-	// Arc  3525(steps   1). Coordinate: -0.1737987666 1.4540532 0.7588581
-	// Arc  3526(steps   1). Coordinate: -0.1736482028 1.4543829 0.7597901
-	// Arc  3527(steps   1). Coordinate: -0.1734975663 1.4547124 0.7607221
-	// Arc  3528(steps   1). Coordinate: -0.1733468574 1.4550417 0.7616543
-	// Arc  3529(steps   1). Coordinate: -0.1731960763 1.4553708 0.7625865
-	// Arc  3530(steps   1). Coordinate: -0.1730452232 1.4556996 0.7635187
-	// Arc  3531(steps   1). Coordinate: -0.1728942985 1.4560282 0.7644510
-	// Arc  3532(steps   1). Coordinate: -0.1727433022 1.4563566 0.7653834
-	// Arc  3533(steps   1). Coordinate: -0.1725922346 1.4566848 0.7663159
-	// Arc  3534(steps   1). Coordinate: -0.1724410960 1.4570128 0.7672484
-	// Arc  3535(steps   1). Coordinate: -0.1722898865 1.4573405 0.7681810
-	// Arc  3536(steps   1). Coordinate: -0.1721386065 1.4576681 0.7691136
-	// Arc  3537(steps   1). Coordinate: -0.1719872561 1.4579954 0.7700464
-	// Arc  3538(steps   1). Coordinate: -0.1718358356 1.4583225 0.7709791
-	// Arc  3539(steps   1). Coordinate: -0.1716843451 1.4586494 0.7719120
-	// Arc  3540(steps   1). Coordinate: -0.1715327849 1.4589760 0.7728449
-	// Arc  3541(steps   1). Coordinate: -0.1713811552 1.4593025 0.7737779
-	// Arc  3542(steps   1). Coordinate: -0.1712294563 1.4596287 0.7747109
-	// Arc  3543(steps   1). Coordinate: -0.1710776883 1.4599548 0.7756440
-	// Arc  3544(steps   1). Coordinate: -0.1709258514 1.4602806 0.7765772
-	// Arc  3545(steps   1). Coordinate: -0.1707739460 1.4606062 0.7775104
-	// Arc  3546(steps   1). Coordinate: -0.1706219721 1.4609316 0.7784437
-	// Arc  3547(steps   1). Coordinate: -0.1704699300 1.4612567 0.7793770
-	// Arc  3548(steps   1). Coordinate: -0.1703178200 1.4615817 0.7803104
-	// Arc  3549(steps   1). Coordinate: -0.1701656422 1.4619065 0.7812439
-	// Arc  3550(steps   1). Coordinate: -0.1700133968 1.4622310 0.7821774
-	// Arc  3551(steps   1). Coordinate: -0.1698610840 1.4625554 0.7831110
-	// Arc  3552(steps   1). Coordinate: -0.1697087041 1.4628795 0.7840447
-	// Arc  3553(steps   1). Coordinate: -0.1695562573 1.4632034 0.7849784
-	// Arc  3554(steps   1). Coordinate: -0.1694037438 1.4635272 0.7859122
-	// Arc  3555(steps   1). Coordinate: -0.1692511637 1.4638507 0.7868460
-	// Arc  3556(steps   1). Coordinate: -0.1690985172 1.4641740 0.7877799
-	// Arc  3557(steps   1). Coordinate: -0.1689458047 1.4644971 0.7887139
-	// Arc  3558(steps   1). Coordinate: -0.1687930263 1.4648200 0.7896479
-	// Arc  3559(steps   1). Coordinate: -0.1686401821 1.4651427 0.7905820
-	// Arc  3560(steps   1). Coordinate: -0.1684872724 1.4654652 0.7915161
-	// Arc  3561(steps   1). Coordinate: -0.1683342974 1.4657875 0.7924503
-	// Arc  3562(steps   1). Coordinate: -0.1681812572 1.4661096 0.7933846
-	// Arc  3563(steps   1). Coordinate: -0.1680281522 1.4664315 0.7943189
-	// Arc  3564(steps   1). Coordinate: -0.1678749824 1.4667532 0.7952533
-	// Arc  3565(steps   1). Coordinate: -0.1677217481 1.4670747 0.7961877
-	// Arc  3566(steps   1). Coordinate: -0.1675684494 1.4673960 0.7971222
-	// Arc  3567(steps   1). Coordinate: -0.1674150866 1.4677171 0.7980567
-	// Arc  3568(steps   1). Coordinate: -0.1672616599 1.4680380 0.7989913
-	// Arc  3569(steps   1). Coordinate: -0.1671081694 1.4683587 0.7999260
-	// Arc  3570(steps   1). Coordinate: -0.1669546153 1.4686792 0.8008607
-	// Arc  3571(steps   1). Coordinate: -0.1668009979 1.4689995 0.8017955
-	// Arc  3572(steps   1). Coordinate: -0.1666473172 1.4693196 0.8027303
-	// Arc  3573(steps   1). Coordinate: -0.1664935736 1.4696395 0.8036652
-	// Arc  3574(steps   1). Coordinate: -0.1663397672 1.4699592 0.8046002
-	// Arc  3575(steps   1). Coordinate: -0.1661858981 1.4702787 0.8055352
-	// Arc  3576(steps   1). Coordinate: -0.1660319666 1.4705981 0.8064702
-	// Arc  3577(steps   1). Coordinate: -0.1658779728 1.4709172 0.8074053
-	// Arc  3578(steps   1). Coordinate: -0.1657239170 1.4712362 0.8083405
-	// Arc  3579(steps   1). Coordinate: -0.1655697993 1.4715549 0.8092757
-	// Arc  3580(steps   1). Coordinate: -0.1654156199 1.4718735 0.8102110
-	// Arc  3581(steps   1). Coordinate: -0.1652613789 1.4721919 0.8111463
-	// Arc  3582(steps   1). Coordinate: -0.1651070766 1.4725100 0.8120817
-	// Arc  3583(steps   1). Coordinate: -0.1649527132 1.4728280 0.8130172
-	// Arc  3584(steps   1). Coordinate: -0.1647982888 1.4731458 0.8139527
-	// Arc  3585(steps   1). Coordinate: -0.1646438036 1.4734634 0.8148882
-	// Arc  3586(steps   1). Coordinate: -0.1644892577 1.4737809 0.8158238
-	// Arc  3587(steps   1). Coordinate: -0.1643346514 1.4740981 0.8167595
-	// Arc  3588(steps   1). Coordinate: -0.1641799848 1.4744151 0.8176952
-	// Arc  3589(steps   1). Coordinate: -0.1640252582 1.4747320 0.8186310
-	// Arc  3590(steps   1). Coordinate: -0.1638704716 1.4750487 0.8195668
-	// Arc  3591(steps   1). Coordinate: -0.1637156252 1.4753652 0.8205027
-	// Arc  3592(steps   1). Coordinate: -0.1635607193 1.4756815 0.8214386
-	// Arc  3593(steps   1). Coordinate: -0.1634057540 1.4759976 0.8223746
-	// Arc  3594(steps   1). Coordinate: -0.1632507294 1.4763135 0.8233106
-	// Arc  3595(steps   1). Coordinate: -0.1630956458 1.4766293 0.8242467
-	// Arc  3596(steps   1). Coordinate: -0.1629405033 1.4769448 0.8251828
-	// Arc  3597(steps   1). Coordinate: -0.1627853021 1.4772602 0.8261190
-	// Arc  3598(steps   1). Coordinate: -0.1626300423 1.4775754 0.8270552
-	// Arc  3599(steps   1). Coordinate: -0.1624747241 1.4778904 0.8279915
-	// Arc  3600(steps   1). Coordinate: -0.1623193477 1.4782053 0.8289279
-	// Arc  3601(steps   1). Coordinate: -0.1621639133 1.4785199 0.8298643
-	// Arc  3602(steps   1). Coordinate: -0.1620084209 1.4788344 0.8308007
-	// Arc  3603(steps   1). Coordinate: -0.1618528709 1.4791487 0.8317372
-	// Arc  3604(steps   1). Coordinate: -0.1616972633 1.4794628 0.8326737
-	// Arc  3605(steps   1). Coordinate: -0.1615415983 1.4797767 0.8336103
-	// Arc  3606(steps   1). Coordinate: -0.1613858760 1.4800905 0.8345470
-	// Arc  3607(steps   1). Coordinate: -0.1612300967 1.4804041 0.8354837
-	// Arc  3608(steps   1). Coordinate: -0.1610742605 1.4807175 0.8364204
-	// Arc  3609(steps   1). Coordinate: -0.1609183675 1.4810307 0.8373572
-	// Arc  3610(steps   1). Coordinate: -0.1607624180 1.4813437 0.8382941
-	// Arc  3611(steps   1). Coordinate: -0.1606064120 1.4816566 0.8392310
-	// Arc  3612(steps   1). Coordinate: -0.1604503497 1.4819693 0.8401679
-	// Arc  3613(steps   1). Coordinate: -0.1602942313 1.4822818 0.8411049
-	// Arc  3614(steps   1). Coordinate: -0.1601380570 1.4825942 0.8420420
-	// Arc  3615(steps   1). Coordinate: -0.1599818268 1.4829064 0.8429790
-	// Arc  3616(steps   1). Coordinate: -0.1598255411 1.4832183 0.8439162
-	// Arc  3617(steps   1). Coordinate: -0.1596691998 1.4835302 0.8448534
-	// Arc  3618(steps   1). Coordinate: -0.1595128032 1.4838418 0.8457906
-	// Arc  3619(steps   1). Coordinate: -0.1593563514 1.4841533 0.8467279
-	// Arc  3620(steps   1). Coordinate: -0.1591998446 1.4844646 0.8476652
-	// Arc  3621(steps   1). Coordinate: -0.1590432829 1.4847757 0.8486026
-	// Arc  3622(steps   1). Coordinate: -0.1588866665 1.4850867 0.8495400
-	// Arc  3623(steps   1). Coordinate: -0.1587299955 1.4853975 0.8504775
-	// Arc  3624(steps   1). Coordinate: -0.1585732701 1.4857081 0.8514150
-	// Arc  3625(steps   1). Coordinate: -0.1584164904 1.4860186 0.8523526
-	// Arc  3626(steps   1). Coordinate: -0.1582596566 1.4863289 0.8532902
-	// Arc  3627(steps   1). Coordinate: -0.1581027688 1.4866390 0.8542279
-	// Arc  3628(steps   1). Coordinate: -0.1579458272 1.4869489 0.8551656
-	// Arc  3629(steps   1). Coordinate: -0.1577888319 1.4872587 0.8561034
-	// Arc  3630(steps   1). Coordinate: -0.1576317831 1.4875683 0.8570412
-	// Arc  3631(steps   1). Coordinate: -0.1574746809 1.4878777 0.8579790
-	// Arc  3632(steps   1). Coordinate: -0.1573175254 1.4881870 0.8589169
-	// Arc  3633(steps   1). Coordinate: -0.1571603169 1.4884961 0.8598549
-	// Arc  3634(steps   1). Coordinate: -0.1570030554 1.4888051 0.8607928
-	// Arc  3635(steps   1). Coordinate: -0.1568457411 1.4891138 0.8617309
-	// Arc  3636(steps   1). Coordinate: -0.1566883741 1.4894225 0.8626690
-	// Arc  3637(steps   1). Coordinate: -0.1565309546 1.4897309 0.8636071
-	// Arc  3638(steps   1). Coordinate: -0.1563734827 1.4900392 0.8645453
-	// Arc  3639(steps   1). Coordinate: -0.1562159586 1.4903473 0.8654835
-	// Arc  3640(steps   1). Coordinate: -0.1560583824 1.4906553 0.8664217
-	// Arc  3641(steps   1). Coordinate: -0.1559007542 1.4909631 0.8673600
-	// Arc  3642(steps   1). Coordinate: -0.1557430742 1.4912707 0.8682984
-	// Arc  3643(steps   1). Coordinate: -0.1555853426 1.4915782 0.8692368
-	// Arc  3644(steps   1). Coordinate: -0.1554275594 1.4918855 0.8701752
-	// Arc  3645(steps   1). Coordinate: -0.1552697248 1.4921926 0.8711137
-	// Arc  3646(steps   1). Coordinate: -0.1551118389 1.4924996 0.8720522
-	// Arc  3647(steps   1). Coordinate: -0.1549539019 1.4928064 0.8729908
-	// Arc  3648(steps   1). Coordinate: -0.1547959139 1.4931131 0.8739294
-	// Arc  3649(steps   1). Coordinate: -0.1546378750 1.4934196 0.8748681
-	// Arc  3650(steps   1). Coordinate: -0.1544797855 1.4937259 0.8758068
-	// Arc  3651(steps   1). Coordinate: -0.1543216453 1.4940321 0.8767455
-	// Arc  3652(steps   1). Coordinate: -0.1541634547 1.4943381 0.8776843
-	// Arc  3653(steps   1). Coordinate: -0.1540052137 1.4946440 0.8786231
-	// Arc  3654(steps   1). Coordinate: -0.1538469226 1.4949497 0.8795620
-	// Arc  3655(steps   1). Coordinate: -0.1536885815 1.4952553 0.8805009
-	// Arc  3656(steps   1). Coordinate: -0.1535301904 1.4955607 0.8814399
-	// Arc  3657(steps   1). Coordinate: -0.1533717495 1.4958659 0.8823789
-	// Arc  3658(steps   1). Coordinate: -0.1532132589 1.4961710 0.8833179
-	// Arc  3659(steps   1). Coordinate: -0.1530547188 1.4964759 0.8842570
-	// Arc  3660(steps   1). Coordinate: -0.1528961294 1.4967807 0.8851962
-	// Arc  3661(steps   1). Coordinate: -0.1527374906 1.4970853 0.8861353
-	// Arc  3662(steps   1). Coordinate: -0.1525788027 1.4973898 0.8870745
-	// Arc  3663(steps   1). Coordinate: -0.1524200658 1.4976941 0.8880138
-	// Arc  3664(steps   1). Coordinate: -0.1522612800 1.4979982 0.8889531
-	// Arc  3665(steps   1). Coordinate: -0.1521024455 1.4983022 0.8898924
-	// Arc  3666(steps   1). Coordinate: -0.1519435623 1.4986061 0.8908318
-	// Arc  3667(steps   1). Coordinate: -0.1517846306 1.4989098 0.8917712
-	// Arc  3668(steps   1). Coordinate: -0.1516256506 1.4992133 0.8927107
-	// Arc  3669(steps   1). Coordinate: -0.1514666222 1.4995167 0.8936502
-	// Arc  3670(steps   1). Coordinate: -0.1513075458 1.4998199 0.8945897
-	// Arc  3671(steps   1). Coordinate: -0.1511484213 1.5001230 0.8955293
-	// Arc  3672(steps   1). Coordinate: -0.1509892490 1.5004259 0.8964690
-	// Arc  3673(steps   1). Coordinate: -0.1508300289 1.5007287 0.8974086
-	// Arc  3674(steps   1). Coordinate: -0.1506707611 1.5010314 0.8983483
-	// Arc  3675(steps   1). Coordinate: -0.1505114459 1.5013339 0.8992881
-	// Arc  3676(steps   1). Coordinate: -0.1503520832 1.5016362 0.9002279
-	// Arc  3677(steps   1). Coordinate: -0.1501926733 1.5019384 0.9011677
-	// Arc  3678(steps   1). Coordinate: -0.1500332163 1.5022404 0.9021075
-	// Arc  3679(steps   1). Coordinate: -0.1498737122 1.5025423 0.9030474
-	// Arc  3680(steps   1). Coordinate: -0.1497141612 1.5028440 0.9039874
-	// Arc  3681(steps   1). Coordinate: -0.1495545634 1.5031456 0.9049274
-	// Arc  3682(steps   1). Coordinate: -0.1493949189 1.5034471 0.9058674
-	// Arc  3683(steps   1). Coordinate: -0.1492352279 1.5037484 0.9068075
-	// Arc  3684(steps   1). Coordinate: -0.1490754904 1.5040495 0.9077476
-	// Arc  3685(steps   1). Coordinate: -0.1489157067 1.5043505 0.9086877
-	// Arc  3686(steps   1). Coordinate: -0.1487558767 1.5046514 0.9096279
-	// Arc  3687(steps   1). Coordinate: -0.1485960006 1.5049521 0.9105681
-	// Arc  3688(steps   1). Coordinate: -0.1484360786 1.5052527 0.9115084
-	// Arc  3689(steps   1). Coordinate: -0.1482761107 1.5055531 0.9124487
-	// Arc  3690(steps   1). Coordinate: -0.1481160971 1.5058534 0.9133890
-	// Arc  3691(steps   1). Coordinate: -0.1479560379 1.5061535 0.9143294
-	// Arc  3692(steps   1). Coordinate: -0.1477959332 1.5064535 0.9152698
-	// Arc  3693(steps   1). Coordinate: -0.1476357830 1.5067534 0.9162102
-	// Arc  3694(steps   1). Coordinate: -0.1474755876 1.5070531 0.9171507
-	// Arc  3695(steps   1). Coordinate: -0.1473153470 1.5073526 0.9180912
-	// Arc  3696(steps   1). Coordinate: -0.1471550614 1.5076520 0.9190318
-	// Arc  3697(steps   1). Coordinate: -0.1469947308 1.5079513 0.9199724
-	// Arc  3698(steps   1). Coordinate: -0.1468343554 1.5082505 0.9209130
-	// Arc  3699(steps   1). Coordinate: -0.1466739353 1.5085494 0.9218537
-	// Arc  3700(steps   1). Coordinate: -0.1465134706 1.5088483 0.9227944
-	// Arc  3701(steps   1). Coordinate: -0.1463529614 1.5091470 0.9237352
-	// Arc  3702(steps   1). Coordinate: -0.1461924078 1.5094456 0.9246760
-	// Arc  3703(steps   1). Coordinate: -0.1460318099 1.5097440 0.9256168
-	// Arc  3704(steps   1). Coordinate: -0.1458711678 1.5100423 0.9265576
-	// Arc  3705(steps   1). Coordinate: -0.1457104817 1.5103405 0.9274985
-	// Arc  3706(steps   1). Coordinate: -0.1455497517 1.5106385 0.9284395
-	// Arc  3707(steps   1). Coordinate: -0.1453889778 1.5109363 0.9293804
-	// Arc  3708(steps   1). Coordinate: -0.1452281601 1.5112341 0.9303214
-	// Arc  3709(steps   1). Coordinate: -0.1450672989 1.5115317 0.9312625
-	// Arc  3710(steps   1). Coordinate: -0.1449063941 1.5118291 0.9322036
-	// Arc  3711(steps   1). Coordinate: -0.1447454459 1.5121265 0.9331447
-	// Arc  3712(steps   1). Coordinate: -0.1445844544 1.5124236 0.9340858
-	// Arc  3713(steps   1). Coordinate: -0.1444234197 1.5127207 0.9350270
-	// Arc  3714(steps   1). Coordinate: -0.1442623419 1.5130176 0.9359682
-	// Arc  3715(steps   1). Coordinate: -0.1441012212 1.5133144 0.9369095
-	// Arc  3716(steps   1). Coordinate: -0.1439400575 1.5136110 0.9378508
-	// Arc  3717(steps   1). Coordinate: -0.1437788510 1.5139075 0.9387921
-	// Arc  3718(steps   1). Coordinate: -0.1436176019 1.5142039 0.9397335
-	// Arc  3719(steps   1). Coordinate: -0.1434563102 1.5145001 0.9406749
-	// Arc  3720(steps   1). Coordinate: -0.1432949760 1.5147962 0.9416163
-	// Arc  3721(steps   1). Coordinate: -0.1431335995 1.5150922 0.9425578
-	// Arc  3722(steps   1). Coordinate: -0.1429721807 1.5153880 0.9434993
-	// Arc  3723(steps   1). Coordinate: -0.1428107197 1.5156837 0.9444408
-	// Arc  3724(steps   1). Coordinate: -0.1426492167 1.5159793 0.9453824
-	// Arc  3725(steps   1). Coordinate: -0.1424876717 1.5162747 0.9463240
-	// Arc  3726(steps   1). Coordinate: -0.1423260848 1.5165700 0.9472656
-	// Arc  3727(steps   1). Coordinate: -0.1421644562 1.5168651 0.9482073
-	// Arc  3728(steps   1). Coordinate: -0.1420027859 1.5171602 0.9491490
-	// Arc  3729(steps   1). Coordinate: -0.1418410740 1.5174551 0.9500908
-	// Arc  3730(steps   1). Coordinate: -0.1416793207 1.5177498 0.9510326
-	// Arc  3731(steps   1). Coordinate: -0.1415175261 1.5180445 0.9519744
-	// Arc  3732(steps   1). Coordinate: -0.1413556901 1.5183390 0.9529162
-	// Arc  3733(steps   1). Coordinate: -0.1411938130 1.5186333 0.9538581
-	// Arc  3734(steps   1). Coordinate: -0.1410318949 1.5189276 0.9548000
-	// Arc  3735(steps   1). Coordinate: -0.1408699357 1.5192217 0.9557420
-	// Arc  3736(steps   1). Coordinate: -0.1407079357 1.5195157 0.9566839
-	// Arc  3737(steps   1). Coordinate: -0.1405458949 1.5198095 0.9576260
-	// Arc  3738(steps   1). Coordinate: -0.1403838134 1.5201033 0.9585680
-	// Arc  3739(steps   1). Coordinate: -0.1402216914 1.5203969 0.9595101
-	// Arc  3740(steps   1). Coordinate: -0.1400595288 1.5206903 0.9604522
-	// Arc  3741(steps   1). Coordinate: -0.1398973259 1.5209837 0.9613944
-	// Arc  3742(steps   1). Coordinate: -0.1397350827 1.5212769 0.9623365
-	// Arc  3743(steps   1). Coordinate: -0.1395727992 1.5215699 0.9632787
-	// Arc  3744(steps   1). Coordinate: -0.1394104757 1.5218629 0.9642210
-	// Arc  3745(steps   1). Coordinate: -0.1392481121 1.5221557 0.9651633
-	// Arc  3746(steps   1). Coordinate: -0.1390857086 1.5224484 0.9661056
-	// Arc  3747(steps   1). Coordinate: -0.1389232653 1.5227410 0.9670479
-	// Arc  3748(steps   1). Coordinate: -0.1387607823 1.5230334 0.9679903
-	// Arc  3749(steps   1). Coordinate: -0.1385982596 1.5233258 0.9689327
-	// Arc  3750(steps   1). Coordinate: -0.1384356974 1.5236179 0.9698752
-	// Arc  3751(steps   1). Coordinate: -0.1382730957 1.5239100 0.9708176
-	// Arc  3752(steps   1). Coordinate: -0.1381104546 1.5242020 0.9717601
-	// Arc  3753(steps   1). Coordinate: -0.1379477743 1.5244938 0.9727027
-	// Arc  3754(steps   1). Coordinate: -0.1377850548 1.5247855 0.9736452
-	// Arc  3755(steps   1). Coordinate: -0.1376222962 1.5250770 0.9745878
-	// Arc  3756(steps   1). Coordinate: -0.1374594985 1.5253685 0.9755305
-	// Arc  3757(steps   1). Coordinate: -0.1372966620 1.5256598 0.9764731
-	// Arc  3758(steps   1). Coordinate: -0.1371337867 1.5259510 0.9774158
-	// Arc  3759(steps   1). Coordinate: -0.1369708726 1.5262421 0.9783586
-	// Arc  3760(steps   1). Coordinate: -0.1368079199 1.5265330 0.9793013
-	// Arc  3761(steps   1). Coordinate: -0.1366449286 1.5268238 0.9802441
-	// Arc  3762(steps   1). Coordinate: -0.1364818989 1.5271145 0.9811869
-	// Arc  3763(steps   1). Coordinate: -0.1363188308 1.5274051 0.9821298
-	// Arc  3764(steps   1). Coordinate: -0.1361557244 1.5276956 0.9830727
-	// Arc  3765(steps   1). Coordinate: -0.1359925797 1.5279859 0.9840156
-	// Arc  3766(steps   1). Coordinate: -0.1358293970 1.5282761 0.9849585
-	// Arc  3767(steps   1). Coordinate: -0.1356661763 1.5285662 0.9859015
-	// Arc  3768(steps   1). Coordinate: -0.1355029176 1.5288562 0.9868445
-	// Arc  3769(steps   1). Coordinate: -0.1353396210 1.5291460 0.9877876
-	// Arc  3770(steps   1). Coordinate: -0.1351762867 1.5294358 0.9887306
-	// Arc  3771(steps   1). Coordinate: -0.1350129147 1.5297254 0.9896737
-	// Arc  3772(steps   1). Coordinate: -0.1348495052 1.5300149 0.9906169
-	// Arc  3773(steps   1). Coordinate: -0.1346860581 1.5303043 0.9915600
-	// Arc  3774(steps   1). Coordinate: -0.1345225735 1.5305935 0.9925032
-	// Arc  3775(steps   1). Coordinate: -0.1343590517 1.5308826 0.9934464
-	// Arc  3776(steps   1). Coordinate: -0.1341954925 1.5311716 0.9943897
-	// Arc  3777(steps   1). Coordinate: -0.1340318962 1.5314605 0.9953330
-	// Arc  3778(steps   1). Coordinate: -0.1338682629 1.5317493 0.9962763
-	// Arc  3779(steps   1). Coordinate: -0.1337045925 1.5320380 0.9972196
-	// Arc  3780(steps   1). Coordinate: -0.1335408851 1.5323265 0.9981630
-	// Arc  3781(steps   1). Coordinate: -0.1333771410 1.5326149 0.9991064
-	// Arc  3782(steps   1). Coordinate: -0.1332133601 1.5329032 1.0000498
-	// Arc  3783(steps   1). Coordinate: -0.1330495425 1.5331914 1.0009933
-	// Arc  3784(steps   1). Coordinate: -0.1328856883 1.5334795 1.0019367
-	// Arc  3785(steps   1). Coordinate: -0.1327217976 1.5337675 1.0028803
-	// Arc  3786(steps   1). Coordinate: -0.1325578705 1.5340553 1.0038238
-	// Arc  3787(steps   1). Coordinate: -0.1323939070 1.5343430 1.0047674
-	// Arc  3788(steps   1). Coordinate: -0.1322299073 1.5346306 1.0057110
-	// Arc  3789(steps   1). Coordinate: -0.1320658714 1.5349181 1.0066546
-	// Arc  3790(steps   1). Coordinate: -0.1319017994 1.5352055 1.0075983
-	// Arc  3791(steps   1). Coordinate: -0.1317376913 1.5354927 1.0085420
-	// Arc  3792(steps   1). Coordinate: -0.1315735473 1.5357799 1.0094857
-	// Arc  3793(steps   1). Coordinate: -0.1314093675 1.5360669 1.0104294
-	// Arc  3794(steps   1). Coordinate: -0.1312451518 1.5363538 1.0113732
-	// Arc  3795(steps   1). Coordinate: -0.1310809005 1.5366406 1.0123170
-	// Arc  3796(steps   1). Coordinate: -0.1309166135 1.5369273 1.0132609
-	// Arc  3797(steps   1). Coordinate: -0.1307522910 1.5372139 1.0142047
-	// Arc  3798(steps   1). Coordinate: -0.1305879330 1.5375003 1.0151486
-	// Arc  3799(steps   1). Coordinate: -0.1304235396 1.5377867 1.0160925
-	// Arc  3800(steps   1). Coordinate: -0.1302591109 1.5380729 1.0170365
-	// Arc  3801(steps   1). Coordinate: -0.1300946469 1.5383590 1.0179804
-	// Arc  3802(steps   1). Coordinate: -0.1299301478 1.5386450 1.0189244
-	// Arc  3803(steps   1). Coordinate: -0.1297656136 1.5389309 1.0198685
-	// Arc  3804(steps   1). Coordinate: -0.1296010444 1.5392167 1.0208125
-	// Arc  3805(steps   1). Coordinate: -0.1294364403 1.5395024 1.0217566
-	// Arc  3806(steps   1). Coordinate: -0.1292718013 1.5397879 1.0227007
-	// Arc  3807(steps   1). Coordinate: -0.1291071275 1.5400734 1.0236449
-	// Arc  3808(steps   1). Coordinate: -0.1289424191 1.5403587 1.0245890
-	// Arc  3809(steps   1). Coordinate: -0.1287776760 1.5406439 1.0255332
-	// Arc  3810(steps   1). Coordinate: -0.1286128983 1.5409291 1.0264775
-	// Arc  3811(steps   1). Coordinate: -0.1284480862 1.5412141 1.0274217
-	// Arc  3812(steps   1). Coordinate: -0.1282832397 1.5414990 1.0283660
-	// Arc  3813(steps   1). Coordinate: -0.1281183588 1.5417837 1.0293103
-	// Arc  3814(steps   1). Coordinate: -0.1279534437 1.5420684 1.0302546
-	// Arc  3815(steps   1). Coordinate: -0.1277884944 1.5423530 1.0311990
-	// Arc  3816(steps   1). Coordinate: -0.1276235110 1.5426374 1.0321434
-	// Arc  3817(steps   1). Coordinate: -0.1274584936 1.5429218 1.0330878
-	// Arc  3818(steps   1). Coordinate: -0.1272934423 1.5432060 1.0340322
-	// Arc  3819(steps   1). Coordinate: -0.1271283570 1.5434901 1.0349767
-	// Arc  3820(steps   1). Coordinate: -0.1269632379 1.5437741 1.0359212
-	// Arc  3821(steps   1). Coordinate: -0.1267980851 1.5440581 1.0368657
-	// Arc  3822(steps   1). Coordinate: -0.1266328986 1.5443419 1.0378103
-	// Arc  3823(steps   1). Coordinate: -0.1264676785 1.5446256 1.0387548
-	// Arc  3824(steps   1). Coordinate: -0.1263024249 1.5449091 1.0396994
-	// Arc  3825(steps   1). Coordinate: -0.1261371379 1.5451926 1.0406441
-	// Arc  3826(steps   1). Coordinate: -0.1259718175 1.5454760 1.0415887
-	// Arc  3827(steps   1). Coordinate: -0.1258064637 1.5457593 1.0425334
-	// Arc  3828(steps   1). Coordinate: -0.1256410767 1.5460424 1.0434781
-	// Arc  3829(steps   1). Coordinate: -0.1254756566 1.5463255 1.0444228
-	// Arc  3830(steps   1). Coordinate: -0.1253102033 1.5466084 1.0453676
-	// Arc  3831(steps   1). Coordinate: -0.1251447171 1.5468912 1.0463124
-	// Arc  3832(steps   1). Coordinate: -0.1249791978 1.5471740 1.0472572
-	// Arc  3833(steps   1). Coordinate: -0.1248136457 1.5474566 1.0482020
-	// Arc  3834(steps   1). Coordinate: -0.1246480608 1.5477391 1.0491469
-	// Arc  3835(steps   1). Coordinate: -0.1244824431 1.5480215 1.0500918
-	// Arc  3836(steps   1). Coordinate: -0.1243167927 1.5483039 1.0510367
-	// Arc  3837(steps   1). Coordinate: -0.1241511098 1.5485861 1.0519816
-	// Arc  3838(steps   1). Coordinate: -0.1239853943 1.5488682 1.0529266
-	// Arc  3839(steps   1). Coordinate: -0.1238196463 1.5491502 1.0538716
-	// Arc  3840(steps   1). Coordinate: -0.1236538659 1.5494321 1.0548166
-	// Arc  3841(steps   1). Coordinate: -0.1234880532 1.5497138 1.0557616
-	// Arc  3842(steps   1). Coordinate: -0.1233222082 1.5499955 1.0567067
-	// Arc  3843(steps   1). Coordinate: -0.1231563310 1.5502771 1.0576518
-	// Arc  3844(steps   1). Coordinate: -0.1229904217 1.5505586 1.0585969
-	// Arc  3845(steps   1). Coordinate: -0.1228244803 1.5508400 1.0595420
-	// Arc  3846(steps   1). Coordinate: -0.1226585069 1.5511212 1.0604872
-	// Arc  3847(steps   1). Coordinate: -0.1224925016 1.5514024 1.0614324
-	// Arc  3848(steps   1). Coordinate: -0.1223264644 1.5516835 1.0623776
-	// Arc  3849(steps   1). Coordinate: -0.1221603954 1.5519644 1.0633229
-	// Arc  3850(steps   1). Coordinate: -0.1219942947 1.5522453 1.0642681
-	// Arc  3851(steps   1). Coordinate: -0.1218281623 1.5525261 1.0652134
-	// Arc  3852(steps   1). Coordinate: -0.1216619983 1.5528067 1.0661587
-	// Arc  3853(steps   1). Coordinate: -0.1214958028 1.5530873 1.0671041
-	// Arc  3854(steps   1). Coordinate: -0.1213295758 1.5533677 1.0680494
-	// Arc  3855(steps   1). Coordinate: -0.1211633174 1.5536481 1.0689948
-	// Arc  3856(steps   1). Coordinate: -0.1209970277 1.5539283 1.0699402
-	// Arc  3857(steps   1). Coordinate: -0.1208307066 1.5542085 1.0708857
-	// Arc  3858(steps   1). Coordinate: -0.1206643544 1.5544885 1.0718311
-	// Arc  3859(steps   1). Coordinate: -0.1204979710 1.5547685 1.0727766
-	// Arc  3860(steps   1). Coordinate: -0.1203315566 1.5550484 1.0737221
-	// Arc  3861(steps   1). Coordinate: -0.1201651111 1.5553281 1.0746677
-	// Arc  3862(steps   1). Coordinate: -0.1199986347 1.5556078 1.0756132
-	// Arc  3863(steps   1). Coordinate: -0.1198321274 1.5558873 1.0765588
-	// Arc  3864(steps   1). Coordinate: -0.1196655892 1.5561668 1.0775044
-	// Arc  3865(steps   1). Coordinate: -0.1194990203 1.5564461 1.0784500
-	// Arc  3866(steps   1). Coordinate: -0.1193324207 1.5567254 1.0793957
-	// Arc  3867(steps   1). Coordinate: -0.1191657904 1.5570045 1.0803414
-	// Arc  3868(steps   1). Coordinate: -0.1189991296 1.5572836 1.0812871
-	// Arc  3869(steps   1). Coordinate: -0.1188324383 1.5575625 1.0822328
-	// Arc  3870(steps   1). Coordinate: -0.1186657165 1.5578414 1.0831785
-	// Arc  3871(steps   1). Coordinate: -0.1184989643 1.5581202 1.0841243
-	// Arc  3872(steps   1). Coordinate: -0.1183321818 1.5583988 1.0850701
-	// Arc  3873(steps   1). Coordinate: -0.1181653690 1.5586774 1.0860159
-	// Arc  3874(steps   1). Coordinate: -0.1179985260 1.5589559 1.0869618
-	// Arc  3875(steps   1). Coordinate: -0.1178316528 1.5592342 1.0879076
-	// Arc  3876(steps   1). Coordinate: -0.1176647496 1.5595125 1.0888535
-	// Arc  3877(steps   1). Coordinate: -0.1174978164 1.5597907 1.0897994
-	// Arc  3878(steps   1). Coordinate: -0.1173308532 1.5600688 1.0907454
-	// Arc  3879(steps   1). Coordinate: -0.1171638601 1.5603468 1.0916913
-	// Arc  3880(steps   1). Coordinate: -0.1169968371 1.5606247 1.0926373
-	// Arc  3881(steps   1). Coordinate: -0.1168297844 1.5609025 1.0935833
-	// Arc  3882(steps   1). Coordinate: -0.1166627020 1.5611802 1.0945293
-	// Arc  3883(steps   1). Coordinate: -0.1164955899 1.5614578 1.0954754
-	// Arc  3884(steps   1). Coordinate: -0.1163284482 1.5617353 1.0964215
-	// Arc  3885(steps   1). Coordinate: -0.1161612769 1.5620127 1.0973676
-	// Arc  3886(steps   1). Coordinate: -0.1159940762 1.5622900 1.0983137
-	// Arc  3887(steps   1). Coordinate: -0.1158268460 1.5625672 1.0992598
-	// Arc  3888(steps   1). Coordinate: -0.1156595865 1.5628443 1.1002060
-	// Arc  3889(steps   1). Coordinate: -0.1154922977 1.5631214 1.1011522
-	// Arc  3890(steps   1). Coordinate: -0.1153249796 1.5633983 1.1020984
-	// Arc  3891(steps   1). Coordinate: -0.1151576323 1.5636751 1.1030446
-	// Arc  3892(steps   1). Coordinate: -0.1149902559 1.5639519 1.1039909
-	// Arc  3893(steps   1). Coordinate: -0.1148228504 1.5642285 1.1049371
-	// Arc  3894(steps   1). Coordinate: -0.1146554159 1.5645051 1.1058834
-	// Arc  3895(steps   1). Coordinate: -0.1144879525 1.5647816 1.1068298
-	// Arc  3896(steps   1). Coordinate: -0.1143204602 1.5650579 1.1077761
-	// Arc  3897(steps   1). Coordinate: -0.1141529390 1.5653342 1.1087225
-	// Arc  3898(steps   1). Coordinate: -0.1139853890 1.5656104 1.1096689
-	// Arc  3899(steps   1). Coordinate: -0.1138178103 1.5658865 1.1106153
-	// Arc  3900(steps   1). Coordinate: -0.1136502029 1.5661625 1.1115617
-	// Arc  3901(steps   1). Coordinate: -0.1134825669 1.5664384 1.1125081
-	// Arc  3902(steps   1). Coordinate: -0.1133149023 1.5667142 1.1134546
-	// Arc  3903(steps   1). Coordinate: -0.1131472093 1.5669900 1.1144011
-	// Arc  3904(steps   1). Coordinate: -0.1129794878 1.5672656 1.1153476
-	// Arc  3905(steps   1). Coordinate: -0.1128117379 1.5675411 1.1162942
-	// Arc  3906(steps   1). Coordinate: -0.1126439596 1.5678166 1.1172407
-	// Arc  3907(steps   1). Coordinate: -0.1124761531 1.5680919 1.1181873
-	// Arc  3908(steps   1). Coordinate: -0.1123083184 1.5683672 1.1191339
-	// Arc  3909(steps   1). Coordinate: -0.1121404555 1.5686424 1.1200806
-	// Arc  3910(steps   1). Coordinate: -0.1119725645 1.5689175 1.1210272
-	// Arc  3911(steps   1). Coordinate: -0.1118046454 1.5691924 1.1219739
-	// Arc  3912(steps   1). Coordinate: -0.1116366983 1.5694674 1.1229206
-	// Arc  3913(steps   1). Coordinate: -0.1114687233 1.5697422 1.1238673
-	// Arc  3914(steps   1). Coordinate: -0.1113007203 1.5700169 1.1248140
-	// Arc  3915(steps   1). Coordinate: -0.1111326896 1.5702915 1.1257608
-	// Arc  3916(steps   1). Coordinate: -0.1109646310 1.5705661 1.1267075
-	// Arc  3917(steps   1). Coordinate: -0.1107965447 1.5708405 1.1276543
-	// Arc  3918(steps   1). Coordinate: -0.1106284307 1.5711149 1.1286011
-	// Arc  3919(steps   1). Coordinate: -0.1104602892 1.5713891 1.1295480
-	// Arc  3920(steps   1). Coordinate: -0.1102921200 1.5716633 1.1304948
-	// Arc  3921(steps   1). Coordinate: -0.1101239233 1.5719374 1.1314417
-	// Arc  3922(steps   1). Coordinate: -0.1099556991 1.5722114 1.1323886
-	// Arc  3923(steps   1). Coordinate: -0.1097874476 1.5724853 1.1333355
-	// Arc  3924(steps   1). Coordinate: -0.1096191687 1.5727592 1.1342825
-	// Arc  3925(steps   1). Coordinate: -0.1094508624 1.5730329 1.1352295
-	// Arc  3926(steps   1). Coordinate: -0.1092825289 1.5733066 1.1361764
-	// Arc  3927(steps   1). Coordinate: -0.1091141683 1.5735801 1.1371234
-	// Arc  3928(steps   1). Coordinate: -0.1089457804 1.5738536 1.1380705
-	// Arc  3929(steps   1). Coordinate: -0.1087773655 1.5741270 1.1390175
-	// Arc  3930(steps   1). Coordinate: -0.1086089235 1.5744003 1.1399646
-	// Arc  3931(steps   1). Coordinate: -0.1084404545 1.5746735 1.1409117
-	// Arc  3932(steps   1). Coordinate: -0.1082719586 1.5749466 1.1418588
-	// Arc  3933(steps   1). Coordinate: -0.1081034358 1.5752196 1.1428059
-	// Arc  3934(steps   1). Coordinate: -0.1079348862 1.5754926 1.1437531
-	// Arc  3935(steps   1). Coordinate: -0.1077663098 1.5757655 1.1447002
-	// Arc  3936(steps   1). Coordinate: -0.1075977066 1.5760382 1.1456474
-	// Arc  3937(steps   1). Coordinate: -0.1074290767 1.5763109 1.1465946
-	// Arc  3938(steps   1). Coordinate: -0.1072604203 1.5765835 1.1475418
-	// Arc  3939(steps   1). Coordinate: -0.1070917372 1.5768560 1.1484891
-	// Arc  3940(steps   1). Coordinate: -0.1069230276 1.5771285 1.1494364
-	// Arc  3941(steps   1). Coordinate: -0.1067542915 1.5774008 1.1503837
-	// Arc  3942(steps   1). Coordinate: -0.1065855290 1.5776731 1.1513310
-	// Arc  3943(steps   1). Coordinate: -0.1064167401 1.5779453 1.1522783
-	// Arc  3944(steps   1). Coordinate: -0.1062479248 1.5782173 1.1532256
-	// Arc  3945(steps   1). Coordinate: -0.1060790833 1.5784893 1.1541730
-	// Arc  3946(steps   1). Coordinate: -0.1059102156 1.5787613 1.1551204
-	// Arc  3947(steps   1). Coordinate: -0.1057413216 1.5790331 1.1560678
-	// Arc  3948(steps   1). Coordinate: -0.1055724016 1.5793048 1.1570152
-	// Arc  3949(steps   1). Coordinate: -0.1054034554 1.5795765 1.1579627
-	// Arc  3950(steps   1). Coordinate: -0.1052344832 1.5798481 1.1589101
-	// Arc  3951(steps   1). Coordinate: -0.1050654850 1.5801196 1.1598576
-	// Arc  3952(steps   1). Coordinate: -0.1048964609 1.5803910 1.1608051
-	// Arc  3953(steps   1). Coordinate: -0.1047274109 1.5806623 1.1617527
-	// Arc  3954(steps   1). Coordinate: -0.1045583351 1.5809336 1.1627002
-	// Arc  3955(steps   1). Coordinate: -0.1043892334 1.5812047 1.1636478
-	// Arc  3956(steps   1). Coordinate: -0.1042201060 1.5814758 1.1645954
-	// Arc  3957(steps   1). Coordinate: -0.1040509529 1.5817468 1.1655430
-	// Arc  3958(steps   1). Coordinate: -0.1038817742 1.5820177 1.1664906
-	// Arc  3959(steps   1). Coordinate: -0.1037125699 1.5822885 1.1674382
-	// Arc  3960(steps   1). Coordinate: -0.1035433400 1.5825592 1.1683859
-	// Arc  3961(steps   1). Coordinate: -0.1033740846 1.5828299 1.1693336
-	// Arc  3962(steps   1). Coordinate: -0.1032048038 1.5831005 1.1702813
-	// Arc  3963(steps   1). Coordinate: -0.1030354975 1.5833710 1.1712290
-	// Arc  3964(steps   1). Coordinate: -0.1028661659 1.5836414 1.1721767
-	// Arc  3965(steps   1). Coordinate: -0.1026968089 1.5839117 1.1731245
-	// Arc  3966(steps   1). Coordinate: -0.1025274267 1.5841820 1.1740722
-	// Arc  3967(steps   1). Coordinate: -0.1023580193 1.5844521 1.1750200
-	// Arc  3968(steps   1). Coordinate: -0.1021885867 1.5847222 1.1759679
-	// Arc  3969(steps   1). Coordinate: -0.1020191290 1.5849922 1.1769157
-	// Arc  3970(steps   1). Coordinate: -0.1018496461 1.5852621 1.1778635
-	// Arc  3971(steps   1). Coordinate: -0.1016801383 1.5855320 1.1788114
-	// Arc  3972(steps   1). Coordinate: -0.1015106054 1.5858017 1.1797593
-	// Arc  3973(steps   1). Coordinate: -0.1013410477 1.5860714 1.1807072
-	// Arc  3974(steps   1). Coordinate: -0.1011714650 1.5863410 1.1816551
-	// Arc  3975(steps   1). Coordinate: -0.1010018574 1.5866105 1.1826031
-	// Arc  3976(steps   1). Coordinate: -0.1008322251 1.5868799 1.1835510
-	// Arc  3977(steps   1). Coordinate: -0.1006625680 1.5871493 1.1844990
-	// Arc  3978(steps   1). Coordinate: -0.1004928861 1.5874185 1.1854470
-	// Arc  3979(steps   1). Coordinate: -0.1003231797 1.5876877 1.1863950
-	// Arc  3980(steps   1). Coordinate: -0.1001534485 1.5879569 1.1873431
-	// Arc  3981(steps   1). Coordinate: -0.0999836928 1.5882259 1.1882911
-	// Arc  3982(steps   1). Coordinate: -0.0998139126 1.5884948 1.1892392
-	// Arc  3983(steps   1). Coordinate: -0.0996441079 1.5887637 1.1901873
-	// Arc  3984(steps   1). Coordinate: -0.0994742787 1.5890325 1.1911354
-	// Arc  3985(steps   1). Coordinate: -0.0993044251 1.5893012 1.1920835
-	// Arc  3986(steps   1). Coordinate: -0.0991345472 1.5895698 1.1930317
-	// Arc  3987(steps   1). Coordinate: -0.0989646449 1.5898384 1.1939798
-	// Arc  3988(steps   1). Coordinate: -0.0987947184 1.5901069 1.1949280
-	// Arc  3989(steps   1). Coordinate: -0.0986247677 1.5903753 1.1958762
-	// Arc  3990(steps   1). Coordinate: -0.0984547928 1.5906436 1.1968244
-	// Arc  3991(steps   1). Coordinate: -0.0982847937 1.5909118 1.1977726
-	// Arc  3992(steps   1). Coordinate: -0.0981147706 1.5911800 1.1987209
-	// Arc  3993(steps   1). Coordinate: -0.0979447234 1.5914481 1.1996692
-	// Arc  3994(steps   1). Coordinate: -0.0977746521 1.5917161 1.2006175
-	// Arc  3995(steps   1). Coordinate: -0.0976045570 1.5919840 1.2015658
-	// Arc  3996(steps   1). Coordinate: -0.0974344379 1.5922518 1.2025141
-	// Arc  3997(steps   1). Coordinate: -0.0972642949 1.5925196 1.2034624
-	// Arc  3998(steps   1). Coordinate: -0.0970941281 1.5927873 1.2044108
-	// Arc  3999(steps   1). Coordinate: -0.0969239375 1.5930549 1.2053592
-	// Arc  4000(steps   1). Coordinate: -0.0967537232 1.5933224 1.2063076
-	// Arc  4001(steps   1). Coordinate: -0.0965834852 1.5935899 1.2072560
-	// Arc  4002(steps   1). Coordinate: -0.0964132235 1.5938573 1.2082044
-	// Arc  4003(steps   1). Coordinate: -0.0962429381 1.5941246 1.2091528
-	// Arc  4004(steps   1). Coordinate: -0.0960726292 1.5943918 1.2101013
-	// Arc  4005(steps   1). Coordinate: -0.0959022968 1.5946590 1.2110498
-	// Arc  4006(steps   1). Coordinate: -0.0957319409 1.5949260 1.2119983
-	// Arc  4007(steps   1). Coordinate: -0.0955615615 1.5951930 1.2129468
-	// Arc  4008(steps   1). Coordinate: -0.0953911587 1.5954600 1.2138953
-	// Arc  4009(steps   1). Coordinate: -0.0952207325 1.5957268 1.2148439
-	// Arc  4010(steps   1). Coordinate: -0.0950502830 1.5959936 1.2157925
-	// Arc  4011(steps   1). Coordinate: -0.0948798103 1.5962603 1.2167410
-	// Arc  4012(steps   1). Coordinate: -0.0947093142 1.5965269 1.2176896
-	// Arc  4013(steps   1). Coordinate: -0.0945387950 1.5967934 1.2186383
-	// Arc  4014(steps   1). Coordinate: -0.0943682526 1.5970599 1.2195869
-	// Arc  4015(steps   1). Coordinate: -0.0941976871 1.5973263 1.2205355
-	// Arc  4016(steps   1). Coordinate: -0.0940270986 1.5975926 1.2214842
-	// Arc  4017(steps   1). Coordinate: -0.0938564869 1.5978589 1.2224329
-	// Arc  4018(steps   1). Coordinate: -0.0936858523 1.5981250 1.2233816
-	// Arc  4019(steps   1). Coordinate: -0.0935151948 1.5983911 1.2243303
-	// Arc  4020(steps   1). Coordinate: -0.0933445143 1.5986571 1.2252791
-	// Arc  4021(steps   1). Coordinate: -0.0931738109 1.5989231 1.2262278
-	// Arc  4022(steps   1). Coordinate: -0.0930030847 1.5991889 1.2271766
-	// Arc  4023(steps   1). Coordinate: -0.0928323357 1.5994547 1.2281254
-	// Arc  4024(steps   1). Coordinate: -0.0926615640 1.5997204 1.2290742
-	// Arc  4025(steps   1). Coordinate: -0.0924907695 1.5999861 1.2300230
-	// Arc  4026(steps   1). Coordinate: -0.0923199524 1.6002517 1.2309718
-	// Arc  4027(steps   1). Coordinate: -0.0921491126 1.6005172 1.2319207
-	// Arc  4028(steps   1). Coordinate: -0.0919782502 1.6007826 1.2328696
-	// Arc  4029(steps   1). Coordinate: -0.0918073653 1.6010479 1.2338185
-	// Arc  4030(steps   1). Coordinate: -0.0916364578 1.6013132 1.2347674
-	// Arc  4031(steps   1). Coordinate: -0.0914655279 1.6015784 1.2357163
-	// Arc  4032(steps   1). Coordinate: -0.0912945756 1.6018435 1.2366652
-	// Arc  4033(steps   1). Coordinate: -0.0911236008 1.6021086 1.2376142
-	// Arc  4034(steps   1). Coordinate: -0.0909526037 1.6023736 1.2385632
-	// Arc  4035(steps   1). Coordinate: -0.0907815843 1.6026385 1.2395121
-	// Arc  4036(steps   1). Coordinate: -0.0906105425 1.6029033 1.2404611
-	// Arc  4037(steps   1). Coordinate: -0.0904394786 1.6031681 1.2414102
-	// Arc  4038(steps   1). Coordinate: -0.0902683924 1.6034328 1.2423592
-	// Arc  4039(steps   1). Coordinate: -0.0900972841 1.6036974 1.2433082
-	// Arc  4040(steps   1). Coordinate: -0.0899261536 1.6039619 1.2442573
-	// Arc  4041(steps   1). Coordinate: -0.0897550011 1.6042264 1.2452064
-	// Arc  4042(steps   1). Coordinate: -0.0895838265 1.6044908 1.2461555
-	// Arc  4043(steps   1). Coordinate: -0.0894126299 1.6047551 1.2471046
-	// Arc  4044(steps   1). Coordinate: -0.0892414113 1.6050194 1.2480537
-	// Arc  4045(steps   1). Coordinate: -0.0890701708 1.6052836 1.2490029
-	// Arc  4046(steps   1). Coordinate: -0.0888989083 1.6055477 1.2499521
-	// Arc  4047(steps   1). Coordinate: -0.0887276241 1.6058117 1.2509012
-	// Arc  4048(steps   1). Coordinate: -0.0885563180 1.6060757 1.2518504
-	// Arc  4049(steps   1). Coordinate: -0.0883849901 1.6063396 1.2527996
-	// Arc  4050(steps   1). Coordinate: -0.0882136404 1.6066034 1.2537489
-	// Arc  4051(steps   1). Coordinate: -0.0880422691 1.6068672 1.2546981
-	// Arc  4052(steps   1). Coordinate: -0.0878708761 1.6071309 1.2556474
-	// Arc  4053(steps   1). Coordinate: -0.0876994614 1.6073945 1.2565967
-	// Arc  4054(steps   1). Coordinate: -0.0875280252 1.6076580 1.2575459
-	// Arc  4055(steps   1). Coordinate: -0.0873565673 1.6079215 1.2584953
-	// Arc  4056(steps   1). Coordinate: -0.0871850880 1.6081849 1.2594446
-	// Arc  4057(steps   1). Coordinate: -0.0870135872 1.6084483 1.2603939
-	// Arc  4058(steps   1). Coordinate: -0.0868420649 1.6087115 1.2613433
-	// Arc  4059(steps   1). Coordinate: -0.0866705212 1.6089747 1.2622926
-	// Arc  4060(steps   1). Coordinate: -0.0864989561 1.6092378 1.2632420
-	// Arc  4061(steps   1). Coordinate: -0.0863273697 1.6095009 1.2641914
-	// Arc  4062(steps   1). Coordinate: -0.0861557620 1.6097639 1.2651408
-	// Arc  4063(steps   1). Coordinate: -0.0859841330 1.6100268 1.2660903
-	// Arc  4064(steps   1). Coordinate: -0.0858124828 1.6102896 1.2670397
-	// Arc  4065(steps   1). Coordinate: -0.0856408114 1.6105524 1.2679892
-	// Arc  4066(steps   1). Coordinate: -0.0854691188 1.6108151 1.2689387
-	// Arc  4067(steps   1). Coordinate: -0.0852974051 1.6110778 1.2698881
-	// Arc  4068(steps   1). Coordinate: -0.0851256703 1.6113403 1.2708377
-	// Arc  4069(steps   1). Coordinate: -0.0849539144 1.6116028 1.2717872
-	// Arc  4070(steps   1). Coordinate: -0.0847821376 1.6118653 1.2727367
-	// Arc  4071(steps   1). Coordinate: -0.0846103397 1.6121276 1.2736863
-	// Arc  4072(steps   1). Coordinate: -0.0844385209 1.6123899 1.2746358
-	// Arc  4073(steps   1). Coordinate: -0.0842666812 1.6126521 1.2755854
-	// Arc  4074(steps   1). Coordinate: -0.0840948206 1.6129143 1.2765350
-	// Arc  4075(steps   1). Coordinate: -0.0839229392 1.6131764 1.2774846
-	// Arc  4076(steps   1). Coordinate: -0.0837510370 1.6134384 1.2784343
-	// Arc  4077(steps   1). Coordinate: -0.0835791140 1.6137004 1.2793839
-	// Arc  4078(steps   1). Coordinate: -0.0834071702 1.6139622 1.2803336
-	// Arc  4079(steps   1). Coordinate: -0.0832352058 1.6142241 1.2812832
-	// Arc  4080(steps   1). Coordinate: -0.0830632207 1.6144858 1.2822329
-	// Arc  4081(steps   1). Coordinate: -0.0828912150 1.6147475 1.2831826
-	// Arc  4082(steps   1). Coordinate: -0.0827191886 1.6150091 1.2841323
-	// Arc  4083(steps   1). Coordinate: -0.0825471417 1.6152706 1.2850821
-	// Arc  4084(steps   1). Coordinate: -0.0823750743 1.6155321 1.2860318
-	// Arc  4085(steps   1). Coordinate: -0.0822029864 1.6157935 1.2869816
-	// Arc  4086(steps   1). Coordinate: -0.0820308780 1.6160549 1.2879314
-	// Arc  4087(steps   1). Coordinate: -0.0818587492 1.6163162 1.2888812
-	// Arc  4088(steps   1). Coordinate: -0.0816866000 1.6165774 1.2898310
-	// Arc  4089(steps   1). Coordinate: -0.0815144305 1.6168385 1.2907808
-	// Arc  4090(steps   1). Coordinate: -0.0813422406 1.6170996 1.2917306
-	// Arc  4091(steps   1). Coordinate: -0.0811700304 1.6173606 1.2926805
-	// Arc  4092(steps   1). Coordinate: -0.0809978000 1.6176215 1.2936303
-	// Arc  4093(steps   1). Coordinate: -0.0808255494 1.6178824 1.2945802
-	// Arc  4094(steps   1). Coordinate: -0.0806532786 1.6181432 1.2955301
-	// Arc  4095(steps   1). Coordinate: -0.0804809876 1.6184040 1.2964800
-	// Arc  4096(steps   1). Coordinate: -0.0803086765 1.6186647 1.2974300
-	// Arc  4097(steps   1). Coordinate: -0.0801363453 1.6189253 1.2983799
-	// Arc  4098(steps   1). Coordinate: -0.0799639940 1.6191858 1.2993298
-	// Arc  4099(steps   1). Coordinate: -0.0797916227 1.6194463 1.3002798
-	// Arc  4100(steps   1). Coordinate: -0.0796192315 1.6197067 1.3012298
-	// Arc  4101(steps   1). Coordinate: -0.0794468202 1.6199671 1.3021798
-	// Arc  4102(steps   1). Coordinate: -0.0792743891 1.6202274 1.3031298
-	// Arc  4103(steps   1). Coordinate: -0.0791019381 1.6204876 1.3040798
-	// Arc  4104(steps   1). Coordinate: -0.0789294672 1.6207477 1.3050299
-	// Arc  4105(steps   1). Coordinate: -0.0787569765 1.6210078 1.3059799
-	// Arc  4106(steps   1). Coordinate: -0.0785844660 1.6212678 1.3069300
-	// Arc  4107(steps   1). Coordinate: -0.0784119357 1.6215278 1.3078801
-	// Arc  4108(steps   1). Coordinate: -0.0782393857 1.6217877 1.3088302
-	// Arc  4109(steps   1). Coordinate: -0.0780668160 1.6220475 1.3097803
-	// Arc  4110(steps   1). Coordinate: -0.0778942266 1.6223073 1.3107304
-	// Arc  4111(steps   1). Coordinate: -0.0777216177 1.6225670 1.3116805
-	// Arc  4112(steps   1). Coordinate: -0.0775489891 1.6228266 1.3126307
-	// Arc  4113(steps   1). Coordinate: -0.0773763409 1.6230862 1.3135808
-	// Arc  4114(steps   1). Coordinate: -0.0772036732 1.6233457 1.3145310
-	// Arc  4115(steps   1). Coordinate: -0.0770309860 1.6236052 1.3154812
-	// Arc  4116(steps   1). Coordinate: -0.0768582794 1.6238645 1.3164314
-	// Arc  4117(steps   1). Coordinate: -0.0766855533 1.6241239 1.3173816
-	// Arc  4118(steps   1). Coordinate: -0.0765128078 1.6243831 1.3183319
-	// Arc  4119(steps   1). Coordinate: -0.0763400429 1.6246423 1.3192821
-	// Arc  4120(steps   1). Coordinate: -0.0761672587 1.6249014 1.3202324
-	// Arc  4121(steps   1). Coordinate: -0.0759944551 1.6251605 1.3211827
-	// Arc  4122(steps   1). Coordinate: -0.0758216323 1.6254195 1.3221330
-	// Arc  4123(steps   1). Coordinate: -0.0756487902 1.6256784 1.3230833
-	// Arc  4124(steps   1). Coordinate: -0.0754759289 1.6259373 1.3240336
-	// Arc  4125(steps   1). Coordinate: -0.0753030485 1.6261961 1.3249839
-	// Arc  4126(steps   1). Coordinate: -0.0751301488 1.6264549 1.3259343
-	// Arc  4127(steps   1). Coordinate: -0.0749572301 1.6267135 1.3268846
-	// Arc  4128(steps   1). Coordinate: -0.0747842922 1.6269722 1.3278350
-	// Arc  4129(steps   1). Coordinate: -0.0746113353 1.6272307 1.3287854
-	// Arc  4130(steps   1). Coordinate: -0.0744383593 1.6274892 1.3297358
-	// Arc  4131(steps   1). Coordinate: -0.0742653644 1.6277476 1.3306862
-	// Arc  4132(steps   1). Coordinate: -0.0740923504 1.6280060 1.3316366
-	// Arc  4133(steps   1). Coordinate: -0.0739193175 1.6282643 1.3325871
-	// Arc  4134(steps   1). Coordinate: -0.0737462658 1.6285226 1.3335375
-	// Arc  4135(steps   1). Coordinate: -0.0735731951 1.6287808 1.3344880
-	// Arc  4136(steps   1). Coordinate: -0.0734001056 1.6290389 1.3354385
-	// Arc  4137(steps   1). Coordinate: -0.0732269972 1.6292969 1.3363889
-	// Arc  4138(steps   1). Coordinate: -0.0730538701 1.6295549 1.3373395
-	// Arc  4139(steps   1). Coordinate: -0.0728807242 1.6298129 1.3382900
-	// Arc  4140(steps   1). Coordinate: -0.0727075596 1.6300707 1.3392405
-	// Arc  4141(steps   1). Coordinate: -0.0725343763 1.6303286 1.3401911
-	// Arc  4142(steps   1). Coordinate: -0.0723611743 1.6305863 1.3411416
-	// Arc  4143(steps   1). Coordinate: -0.0721879537 1.6308440 1.3420922
-	// Arc  4144(steps   1). Coordinate: -0.0720147144 1.6311016 1.3430428
-	// Arc  4145(steps   1). Coordinate: -0.0718414566 1.6313592 1.3439934
-	// Arc  4146(steps   1). Coordinate: -0.0716681802 1.6316167 1.3449440
-	// Arc  4147(steps   1). Coordinate: -0.0714948853 1.6318742 1.3458946
-	// Arc  4148(steps   1). Coordinate: -0.0713215719 1.6321315 1.3468453
-	// Arc  4149(steps   1). Coordinate: -0.0711482401 1.6323889 1.3477959
-	// Arc  4150(steps   1). Coordinate: -0.0709748898 1.6326461 1.3487466
-	// Arc  4151(steps   1). Coordinate: -0.0708015211 1.6329033 1.3496973
-	// Arc  4152(steps   1). Coordinate: -0.0706281340 1.6331605 1.3506479
-	// Arc  4153(steps   1). Coordinate: -0.0704547286 1.6334176 1.3515986
-	// Arc  4154(steps   1). Coordinate: -0.0702813049 1.6336746 1.3525494
-	// Arc  4155(steps   1). Coordinate: -0.0701078629 1.6339315 1.3535001
-	// Arc  4156(steps   1). Coordinate: -0.0699344026 1.6341885 1.3544508
-	// Arc  4157(steps   1). Coordinate: -0.0697609241 1.6344453 1.3554016
-	// Arc  4158(steps   1). Coordinate: -0.0695874274 1.6347021 1.3563524
-	// Arc  4159(steps   1). Coordinate: -0.0694139125 1.6349588 1.3573031
-	// Arc  4160(steps   1). Coordinate: -0.0692403795 1.6352155 1.3582539
-	// Arc  4161(steps   1). Coordinate: -0.0690668283 1.6354721 1.3592047
-	// Arc  4162(steps   1). Coordinate: -0.0688932591 1.6357286 1.3601556
-	// Arc  4163(steps   1). Coordinate: -0.0687196718 1.6359851 1.3611064
-	// Arc  4164(steps   1). Coordinate: -0.0685460665 1.6362415 1.3620572
-	// Arc  4165(steps   1). Coordinate: -0.0683724431 1.6364979 1.3630081
-	// Arc  4166(steps   1). Coordinate: -0.0681988018 1.6367542 1.3639590
-	// Arc  4167(steps   1). Coordinate: -0.0680251426 1.6370104 1.3649099
-	// Arc  4168(steps   1). Coordinate: -0.0678514654 1.6372666 1.3658608
-	// Arc  4169(steps   1). Coordinate: -0.0676777704 1.6375227 1.3668117
-	// Arc  4170(steps   1). Coordinate: -0.0675040575 1.6377788 1.3677626
-	// Arc  4171(steps   1). Coordinate: -0.0673303267 1.6380348 1.3687135
-	// Arc  4172(steps   1). Coordinate: -0.0671565782 1.6382908 1.3696645
-	// Arc  4173(steps   1). Coordinate: -0.0669828118 1.6385467 1.3706154
-	// Arc  4174(steps   1). Coordinate: -0.0668090277 1.6388025 1.3715664
-	// Arc  4175(steps   1). Coordinate: -0.0666352259 1.6390583 1.3725174
-	// Arc  4176(steps   1). Coordinate: -0.0664614064 1.6393140 1.3734684
-	// Arc  4177(steps   1). Coordinate: -0.0662875693 1.6395697 1.3744194
-	// Arc  4178(steps   1). Coordinate: -0.0661137145 1.6398253 1.3753704
-	// Arc  4179(steps   1). Coordinate: -0.0659398420 1.6400808 1.3763214
-	// Arc  4180(steps   1). Coordinate: -0.0657659520 1.6403363 1.3772725
-	// Arc  4181(steps   1). Coordinate: -0.0655920445 1.6405917 1.3782236
-	// Arc  4182(steps   1). Coordinate: -0.0654181194 1.6408471 1.3791746
-	// Arc  4183(steps   1). Coordinate: -0.0652441768 1.6411024 1.3801257
-	// Arc  4184(steps   1). Coordinate: -0.0650702167 1.6413577 1.3810768
-	// Arc  4185(steps   1). Coordinate: -0.0648962392 1.6416129 1.3820279
-	// Arc  4186(steps   1). Coordinate: -0.0647222442 1.6418680 1.3829790
-	// Arc  4187(steps   1). Coordinate: -0.0645482319 1.6421231 1.3839302
-	// Arc  4188(steps   1). Coordinate: -0.0643742022 1.6423781 1.3848813
-	// Arc  4189(steps   1). Coordinate: -0.0642001551 1.6426331 1.3858325
-	// Arc  4190(steps   1). Coordinate: -0.0640260907 1.6428880 1.3867836
-	// Arc  4191(steps   1). Coordinate: -0.0638520091 1.6431428 1.3877348
-	// Arc  4192(steps   1). Coordinate: -0.0636779101 1.6433976 1.3886860
-	// Arc  4193(steps   1). Coordinate: -0.0635037940 1.6436524 1.3896372
-	// Arc  4194(steps   1). Coordinate: -0.0633296606 1.6439071 1.3905884
-	// Arc  4195(steps   1). Coordinate: -0.0631555101 1.6441617 1.3915397
-	// Arc  4196(steps   1). Coordinate: -0.0629813424 1.6444163 1.3924909
-	// Arc  4197(steps   1). Coordinate: -0.0628071575 1.6446708 1.3934421
-	// Arc  4198(steps   1). Coordinate: -0.0626329556 1.6449252 1.3943934
-	// Arc  4199(steps   1). Coordinate: -0.0624587366 1.6451796 1.3953447
-	// Arc  4200(steps   1). Coordinate: -0.0622845005 1.6454340 1.3962960
-	// Arc  4201(steps   1). Coordinate: -0.0621102474 1.6456883 1.3972473
-	// Arc  4202(steps   1). Coordinate: -0.0619359773 1.6459425 1.3981986
-	// Arc  4203(steps   1). Coordinate: -0.0617616902 1.6461967 1.3991499
-	// Arc  4204(steps   1). Coordinate: -0.0615873862 1.6464508 1.4001013
-	// Arc  4205(steps   1). Coordinate: -0.0614130653 1.6467049 1.4010526
-	// Arc  4206(steps   1). Coordinate: -0.0612387274 1.6469589 1.4020040
-	// Arc  4207(steps   1). Coordinate: -0.0610643727 1.6472128 1.4029553
-	// Arc  4208(steps   1). Coordinate: -0.0608900012 1.6474667 1.4039067
-	// Arc  4209(steps   1). Coordinate: -0.0607156128 1.6477206 1.4048581
-	// Arc  4210(steps   1). Coordinate: -0.0605412076 1.6479744 1.4058095
-	// Arc  4211(steps   1). Coordinate: -0.0603667857 1.6482281 1.4067609
-	// Arc  4212(steps   1). Coordinate: -0.0601923470 1.6484818 1.4077124
-	// Arc  4213(steps   1). Coordinate: -0.0600178916 1.6487354 1.4086638
-	// Arc  4214(steps   1). Coordinate: -0.0598434196 1.6489889 1.4096153
-	// Arc  4215(steps   1). Coordinate: -0.0596689308 1.6492425 1.4105667
-	// Arc  4216(steps   1). Coordinate: -0.0594944254 1.6494959 1.4115182
-	// Arc  4217(steps   1). Coordinate: -0.0593199034 1.6497493 1.4124697
-	// Arc  4218(steps   1). Coordinate: -0.0591453648 1.6500027 1.4134212
-	// Arc  4219(steps   1). Coordinate: -0.0589708097 1.6502559 1.4143727
-	// Arc  4220(steps   1). Coordinate: -0.0587962379 1.6505092 1.4153242
-	// Arc  4221(steps   1). Coordinate: -0.0586216497 1.6507624 1.4162758
-	// Arc  4222(steps   1). Coordinate: -0.0584470450 1.6510155 1.4172273
-	// Arc  4223(steps   1). Coordinate: -0.0582724238 1.6512686 1.4181789
-	// Arc  4224(steps   1). Coordinate: -0.0580977862 1.6515216 1.4191304
-	// Arc  4225(steps   1). Coordinate: -0.0579231322 1.6517745 1.4200820
-	// Arc  4226(steps   1). Coordinate: -0.0577484617 1.6520275 1.4210336
-	// Arc  4227(steps   1). Coordinate: -0.0575737749 1.6522803 1.4219852
-	// Arc  4228(steps   1). Coordinate: -0.0573990718 1.6525331 1.4229368
-	// Arc  4229(steps   1). Coordinate: -0.0572243523 1.6527859 1.4238885
-	// Arc  4230(steps   1). Coordinate: -0.0570496166 1.6530386 1.4248401
-	// Arc  4231(steps   1). Coordinate: -0.0568748645 1.6532912 1.4257917
-	// Arc  4232(steps   1). Coordinate: -0.0567000963 1.6535438 1.4267434
-	// Arc  4233(steps   1). Coordinate: -0.0565253118 1.6537963 1.4276951
-	// Arc  4234(steps   1). Coordinate: -0.0563505111 1.6540488 1.4286468
-	// Arc  4235(steps   1). Coordinate: -0.0561756942 1.6543012 1.4295984
-	// Arc  4236(steps   1). Coordinate: -0.0560008612 1.6545536 1.4305501
-	// Arc  4237(steps   1). Coordinate: -0.0558260121 1.6548059 1.4315019
-	// Arc  4238(steps   1). Coordinate: -0.0556511468 1.6550582 1.4324536
-	// Arc  4239(steps   1). Coordinate: -0.0554762655 1.6553104 1.4334053
-	// Arc  4240(steps   1). Coordinate: -0.0553013681 1.6555626 1.4343571
-	// Arc  4241(steps   1). Coordinate: -0.0551264547 1.6558147 1.4353088
-	// Arc  4242(steps   1). Coordinate: -0.0549515253 1.6560667 1.4362606
-	// Arc  4243(steps   1). Coordinate: -0.0547765799 1.6563187 1.4372124
-	// Arc  4244(steps   1). Coordinate: -0.0546016186 1.6565707 1.4381642
-	// Arc  4245(steps   1). Coordinate: -0.0544266413 1.6568226 1.4391160
-	// Arc  4246(steps   1). Coordinate: -0.0542516481 1.6570744 1.4400678
-	// Arc  4247(steps   1). Coordinate: -0.0540766390 1.6573262 1.4410196
-	// Arc  4248(steps   1). Coordinate: -0.0539016141 1.6575779 1.4419715
-	// Arc  4249(steps   1). Coordinate: -0.0537265733 1.6578296 1.4429233
-	// Arc  4250(steps   1). Coordinate: -0.0535515167 1.6580812 1.4438752
-	// Arc  4251(steps   1). Coordinate: -0.0533764443 1.6583328 1.4448270
-	// Arc  4252(steps   1). Coordinate: -0.0532013562 1.6585844 1.4457789
-	// Arc  4253(steps   1). Coordinate: -0.0530262523 1.6588358 1.4467308
-	// Arc  4254(steps   1). Coordinate: -0.0528511326 1.6590873 1.4476827
-	// Arc  4255(steps   1). Coordinate: -0.0526759973 1.6593386 1.4486346
-	// Arc  4256(steps   1). Coordinate: -0.0525008463 1.6595899 1.4495866
-	// Arc  4257(steps   1). Coordinate: -0.0523256796 1.6598412 1.4505385
-	// Arc  4258(steps   1). Coordinate: -0.0521504973 1.6600924 1.4514904
-	// Arc  4259(steps   1). Coordinate: -0.0519752994 1.6603436 1.4524424
-	// Arc  4260(steps   1). Coordinate: -0.0518000859 1.6605947 1.4533944
-	// Arc  4261(steps   1). Coordinate: -0.0516248568 1.6608458 1.4543463
-	// Arc  4262(steps   1). Coordinate: -0.0514496122 1.6610968 1.4552983
-	// Arc  4263(steps   1). Coordinate: -0.0512743521 1.6613477 1.4562503
-	// Arc  4264(steps   1). Coordinate: -0.0510990765 1.6615987 1.4572023
-	// Arc  4265(steps   1). Coordinate: -0.0509237854 1.6618495 1.4581544
-	// Arc  4266(steps   1). Coordinate: -0.0507484789 1.6621003 1.4591064
-	// Arc  4267(steps   1). Coordinate: -0.0505731569 1.6623511 1.4600584
-	// Arc  4268(steps   1). Coordinate: -0.0503978196 1.6626018 1.4610105
-	// Arc  4269(steps   1). Coordinate: -0.0502224668 1.6628524 1.4619626
-	// Arc  4270(steps   1). Coordinate: -0.0500470987 1.6631030 1.4629146
-	// Arc  4271(steps   1). Coordinate: -0.0498717153 1.6633536 1.4638667
-	// Arc  4272(steps   1). Coordinate: -0.0496963165 1.6636041 1.4648188
-	// Arc  4273(steps   1). Coordinate: -0.0495209024 1.6638545 1.4657709
-	// Arc  4274(steps   1). Coordinate: -0.0493454731 1.6641049 1.4667230
-	// Arc  4275(steps   1). Coordinate: -0.0491700285 1.6643553 1.4676752
-	// Arc  4276(steps   1). Coordinate: -0.0489945687 1.6646056 1.4686273
-	// Arc  4277(steps   1). Coordinate: -0.0488190937 1.6648558 1.4695794
-	// Arc  4278(steps   1). Coordinate: -0.0486436036 1.6651060 1.4705316
-	// Arc  4279(steps   1). Coordinate: -0.0484680982 1.6653562 1.4714838
-	// Arc  4280(steps   1). Coordinate: -0.0482925777 1.6656063 1.4724359
-	// Arc  4281(steps   1). Coordinate: -0.0481170421 1.6658563 1.4733881
-	// Arc  4282(steps   1). Coordinate: -0.0479414914 1.6661063 1.4743403
-	// Arc  4283(steps   1). Coordinate: -0.0477659257 1.6663562 1.4752925
-	// Arc  4284(steps   1). Coordinate: -0.0475903448 1.6666061 1.4762448
-	// Arc  4285(steps   1). Coordinate: -0.0474147490 1.6668560 1.4771970
-	// Arc  4286(steps   1). Coordinate: -0.0472391381 1.6671058 1.4781492
-	// Arc  4287(steps   1). Coordinate: -0.0470635123 1.6673555 1.4791015
-	// Arc  4288(steps   1). Coordinate: -0.0468878715 1.6676052 1.4800537
-	// Arc  4289(steps   1). Coordinate: -0.0467122157 1.6678549 1.4810060
-	// Arc  4290(steps   1). Coordinate: -0.0465365450 1.6681045 1.4819583
-	// Arc  4291(steps   1). Coordinate: -0.0463608595 1.6683540 1.4829106
-	// Arc  4292(steps   1). Coordinate: -0.0461851590 1.6686035 1.4838629
-	// Arc  4293(steps   1). Coordinate: -0.0460094437 1.6688530 1.4848152
-	// Arc  4294(steps   1). Coordinate: -0.0458337135 1.6691024 1.4857675
-	// Arc  4295(steps   1). Coordinate: -0.0456579686 1.6693517 1.4867199
-	// Arc  4296(steps   1). Coordinate: -0.0454822088 1.6696010 1.4876722
-	// Arc  4297(steps   1). Coordinate: -0.0453064343 1.6698503 1.4886246
-	// Arc  4298(steps   1). Coordinate: -0.0451306450 1.6700995 1.4895769
-	// Arc  4299(steps   1). Coordinate: -0.0449548410 1.6703487 1.4905293
-	// Arc  4300(steps   1). Coordinate: -0.0447790223 1.6705978 1.4914817
-	// Arc  4301(steps   1). Coordinate: -0.0446031888 1.6708468 1.4924341
-	// Arc  4302(steps   1). Coordinate: -0.0444273408 1.6710958 1.4933865
-	// Arc  4303(steps   1). Coordinate: -0.0442514780 1.6713448 1.4943389
-	// Arc  4304(steps   1). Coordinate: -0.0440756007 1.6715937 1.4952913
-	// Arc  4305(steps   1). Coordinate: -0.0438997087 1.6718426 1.4962437
-	// Arc  4306(steps   1). Coordinate: -0.0437238022 1.6720914 1.4971962
-	// Arc  4307(steps   1). Coordinate: -0.0435478811 1.6723402 1.4981486
-	// Arc  4308(steps   1). Coordinate: -0.0433719454 1.6725889 1.4991011
-	// Arc  4309(steps   1). Coordinate: -0.0431959952 1.6728376 1.5000536
-	// Arc  4310(steps   1). Coordinate: -0.0430200306 1.6730862 1.5010061
-	// Arc  4311(steps   1). Coordinate: -0.0428440514 1.6733348 1.5019585
-	// Arc  4312(steps   1). Coordinate: -0.0426680578 1.6735833 1.5029110
-	// Arc  4313(steps   1). Coordinate: -0.0424920497 1.6738318 1.5038636
-	// Arc  4314(steps   1). Coordinate: -0.0423160272 1.6740802 1.5048161
-	// Arc  4315(steps   1). Coordinate: -0.0421399904 1.6743286 1.5057686
-	// Arc  4316(steps   1). Coordinate: -0.0419639391 1.6745769 1.5067212
-	// Arc  4317(steps   1). Coordinate: -0.0417878735 1.6748252 1.5076737
-	// Arc  4318(steps   1). Coordinate: -0.0416117935 1.6750734 1.5086263
-	// Arc  4319(steps   1). Coordinate: -0.0414356993 1.6753216 1.5095788
-	// Arc  4320(steps   1). Coordinate: -0.0412595907 1.6755698 1.5105314
-	// Arc  4321(steps   1). Coordinate: -0.0410834678 1.6758179 1.5114840
-	// Arc  4322(steps   1). Coordinate: -0.0409073307 1.6760659 1.5124366
-	// Arc  4323(steps   1). Coordinate: -0.0407311794 1.6763139 1.5133892
-	// Arc  4324(steps   1). Coordinate: -0.0405550138 1.6765619 1.5143418
-	// Arc  4325(steps   1). Coordinate: -0.0403788340 1.6768098 1.5152945
-	// Arc  4326(steps   1). Coordinate: -0.0402026401 1.6770577 1.5162471
-	// Arc  4327(steps   1). Coordinate: -0.0400264320 1.6773055 1.5171997
-	// Arc  4328(steps   1). Coordinate: -0.0398502098 1.6775532 1.5181524
-	// Arc  4329(steps   1). Coordinate: -0.0396739734 1.6778010 1.5191051
-	// Arc  4330(steps   1). Coordinate: -0.0394977229 1.6780486 1.5200578
-	// Arc  4331(steps   1). Coordinate: -0.0393214584 1.6782963 1.5210104
-	// Arc  4332(steps   1). Coordinate: -0.0391451798 1.6785439 1.5219631
-	// Arc  4333(steps   1). Coordinate: -0.0389688872 1.6787914 1.5229158
-	// Arc  4334(steps   1). Coordinate: -0.0387925805 1.6790389 1.5238686
-	// Arc  4335(steps   1). Coordinate: -0.0386162598 1.6792863 1.5248213
-	// Arc  4336(steps   1). Coordinate: -0.0384399252 1.6795337 1.5257740
-	// Arc  4337(steps   1). Coordinate: -0.0382635766 1.6797811 1.5267268
-	// Arc  4338(steps   1). Coordinate: -0.0380872140 1.6800284 1.5276795
-	// Arc  4339(steps   1). Coordinate: -0.0379108376 1.6802756 1.5286323
-	// Arc  4340(steps   1). Coordinate: -0.0377344472 1.6805228 1.5295850
-	// Arc  4341(steps   1). Coordinate: -0.0375580429 1.6807700 1.5305378
-	// Arc  4342(steps   1). Coordinate: -0.0373816248 1.6810171 1.5314906
-	// Arc  4343(steps   1). Coordinate: -0.0372051928 1.6812642 1.5324434
-	// Arc  4344(steps   1). Coordinate: -0.0370287470 1.6815112 1.5333962
-	// Arc  4345(steps   1). Coordinate: -0.0368522874 1.6817582 1.5343490
-	// Arc  4346(steps   1). Coordinate: -0.0366758140 1.6820051 1.5353019
-	// Arc  4347(steps   1). Coordinate: -0.0364993269 1.6822520 1.5362547
-	// Arc  4348(steps   1). Coordinate: -0.0363228259 1.6824989 1.5372076
-	// Arc  4349(steps   1). Coordinate: -0.0361463113 1.6827457 1.5381604
-	// Arc  4350(steps   1). Coordinate: -0.0359697829 1.6829924 1.5391133
-	// Arc  4351(steps   1). Coordinate: -0.0357932409 1.6832391 1.5400661
-	// Arc  4352(steps   1). Coordinate: -0.0356166852 1.6834858 1.5410190
-	// Arc  4353(steps   1). Coordinate: -0.0354401158 1.6837324 1.5419719
-	// Arc  4354(steps   1). Coordinate: -0.0352635328 1.6839790 1.5429248
-	// Arc  4355(steps   1). Coordinate: -0.0350869361 1.6842255 1.5438777
-	// Arc  4356(steps   1). Coordinate: -0.0349103259 1.6844720 1.5448307
-	// Arc  4357(steps   1). Coordinate: -0.0347337020 1.6847184 1.5457836
-	// Arc  4358(steps   1). Coordinate: -0.0345570647 1.6849648 1.5467365
-	// Arc  4359(steps   1). Coordinate: -0.0343804137 1.6852111 1.5476895
-	// Arc  4360(steps   1). Coordinate: -0.0342037493 1.6854574 1.5486424
-	// Arc  4361(steps   1). Coordinate: -0.0340270713 1.6857037 1.5495954
-	// Arc  4362(steps   1). Coordinate: -0.0338503799 1.6859499 1.5505484
-	// Arc  4363(steps   1). Coordinate: -0.0336736750 1.6861961 1.5515014
-	// Arc  4364(steps   1). Coordinate: -0.0334969566 1.6864422 1.5524543
-	// Arc  4365(steps   1). Coordinate: -0.0333202248 1.6866882 1.5534073
-	// Arc  4366(steps   1). Coordinate: -0.0331434796 1.6869343 1.5543604
-	// Arc  4367(steps   1). Coordinate: -0.0329667210 1.6871803 1.5553134
-	// Arc  4368(steps   1). Coordinate: -0.0327899490 1.6874262 1.5562664
-	// Arc  4369(steps   1). Coordinate: -0.0326131636 1.6876721 1.5572194
-	// Arc  4370(steps   1). Coordinate: -0.0324363649 1.6879180 1.5581725
-	// Arc  4371(steps   1). Coordinate: -0.0322595529 1.6881638 1.5591255
-	// Arc  4372(steps   1). Coordinate: -0.0320827276 1.6884095 1.5600786
-	// Arc  4373(steps   1). Coordinate: -0.0319058890 1.6886552 1.5610317
-	// Arc  4374(steps   1). Coordinate: -0.0317290371 1.6889009 1.5619848
-	// Arc  4375(steps   1). Coordinate: -0.0315521720 1.6891465 1.5629379
-	// Arc  4376(steps   1). Coordinate: -0.0313752936 1.6893921 1.5638910
-	// Arc  4377(steps   1). Coordinate: -0.0311984021 1.6896377 1.5648441
-	// Arc  4378(steps   1). Coordinate: -0.0310214973 1.6898832 1.5657972
-	// Arc  4379(steps   1). Coordinate: -0.0308445794 1.6901286 1.5667503
-	// Arc  4380(steps   1). Coordinate: -0.0306676482 1.6903740 1.5677035
-	// Arc  4381(steps   1). Coordinate: -0.0304907040 1.6906194 1.5686566
-	// Arc  4382(steps   1). Coordinate: -0.0303137466 1.6908647 1.5696098
-	// Arc  4383(steps   1). Coordinate: -0.0301367761 1.6911100 1.5705629
-	// Arc  4384(steps   1). Coordinate: -0.0299597926 1.6913553 1.5715161
-	// Arc  4385(steps   1). Coordinate: -0.0297827959 1.6916005 1.5724693
-	// Arc  4386(steps   1). Coordinate: -0.0296057862 1.6918456 1.5734225
-	// Arc  4387(steps   1). Coordinate: -0.0294287635 1.6920907 1.5743757
-	// Arc  4388(steps   1). Coordinate: -0.0292517277 1.6923358 1.5753289
-	// Arc  4389(steps   1). Coordinate: -0.0290746789 1.6925808 1.5762821
-	// Arc  4390(steps   1). Coordinate: -0.0288976172 1.6928258 1.5772353
-	// Arc  4391(steps   1). Coordinate: -0.0287205425 1.6930707 1.5781885
-	// Arc  4392(steps   1). Coordinate: -0.0285434548 1.6933156 1.5791418
-	// Arc  4393(steps   1). Coordinate: -0.0283663542 1.6935604 1.5800950
-	// Arc  4394(steps   1). Coordinate: -0.0281892407 1.6938052 1.5810483
-	// Arc  4395(steps   1). Coordinate: -0.0280121143 1.6940500 1.5820015
-	// Arc  4396(steps   1). Coordinate: -0.0278349750 1.6942947 1.5829548
-	// Arc  4397(steps   1). Coordinate: -0.0276578228 1.6945394 1.5839081
-	// Arc  4398(steps   1). Coordinate: -0.0274806578 1.6947840 1.5848614
-	// Arc  4399(steps   1). Coordinate: -0.0273034800 1.6950286 1.5858147
-	// Arc  4400(steps   1). Coordinate: -0.0271262894 1.6952732 1.5867680
-	// Arc  4401(steps   1). Coordinate: -0.0269490859 1.6955177 1.5877213
-	// Arc  4402(steps   1). Coordinate: -0.0267718697 1.6957621 1.5886747
-	// Arc  4403(steps   1). Coordinate: -0.0265946408 1.6960066 1.5896280
-	// Arc  4404(steps   1). Coordinate: -0.0264173990 1.6962509 1.5905813
-	// Arc  4405(steps   1). Coordinate: -0.0262401446 1.6964953 1.5915347
-	// Arc  4406(steps   1). Coordinate: -0.0260628775 1.6967396 1.5924881
-	// Arc  4407(steps   1). Coordinate: -0.0258855976 1.6969838 1.5934414
-	// Arc  4408(steps   1). Coordinate: -0.0257083051 1.6972280 1.5943948
-	// Arc  4409(steps   1). Coordinate: -0.0255309999 1.6974722 1.5953482
-	// Arc  4410(steps   1). Coordinate: -0.0253536821 1.6977163 1.5963016
-	// Arc  4411(steps   1). Coordinate: -0.0251763517 1.6979604 1.5972550
-	// Arc  4412(steps   1). Coordinate: -0.0249990086 1.6982044 1.5982084
-	// Arc  4413(steps   1). Coordinate: -0.0248216530 1.6984484 1.5991618
-	// Arc  4414(steps   1). Coordinate: -0.0246442848 1.6986924 1.6001152
-	// Arc  4415(steps   1). Coordinate: -0.0244669040 1.6989363 1.6010687
-	// Arc  4416(steps   1). Coordinate: -0.0242895107 1.6991802 1.6020221
-	// Arc  4417(steps   1). Coordinate: -0.0241121048 1.6994240 1.6029756
-	// Arc  4418(steps   1). Coordinate: -0.0239346865 1.6996678 1.6039290
-	// Arc  4419(steps   1). Coordinate: -0.0237572557 1.6999115 1.6048825
-	// Arc  4420(steps   1). Coordinate: -0.0235798123 1.7001552 1.6058360
-	// Arc  4421(steps   1). Coordinate: -0.0234023566 1.7003989 1.6067895
-	// Arc  4422(steps   1). Coordinate: -0.0232248884 1.7006425 1.6077430
-	// Arc  4423(steps   1). Coordinate: -0.0230474077 1.7008861 1.6086965
-	// Arc  4424(steps   1). Coordinate: -0.0228699147 1.7011296 1.6096500
-	// Arc  4425(steps   1). Coordinate: -0.0226924092 1.7013731 1.6106035
-	// Arc  4426(steps   1). Coordinate: -0.0225148914 1.7016166 1.6115570
-	// Arc  4427(steps   1). Coordinate: -0.0223373612 1.7018600 1.6125106
-	// Arc  4428(steps   1). Coordinate: -0.0221598187 1.7021034 1.6134641
-	// Arc  4429(steps   1). Coordinate: -0.0219822638 1.7023467 1.6144177
-	// Arc  4430(steps   1). Coordinate: -0.0218046967 1.7025900 1.6153712
-	// Arc  4431(steps   1). Coordinate: -0.0216271172 1.7028333 1.6163248
-	// Arc  4432(steps   1). Coordinate: -0.0214495255 1.7030765 1.6172784
-	// Arc  4433(steps   1). Coordinate: -0.0212719215 1.7033196 1.6182320
-	// Arc  4434(steps   1). Coordinate: -0.0210943052 1.7035628 1.6191856
-	// Arc  4435(steps   1). Coordinate: -0.0209166768 1.7038059 1.6201392
-	// Arc  4436(steps   1). Coordinate: -0.0207390361 1.7040489 1.6210928
-	// Arc  4437(steps   1). Coordinate: -0.0205613832 1.7042919 1.6220464
-	// Arc  4438(steps   1). Coordinate: -0.0203837181 1.7045349 1.6230000
-	// Arc  4439(steps   1). Coordinate: -0.0202060409 1.7047778 1.6239536
-	// Arc  4440(steps   1). Coordinate: -0.0200283515 1.7050207 1.6249073
-	// Arc  4441(steps   1). Coordinate: -0.0198506499 1.7052635 1.6258609
-	// Arc  4442(steps   1). Coordinate: -0.0196729363 1.7055063 1.6268146
-	// Arc  4443(steps   1). Coordinate: -0.0194952105 1.7057491 1.6277683
-	// Arc  4444(steps   1). Coordinate: -0.0193174727 1.7059918 1.6287219
-	// Arc  4445(steps   1). Coordinate: -0.0191397228 1.7062345 1.6296756
-	// Arc  4446(steps   1). Coordinate: -0.0189619608 1.7064772 1.6306293
-	// Arc  4447(steps   1). Coordinate: -0.0187841868 1.7067198 1.6315830
-	// Arc  4448(steps   1). Coordinate: -0.0186064007 1.7069623 1.6325367
-	// Arc  4449(steps   1). Coordinate: -0.0184286027 1.7072048 1.6334904
-	// Arc  4450(steps   1). Coordinate: -0.0182507927 1.7074473 1.6344442
-	// Arc  4451(steps   1). Coordinate: -0.0180729706 1.7076898 1.6353979
-	// Arc  4452(steps   1). Coordinate: -0.0178951367 1.7079322 1.6363516
-	// Arc  4453(steps   1). Coordinate: -0.0177172907 1.7081745 1.6373054
-	// Arc  4454(steps   1). Coordinate: -0.0175394329 1.7084169 1.6382591
-	// Arc  4455(steps   1). Coordinate: -0.0173615631 1.7086591 1.6392129
-	// Arc  4456(steps   1). Coordinate: -0.0171836814 1.7089014 1.6401667
-	// Arc  4457(steps   1). Coordinate: -0.0170057878 1.7091436 1.6411204
-	// Arc  4458(steps   1). Coordinate: -0.0168278824 1.7093857 1.6420742
-	// Arc  4459(steps   1). Coordinate: -0.0166499651 1.7096279 1.6430280
-	// Arc  4460(steps   1). Coordinate: -0.0164720360 1.7098700 1.6439818
-	// Arc  4461(steps   1). Coordinate: -0.0162940950 1.7101120 1.6449356
-	// Arc  4462(steps   1). Coordinate: -0.0161161423 1.7103540 1.6458894
-	// Arc  4463(steps   1). Coordinate: -0.0159381777 1.7105960 1.6468433
-	// Arc  4464(steps   1). Coordinate: -0.0157602014 1.7108379 1.6477971
-	// Arc  4465(steps   1). Coordinate: -0.0155822133 1.7110798 1.6487509
-	// Arc  4466(steps   1). Coordinate: -0.0154042134 1.7113216 1.6497048
-	// Arc  4467(steps   1). Coordinate: -0.0152262018 1.7115634 1.6506586
-	// Arc  4468(steps   1). Coordinate: -0.0150481785 1.7118052 1.6516125
-	// Arc  4469(steps   1). Coordinate: -0.0148701435 1.7120469 1.6525664
-	// Arc  4470(steps   1). Coordinate: -0.0146920968 1.7122886 1.6535202
-	// Arc  4471(steps   1). Coordinate: -0.0145140385 1.7125303 1.6544741
-	// Arc  4472(steps   1). Coordinate: -0.0143359685 1.7127719 1.6554280
-	// Arc  4473(steps   1). Coordinate: -0.0141578868 1.7130135 1.6563819
-	// Arc  4474(steps   1). Coordinate: -0.0139797935 1.7132550 1.6573358
-	// Arc  4475(steps   1). Coordinate: -0.0138016886 1.7134965 1.6582898
-	// Arc  4476(steps   1). Coordinate: -0.0136235721 1.7137380 1.6592437
-	// Arc  4477(steps   1). Coordinate: -0.0134454440 1.7139794 1.6601976
-	// Arc  4478(steps   1). Coordinate: -0.0132673043 1.7142208 1.6611516
-	// Arc  4479(steps   1). Coordinate: -0.0130891531 1.7144621 1.6621055
-	// Arc  4480(steps   1). Coordinate: -0.0129109903 1.7147034 1.6630595
-	// Arc  4481(steps   1). Coordinate: -0.0127328161 1.7149447 1.6640134
-	// Arc  4482(steps   1). Coordinate: -0.0125546303 1.7151859 1.6649674
-	// Arc  4483(steps   1). Coordinate: -0.0123764330 1.7154271 1.6659214
-	// Arc  4484(steps   1). Coordinate: -0.0121982242 1.7156682 1.6668754
-	// Arc  4485(steps   1). Coordinate: -0.0120200040 1.7159094 1.6678293
-	// Arc  4486(steps   1). Coordinate: -0.0118417723 1.7161504 1.6687833
-	// Arc  4487(steps   1). Coordinate: -0.0116635292 1.7163915 1.6697374
-	// Arc  4488(steps   1). Coordinate: -0.0114852746 1.7166325 1.6706914
-	// Arc  4489(steps   1). Coordinate: -0.0113070087 1.7168734 1.6716454
-	// Arc  4490(steps   1). Coordinate: -0.0111287313 1.7171143 1.6725994
-	// Arc  4491(steps   1). Coordinate: -0.0109504426 1.7173552 1.6735535
-	// Arc  4492(steps   1). Coordinate: -0.0107721425 1.7175961 1.6745075
-	// Arc  4493(steps   1). Coordinate: -0.0105938311 1.7178369 1.6754616
-	// Arc  4494(steps   1). Coordinate: -0.0104155083 1.7180777 1.6764156
-	// Arc  4495(steps   1). Coordinate: -0.0102371742 1.7183184 1.6773697
-	// Arc  4496(steps   1). Coordinate: -0.0100588288 1.7185591 1.6783238
-	// Arc  4497(steps   1). Coordinate: -0.0098804721 1.7187997 1.6792778
-	// Arc  4498(steps   1). Coordinate: -0.0097021041 1.7190404 1.6802319
-	// Arc  4499(steps   1). Coordinate: -0.0095237249 1.7192809 1.6811860
-	// Arc  4500(steps   1). Coordinate: -0.0093453344 1.7195215 1.6821401
-	// Arc  4501(steps   1). Coordinate: -0.0091669327 1.7197620 1.6830942
-	// Arc  4502(steps   1). Coordinate: -0.0089885197 1.7200024 1.6840484
-	// Arc  4503(steps   1). Coordinate: -0.0088100956 1.7202429 1.6850025
-	// Arc  4504(steps   1). Coordinate: -0.0086316602 1.7204833 1.6859566
-	// Arc  4505(steps   1). Coordinate: -0.0084532137 1.7207236 1.6869108
-	// Arc  4506(steps   1). Coordinate: -0.0082747560 1.7209639 1.6878649
-	// Arc  4507(steps   1). Coordinate: -0.0080962871 1.7212042 1.6888191
-	// Arc  4508(steps   1). Coordinate: -0.0079178071 1.7214445 1.6897732
-	// Arc  4509(steps   1). Coordinate: -0.0077393160 1.7216847 1.6907274
-	// Arc  4510(steps   1). Coordinate: -0.0075608138 1.7219248 1.6916816
-	// Arc  4511(steps   1). Coordinate: -0.0073823005 1.7221650 1.6926358
-	// Arc  4512(steps   1). Coordinate: -0.0072037761 1.7224051 1.6935900
-	// Arc  4513(steps   1). Coordinate: -0.0070252406 1.7226451 1.6945442
-	// Arc  4514(steps   1). Coordinate: -0.0068466941 1.7228851 1.6954984
-	// Arc  4515(steps   1). Coordinate: -0.0066681365 1.7231251 1.6964526
-	// Arc  4516(steps   1). Coordinate: -0.0064895679 1.7233651 1.6974068
-	// Arc  4517(steps   1). Coordinate: -0.0063109883 1.7236050 1.6983610
-	// Arc  4518(steps   1). Coordinate: -0.0061323978 1.7238449 1.6993153
-	// Arc  4519(steps   1). Coordinate: -0.0059537962 1.7240847 1.7002695
-	// Arc  4520(steps   1). Coordinate: -0.0057751836 1.7243245 1.7012238
-	// Arc  4521(steps   1). Coordinate: -0.0055965601 1.7245643 1.7021780
-	// Arc  4522(steps   1). Coordinate: -0.0054179256 1.7248040 1.7031323
-	// Arc  4523(steps   1). Coordinate: -0.0052392802 1.7250437 1.7040866
-	// Arc  4524(steps   1). Coordinate: -0.0050606239 1.7252833 1.7050408
-	// Arc  4525(steps   1). Coordinate: -0.0048819567 1.7255230 1.7059951
-	// Arc  4526(steps   1). Coordinate: -0.0047032786 1.7257625 1.7069494
-	// Arc  4527(steps   1). Coordinate: -0.0045245897 1.7260021 1.7079037
-	// Arc  4528(steps   1). Coordinate: -0.0043458898 1.7262416 1.7088580
-	// Arc  4529(steps   1). Coordinate: -0.0041671791 1.7264811 1.7098123
-	// Arc  4530(steps   1). Coordinate: -0.0039884576 1.7267205 1.7107667
-	// Arc  4531(steps   1). Coordinate: -0.0038097253 1.7269599 1.7117210
-	// Arc  4532(steps   1). Coordinate: -0.0036309821 1.7271993 1.7126753
-	// Arc  4533(steps   1). Coordinate: -0.0034522282 1.7274386 1.7136297
-	// Arc  4534(steps   1). Coordinate: -0.0032734634 1.7276779 1.7145840
-	// Arc  4535(steps   1). Coordinate: -0.0030946879 1.7279171 1.7155384
-	// Arc  4536(steps   1). Coordinate: -0.0029159017 1.7281563 1.7164927
-	// Arc  4537(steps   1). Coordinate: -0.0027371047 1.7283955 1.7174471
-	// Arc  4538(steps   1). Coordinate: -0.0025582969 1.7286347 1.7184015
-	// Arc  4539(steps   1). Coordinate: -0.0023794785 1.7288738 1.7193559
-	// Arc  4540(steps   1). Coordinate: -0.0022006493 1.7291129 1.7203103
-	// Arc  4541(steps   1). Coordinate: -0.0020218095 1.7293519 1.7212647
-	// Arc  4542(steps   1). Coordinate: -0.0018429590 1.7295909 1.7222191
-	// Arc  4543(steps   1). Coordinate: -0.0016640978 1.7298299 1.7231735
-	// Arc  4544(steps   1). Coordinate: -0.0014852260 1.7300688 1.7241279
-	// Arc  4545(steps   1). Coordinate: -0.0013063435 1.7303077 1.7250823
-	// Arc  4546(steps   1). Coordinate: -0.0011274504 1.7305466 1.7260368
-	// Arc  4547(steps   1). Coordinate: -0.0009485467 1.7307854 1.7269912
-	// Arc  4548(steps   1). Coordinate: -0.0007696324 1.7310242 1.7279456
-	// Arc  4549(steps   1). Coordinate: -0.0005907076 1.7312629 1.7289001
-	// Arc  4550(steps   1). Coordinate: -0.0004117721 1.7315016 1.7298546
-	// Arc  4551(steps   1). Coordinate: -0.0002328261 1.7317403 1.7308090
-	// Arc  4552(steps   1). Coordinate: -0.0000538695 1.7319790 1.7317635
-	// Arc  4553(steps   1). Coordinate: 0.0001250976 1.7322176 1.7327180
-	// Arc  4554(steps   1). Coordinate: 0.0003040752 1.7324562 1.7336725
-	// Arc  4555(steps   1). Coordinate: 0.0004830633 1.7326947 1.7346270
-	// Arc  4556(steps   1). Coordinate: 0.0006620619 1.7329332 1.7355815
-	// Arc  4557(steps   1). Coordinate: 0.0008410710 1.7331717 1.7365360
-	// Arc  4558(steps   1). Coordinate: 0.0010200906 1.7334101 1.7374905
-	// Arc  4559(steps   1). Coordinate: 0.0011991206 1.7336485 1.7384450
-	// Arc  4560(steps   1). Coordinate: 0.0013781610 1.7338869 1.7393995
-	// Arc  4561(steps   1). Coordinate: 0.0015572119 1.7341252 1.7403541
-	// Arc  4562(steps   1). Coordinate: 0.0017362732 1.7343635 1.7413086
-	// Arc  4563(steps   1). Coordinate: 0.0019153449 1.7346018 1.7422632
-	// Arc  4564(steps   1). Coordinate: 0.0020944271 1.7348400 1.7432177
-	// Arc  4565(steps   1). Coordinate: 0.0022735195 1.7350782 1.7441723
-	// Arc  4566(steps   1). Coordinate: 0.0024526224 1.7353164 1.7451269
-	// Arc  4567(steps   1). Coordinate: 0.0026317356 1.7355545 1.7460814
-	// Arc  4568(steps   1). Coordinate: 0.0028108592 1.7357926 1.7470360
-	// Arc  4569(steps   1). Coordinate: 0.0029899930 1.7360306 1.7479906
-	// Arc  4570(steps   1). Coordinate: 0.0031691372 1.7362687 1.7489452
-	// Arc  4571(steps   1). Coordinate: 0.0033482917 1.7365066 1.7498998
-	// Arc  4572(steps   1). Coordinate: 0.0035274565 1.7367446 1.7508544
-	// Arc  4573(steps   1). Coordinate: 0.0037066316 1.7369825 1.7518090
-	// Arc  4574(steps   1). Coordinate: 0.0038858169 1.7372204 1.7527637
-	// Arc  4575(steps   1). Coordinate: 0.0040650125 1.7374582 1.7537183
-	// Arc  4576(steps   1). Coordinate: 0.0042442184 1.7376960 1.7546729
-	// Arc  4577(steps   1). Coordinate: 0.0044234344 1.7379338 1.7556276
-	// Arc  4578(steps   1). Coordinate: 0.0046026607 1.7381716 1.7565822
-	// Arc  4579(steps   1). Coordinate: 0.0047818972 1.7384093 1.7575369
-	// Arc  4580(steps   1). Coordinate: 0.0049611439 1.7386470 1.7584915
-	// Arc  4581(steps   1). Coordinate: 0.0051404007 1.7388846 1.7594462
-	// Arc  4582(steps   1). Coordinate: 0.0053196678 1.7391222 1.7604009
-	// Arc  4583(steps   1). Coordinate: 0.0054989449 1.7393598 1.7613556
-	// Arc  4584(steps   1). Coordinate: 0.0056782323 1.7395973 1.7623102
-	// Arc  4585(steps   1). Coordinate: 0.0058575297 1.7398348 1.7632649
-	// Arc  4586(steps   1). Coordinate: 0.0060368373 1.7400723 1.7642196
-	// Arc  4587(steps   1). Coordinate: 0.0062161550 1.7403097 1.7651744
-	// Arc  4588(steps   1). Coordinate: 0.0063954828 1.7405471 1.7661291
-	// Arc  4589(steps   1). Coordinate: 0.0065748206 1.7407845 1.7670838
-	// Arc  4590(steps   1). Coordinate: 0.0067541686 1.7410218 1.7680385
-	// Arc  4591(steps   1). Coordinate: 0.0069335266 1.7412591 1.7689933
-	// Arc  4592(steps   1). Coordinate: 0.0071128946 1.7414964 1.7699480
-	// Arc  4593(steps   1). Coordinate: 0.0072922727 1.7417337 1.7709027
-	// Arc  4594(steps   1). Coordinate: 0.0074716608 1.7419709 1.7718575
-	// Arc  4595(steps   1). Coordinate: 0.0076510589 1.7422080 1.7728123
-	// Arc  4596(steps   1). Coordinate: 0.0078304670 1.7424452 1.7737670
-	// Arc  4597(steps   1). Coordinate: 0.0080098851 1.7426823 1.7747218
-	// Arc  4598(steps   1). Coordinate: 0.0081893131 1.7429193 1.7756766
-	// Arc  4599(steps   1). Coordinate: 0.0083687512 1.7431564 1.7766314
-	// Arc  4600(steps   1). Coordinate: 0.0085481991 1.7433934 1.7775862
-	// Arc  4601(steps   1). Coordinate: 0.0087276570 1.7436303 1.7785410
-	// Arc  4602(steps   1). Coordinate: 0.0089071249 1.7438673 1.7794958
-	// Arc  4603(steps   1). Coordinate: 0.0090866027 1.7441042 1.7804506
-	// Arc  4604(steps   1). Coordinate: 0.0092660903 1.7443410 1.7814054
-	// Arc  4605(steps   1). Coordinate: 0.0094455879 1.7445779 1.7823602
-	// Arc  4606(steps   1). Coordinate: 0.0096250953 1.7448147 1.7833150
-	// Arc  4607(steps   1). Coordinate: 0.0098046126 1.7450514 1.7842699
-	// Arc  4608(steps   1). Coordinate: 0.0099841398 1.7452882 1.7852247
-	// Arc  4609(steps   1). Coordinate: 0.0101636768 1.7455249 1.7861796
-	// Arc  4610(steps   1). Coordinate: 0.0103432236 1.7457615 1.7871344
-	// Arc  4611(steps   1). Coordinate: 0.0105227803 1.7459982 1.7880893
-	// Arc  4612(steps   1). Coordinate: 0.0107023467 1.7462348 1.7890442
-	// Arc  4613(steps   1). Coordinate: 0.0108819230 1.7464713 1.7899990
-	// Arc  4614(steps   1). Coordinate: 0.0110615090 1.7467079 1.7909539
-	// Arc  4615(steps   1). Coordinate: 0.0112411049 1.7469444 1.7919088
-	// Arc  4616(steps   1). Coordinate: 0.0114207105 1.7471809 1.7928637
-	// Arc  4617(steps   1). Coordinate: 0.0116003258 1.7474173 1.7938186
-	// Arc  4618(steps   1). Coordinate: 0.0117799509 1.7476537 1.7947735
-	// Arc  4619(steps   1). Coordinate: 0.0119595857 1.7478901 1.7957284
-	// Arc  4620(steps   1). Coordinate: 0.0121392302 1.7481264 1.7966833
-	// Arc  4621(steps   1). Coordinate: 0.0123188844 1.7483627 1.7976383
-	// Arc  4622(steps   1). Coordinate: 0.0124985484 1.7485990 1.7985932
-	// Arc  4623(steps   1). Coordinate: 0.0126782220 1.7488353 1.7995481
-	// Arc  4624(steps   1). Coordinate: 0.0128579053 1.7490715 1.8005031
-	// Arc  4625(steps   1). Coordinate: 0.0130375982 1.7493076 1.8014580
-	// Arc  4626(steps   1). Coordinate: 0.0132173008 1.7495438 1.8024130
-	// Arc  4627(steps   1). Coordinate: 0.0133970130 1.7497799 1.8033680
-	// Arc  4628(steps   1). Coordinate: 0.0135767349 1.7500160 1.8043229
-	// Arc  4629(steps   1). Coordinate: 0.0137564663 1.7502520 1.8052779
-	// Arc  4630(steps   1). Coordinate: 0.0139362074 1.7504880 1.8062329
-	// Arc  4631(steps   1). Coordinate: 0.0141159580 1.7507240 1.8071879
-	// Arc  4632(steps   1). Coordinate: 0.0142957183 1.7509600 1.8081429
-	// Arc  4633(steps   1). Coordinate: 0.0144754881 1.7511959 1.8090979
-	// Arc  4634(steps   1). Coordinate: 0.0146552675 1.7514318 1.8100529
-	// Arc  4635(steps   1). Coordinate: 0.0148350564 1.7516677 1.8110079
-	// Arc  4636(steps   1). Coordinate: 0.0150148548 1.7519035 1.8119629
-	// Arc  4637(steps   1). Coordinate: 0.0151946628 1.7521393 1.8129179
-	// Arc  4638(steps   1). Coordinate: 0.0153744803 1.7523750 1.8138729
-	// Arc  4639(steps   1). Coordinate: 0.0155543073 1.7526108 1.8148280
-	// Arc  4640(steps   1). Coordinate: 0.0157341438 1.7528465 1.8157830
-	// Arc  4641(steps   1). Coordinate: 0.0159139897 1.7530821 1.8167381
-	// Arc  4642(steps   1). Coordinate: 0.0160938451 1.7533178 1.8176931
-	// Arc  4643(steps   1). Coordinate: 0.0162737100 1.7535534 1.8186482
-	// Arc  4644(steps   1). Coordinate: 0.0164535844 1.7537889 1.8196033
-	// Arc  4645(steps   1). Coordinate: 0.0166334681 1.7540245 1.8205583
-	// Arc  4646(steps   1). Coordinate: 0.0168133613 1.7542600 1.8215134
-	// Arc  4647(steps   1). Coordinate: 0.0169932639 1.7544954 1.8224685
-	// Arc  4648(steps   1). Coordinate: 0.0171731760 1.7547309 1.8234236
-	// Arc  4649(steps   1). Coordinate: 0.0173530974 1.7549663 1.8243787
-	// Arc  4650(steps   1). Coordinate: 0.0175330281 1.7552017 1.8253338
-	// Arc  4651(steps   1). Coordinate: 0.0177129683 1.7554370 1.8262889
-	// Arc  4652(steps   1). Coordinate: 0.0178929178 1.7556723 1.8272440
-	// Arc  4653(steps   1). Coordinate: 0.0180728767 1.7559076 1.8281991
-	// Arc  4654(steps   1). Coordinate: 0.0182528449 1.7561429 1.8291543
-	// Arc  4655(steps   1). Coordinate: 0.0184328224 1.7563781 1.8301094
-	// Arc  4656(steps   1). Coordinate: 0.0186128092 1.7566133 1.8310645
-	// Arc  4657(steps   1). Coordinate: 0.0187928054 1.7568485 1.8320197
-	// Arc  4658(steps   1). Coordinate: 0.0189728108 1.7570836 1.8329748
-	// Arc  4659(steps   1). Coordinate: 0.0191528255 1.7573187 1.8339300
-	// Arc  4660(steps   1). Coordinate: 0.0193328495 1.7575537 1.8348851
-	// Arc  4661(steps   1). Coordinate: 0.0195128828 1.7577888 1.8358403
-	// Arc  4662(steps   1). Coordinate: 0.0196929253 1.7580238 1.8367955
-	// Arc  4663(steps   1). Coordinate: 0.0198729771 1.7582588 1.8377507
-	// Arc  4664(steps   1). Coordinate: 0.0200530380 1.7584937 1.8387058
-	// Arc  4665(steps   1). Coordinate: 0.0202331082 1.7587286 1.8396610
-	// Arc  4666(steps   1). Coordinate: 0.0204131876 1.7589635 1.8406162
-	// Arc  4667(steps   1). Coordinate: 0.0205932763 1.7591983 1.8415714
-	// Arc  4668(steps   1). Coordinate: 0.0207733740 1.7594332 1.8425267
-	// Arc  4669(steps   1). Coordinate: 0.0209534810 1.7596679 1.8434819
-	// Arc  4670(steps   1). Coordinate: 0.0211335972 1.7599027 1.8444371
-	// Arc  4671(steps   1). Coordinate: 0.0213137224 1.7601374 1.8453923
-	// Arc  4672(steps   1). Coordinate: 0.0214938569 1.7603721 1.8463475
-	// Arc  4673(steps   1). Coordinate: 0.0216740005 1.7606068 1.8473028
-	// Arc  4674(steps   1). Coordinate: 0.0218541531 1.7608414 1.8482580
-	// Arc  4675(steps   1). Coordinate: 0.0220343150 1.7610760 1.8492133
-	// Arc  4676(steps   1). Coordinate: 0.0222144859 1.7613106 1.8501685
-	// Arc  4677(steps   1). Coordinate: 0.0223946659 1.7615451 1.8511238
-	// Arc  4678(steps   1). Coordinate: 0.0225748550 1.7617796 1.8520791
-	// Arc  4679(steps   1). Coordinate: 0.0227550531 1.7620141 1.8530343
-	// Arc  4680(steps   1). Coordinate: 0.0229352603 1.7622486 1.8539896
-	// Arc  4681(steps   1). Coordinate: 0.0231154766 1.7624830 1.8549449
-	// Arc  4682(steps   1). Coordinate: 0.0232957019 1.7627174 1.8559002
-	// Arc  4683(steps   1). Coordinate: 0.0234759363 1.7629517 1.8568555
-	// Arc  4684(steps   1). Coordinate: 0.0236561796 1.7631861 1.8578108
-	// Arc  4685(steps   1). Coordinate: 0.0238364320 1.7634204 1.8587661
-	// Arc  4686(steps   1). Coordinate: 0.0240166934 1.7636546 1.8597214
-	// Arc  4687(steps   1). Coordinate: 0.0241969637 1.7638889 1.8606767
-	// Arc  4688(steps   1). Coordinate: 0.0243772431 1.7641231 1.8616321
-	// Arc  4689(steps   1). Coordinate: 0.0245575314 1.7643573 1.8625874
-	// Arc  4690(steps   1). Coordinate: 0.0247378286 1.7645914 1.8635427
-	// Arc  4691(steps   1). Coordinate: 0.0249181348 1.7648255 1.8644981
-	// Arc  4692(steps   1). Coordinate: 0.0250984500 1.7650596 1.8654534
-	// Arc  4693(steps   1). Coordinate: 0.0252787741 1.7652937 1.8664088
-	// Arc  4694(steps   1). Coordinate: 0.0254591071 1.7655277 1.8673641
-	// Arc  4695(steps   1). Coordinate: 0.0256394490 1.7657617 1.8683195
-	// Arc  4696(steps   1). Coordinate: 0.0258197998 1.7659957 1.8692749
-	// Arc  4697(steps   1). Coordinate: 0.0260001595 1.7662296 1.8702302
-	// Arc  4698(steps   1). Coordinate: 0.0261805280 1.7664635 1.8711856
-	// Arc  4699(steps   1). Coordinate: 0.0263609055 1.7666974 1.8721410
-	// Arc  4700(steps   1). Coordinate: 0.0265412918 1.7669312 1.8730964
-	// Arc  4701(steps   1). Coordinate: 0.0267216869 1.7671651 1.8740518
-	// Arc  4702(steps   1). Coordinate: 0.0269020909 1.7673988 1.8750072
-	// Arc  4703(steps   1). Coordinate: 0.0270825037 1.7676326 1.8759626
-	// Arc  4704(steps   1). Coordinate: 0.0272629253 1.7678663 1.8769180
-	// Arc  4705(steps   1). Coordinate: 0.0274433557 1.7681000 1.8778735
-	// Arc  4706(steps   1). Coordinate: 0.0276237949 1.7683337 1.8788289
-	// Arc  4707(steps   1). Coordinate: 0.0278042429 1.7685673 1.8797843
-	// Arc  4708(steps   1). Coordinate: 0.0279846997 1.7688010 1.8807398
-	// Arc  4709(steps   1). Coordinate: 0.0281651653 1.7690345 1.8816952
-	// Arc  4710(steps   1). Coordinate: 0.0283456396 1.7692681 1.8826506
-	// Arc  4711(steps   1). Coordinate: 0.0285261226 1.7695016 1.8836061
-	// Arc  4712(steps   1). Coordinate: 0.0287066144 1.7697351 1.8845616
-	// Arc  4713(steps   1). Coordinate: 0.0288871149 1.7699686 1.8855170
-	// Arc  4714(steps   1). Coordinate: 0.0290676242 1.7702020 1.8864725
-	// Arc  4715(steps   1). Coordinate: 0.0292481421 1.7704354 1.8874280
-	// Arc  4716(steps   1). Coordinate: 0.0294286688 1.7706688 1.8883835
-	// Arc  4717(steps   1). Coordinate: 0.0296092041 1.7709021 1.8893389
-	// Arc  4718(steps   1). Coordinate: 0.0297897481 1.7711354 1.8902944
-	// Arc  4719(steps   1). Coordinate: 0.0299703008 1.7713687 1.8912499
-	// Arc  4720(steps   1). Coordinate: 0.0301508621 1.7716020 1.8922054
-	// Arc  4721(steps   1). Coordinate: 0.0303314321 1.7718352 1.8931609
-	// Arc  4722(steps   1). Coordinate: 0.0305120107 1.7720684 1.8941165
-	// Arc  4723(steps   1). Coordinate: 0.0306925980 1.7723016 1.8950720
-	// Arc  4724(steps   1). Coordinate: 0.0308731939 1.7725347 1.8960275
-	// Arc  4725(steps   1). Coordinate: 0.0310537984 1.7727678 1.8969830
-	// Arc  4726(steps   1). Coordinate: 0.0312344115 1.7730009 1.8979386
-	// Arc  4727(steps   1). Coordinate: 0.0314150331 1.7732340 1.8988941
-	// Arc  4728(steps   1). Coordinate: 0.0315956634 1.7734670 1.8998497
-	// Arc  4729(steps   1). Coordinate: 0.0317763022 1.7737000 1.9008052
-	// Arc  4730(steps   1). Coordinate: 0.0319569496 1.7739330 1.9017608
-	// Arc  4731(steps   1). Coordinate: 0.0321376056 1.7741659 1.9027163
-	// Arc  4732(steps   1). Coordinate: 0.0323182701 1.7743988 1.9036719
-	// Arc  4733(steps   1). Coordinate: 0.0324989431 1.7746317 1.9046275
-	// Arc  4734(steps   1). Coordinate: 0.0326796246 1.7748646 1.9055831
-	// Arc  4735(steps   1). Coordinate: 0.0328603147 1.7750974 1.9065387
-	// Arc  4736(steps   1). Coordinate: 0.0330410133 1.7753302 1.9074942
-	// Arc  4737(steps   1). Coordinate: 0.0332217203 1.7755630 1.9084498
-	// Arc  4738(steps   1). Coordinate: 0.0334024359 1.7757957 1.9094054
-	// Arc  4739(steps   1). Coordinate: 0.0335831599 1.7760284 1.9103610
-	// Arc  4740(steps   1). Coordinate: 0.0337638924 1.7762611 1.9113167
-	// Arc  4741(steps   1). Coordinate: 0.0339446334 1.7764937 1.9122723
-	// Arc  4742(steps   1). Coordinate: 0.0341253828 1.7767264 1.9132279
-	// Arc  4743(steps   1). Coordinate: 0.0343061406 1.7769590 1.9141835
-	// Arc  4744(steps   1). Coordinate: 0.0344869069 1.7771915 1.9151392
-	// Arc  4745(steps   1). Coordinate: 0.0346676816 1.7774241 1.9160948
-	// Arc  4746(steps   1). Coordinate: 0.0348484647 1.7776566 1.9170504
-	// Arc  4747(steps   1). Coordinate: 0.0350292562 1.7778891 1.9180061
-	// Arc  4748(steps   1). Coordinate: 0.0352100561 1.7781215 1.9189617
-	// Arc  4749(steps   1). Coordinate: 0.0353908644 1.7783540 1.9199174
-	// Arc  4750(steps   1). Coordinate: 0.0355716810 1.7785863 1.9208731
-	// Arc  4751(steps   1). Coordinate: 0.0357525061 1.7788187 1.9218287
-	// Arc  4752(steps   1). Coordinate: 0.0359333394 1.7790511 1.9227844
-	// Arc  4753(steps   1). Coordinate: 0.0361141811 1.7792834 1.9237401
-	// Arc  4754(steps   1). Coordinate: 0.0362950312 1.7795157 1.9246958
-	// Arc  4755(steps   1). Coordinate: 0.0364758896 1.7797479 1.9256515
-	// Arc  4756(steps   1). Coordinate: 0.0366567563 1.7799802 1.9266072
-	// Arc  4757(steps   1). Coordinate: 0.0368376313 1.7802124 1.9275629
-	// Arc  4758(steps   1). Coordinate: 0.0370185146 1.7804445 1.9285186
-	// Arc  4759(steps   1). Coordinate: 0.0371994062 1.7806767 1.9294743
-	// Arc  4760(steps   1). Coordinate: 0.0373803061 1.7809088 1.9304300
-	// Arc  4761(steps   1). Coordinate: 0.0375612143 1.7811409 1.9313857
-	// Arc  4762(steps   1). Coordinate: 0.0377421307 1.7813729 1.9323415
-	// Arc  4763(steps   1). Coordinate: 0.0379230554 1.7816050 1.9332972
-	// Arc  4764(steps   1). Coordinate: 0.0381039883 1.7818370 1.9342529
-	// Arc  4765(steps   1). Coordinate: 0.0382849294 1.7820690 1.9352087
-	// Arc  4766(steps   1). Coordinate: 0.0384658788 1.7823009 1.9361644
-	// Arc  4767(steps   1). Coordinate: 0.0386468364 1.7825328 1.9371202
-	// Arc  4768(steps   1). Coordinate: 0.0388278022 1.7827647 1.9380759
-	// Arc  4769(steps   1). Coordinate: 0.0390087763 1.7829966 1.9390317
-	// Arc  4770(steps   1). Coordinate: 0.0391897585 1.7832284 1.9399875
-	// Arc  4771(steps   1). Coordinate: 0.0393707488 1.7834603 1.9409433
-	// Arc  4772(steps   1). Coordinate: 0.0395517474 1.7836920 1.9418990
-	// Arc  4773(steps   1). Coordinate: 0.0397327541 1.7839238 1.9428548
-	// Arc  4774(steps   1). Coordinate: 0.0399137690 1.7841555 1.9438106
-	// Arc  4775(steps   1). Coordinate: 0.0400947920 1.7843872 1.9447664
-	// Arc  4776(steps   1). Coordinate: 0.0402758232 1.7846189 1.9457222
-	// Arc  4777(steps   1). Coordinate: 0.0404568625 1.7848506 1.9466780
-	// Arc  4778(steps   1). Coordinate: 0.0406379099 1.7850822 1.9476338
-	// Arc  4779(steps   1). Coordinate: 0.0408189654 1.7853138 1.9485896
-	// Arc  4780(steps   1). Coordinate: 0.0410000290 1.7855453 1.9495455
-	// Arc  4781(steps   1). Coordinate: 0.0411811007 1.7857769 1.9505013
-	// Arc  4782(steps   1). Coordinate: 0.0413621805 1.7860084 1.9514571
-	// Arc  4783(steps   1). Coordinate: 0.0415432684 1.7862399 1.9524129
-	// Arc  4784(steps   1). Coordinate: 0.0417243644 1.7864713 1.9533688
-	// Arc  4785(steps   1). Coordinate: 0.0419054684 1.7867028 1.9543246
-	// Arc  4786(steps   1). Coordinate: 0.0420865804 1.7869342 1.9552805
-	// Arc  4787(steps   1). Coordinate: 0.0422677005 1.7871655 1.9562363
-	// Arc  4788(steps   1). Coordinate: 0.0424488286 1.7873969 1.9571922
-	// Arc  4789(steps   1). Coordinate: 0.0426299648 1.7876282 1.9581481
-	// Arc  4790(steps   1). Coordinate: 0.0428111089 1.7878595 1.9591039
-	// Arc  4791(steps   1). Coordinate: 0.0429922611 1.7880908 1.9600598
-	// Arc  4792(steps   1). Coordinate: 0.0431734212 1.7883220 1.9610157
-	// Arc  4793(steps   1). Coordinate: 0.0433545894 1.7885532 1.9619716
-	// Arc  4794(steps   1). Coordinate: 0.0435357655 1.7887844 1.9629275
-	// Arc  4795(steps   1). Coordinate: 0.0437169496 1.7890156 1.9638834
-	// Arc  4796(steps   1). Coordinate: 0.0438981417 1.7892467 1.9648393
-	// Arc  4797(steps   1). Coordinate: 0.0440793417 1.7894778 1.9657952
-	// Arc  4798(steps   1). Coordinate: 0.0442605496 1.7897089 1.9667511
-	// Arc  4799(steps   1). Coordinate: 0.0444417655 1.7899399 1.9677070
-	// Arc  4800(steps   1). Coordinate: 0.0446229893 1.7901710 1.9686629
-	// Arc  4801(steps   1). Coordinate: 0.0448042211 1.7904020 1.9696189
-	// Arc  4802(steps   1). Coordinate: 0.0449854607 1.7906329 1.9705748
-	// Arc  4803(steps   1). Coordinate: 0.0451667083 1.7908639 1.9715307
-	// Arc  4804(steps   1). Coordinate: 0.0453479637 1.7910948 1.9724867
-	// Arc  4805(steps   1). Coordinate: 0.0455292271 1.7913257 1.9734426
-	// Arc  4806(steps   1). Coordinate: 0.0457104983 1.7915566 1.9743986
-	// Arc  4807(steps   1). Coordinate: 0.0458917773 1.7917874 1.9753545
-	// Arc  4808(steps   1). Coordinate: 0.0460730643 1.7920182 1.9763105
-	// Arc  4809(steps   1). Coordinate: 0.0462543591 1.7922490 1.9772664
-	// Arc  4810(steps   1). Coordinate: 0.0464356617 1.7924798 1.9782224
-	// Arc  4811(steps   1). Coordinate: 0.0466169721 1.7927105 1.9791784
-	// Arc  4812(steps   1). Coordinate: 0.0467982904 1.7929412 1.9801344
-	// Arc  4813(steps   1). Coordinate: 0.0469796165 1.7931719 1.9810903
-	// Arc  4814(steps   1). Coordinate: 0.0471609504 1.7934025 1.9820463
-	// Arc  4815(steps   1). Coordinate: 0.0473422921 1.7936332 1.9830023
-	// Arc  4816(steps   1). Coordinate: 0.0475236416 1.7938638 1.9839583
-	// Arc  4817(steps   1). Coordinate: 0.0477049989 1.7940943 1.9849143
-	// Arc  4818(steps   1). Coordinate: 0.0478863640 1.7943249 1.9858703
-	// Arc  4819(steps   1). Coordinate: 0.0480677368 1.7945554 1.9868264
-	// Arc  4820(steps   1). Coordinate: 0.0482491174 1.7947859 1.9877824
-	// Arc  4821(steps   1). Coordinate: 0.0484305058 1.7950164 1.9887384
-	// Arc  4822(steps   1). Coordinate: 0.0486119018 1.7952468 1.9896944
-	// Arc  4823(steps   1). Coordinate: 0.0487933056 1.7954772 1.9906505
-	// Arc  4824(steps   1). Coordinate: 0.0489747172 1.7957076 1.9916065
-	// Arc  4825(steps   1). Coordinate: 0.0491561364 1.7959380 1.9925625
-	// Arc  4826(steps   1). Coordinate: 0.0493375634 1.7961683 1.9935186
-	// Arc  4827(steps   1). Coordinate: 0.0495189981 1.7963987 1.9944746
-	// Arc  4828(steps   1). Coordinate: 0.0497004404 1.7966289 1.9954307
-	// Arc  4829(steps   1). Coordinate: 0.0498818905 1.7968592 1.9963868
-	// Arc  4830(steps   1). Coordinate: 0.0500633482 1.7970894 1.9973428
-	// Arc  4831(steps   1). Coordinate: 0.0502448136 1.7973197 1.9982989
-	// Arc  4832(steps   1). Coordinate: 0.0504262866 1.7975498 1.9992550
-	// Arc  4833(steps   1). Coordinate: 0.0506077673 1.7977800 2.0002111
-	// Arc  4834(steps   1). Coordinate: 0.0507892556 1.7980101 2.0011672
-	// Arc  4835(steps   1). Coordinate: 0.0509707516 1.7982402 2.0021232
-	// Arc  4836(steps   1). Coordinate: 0.0511522552 1.7984703 2.0030793
-	// Arc  4837(steps   1). Coordinate: 0.0513337664 1.7987004 2.0040354
-	// Arc  4838(steps   1). Coordinate: 0.0515152853 1.7989304 2.0049915
-	// Arc  4839(steps   1). Coordinate: 0.0516968117 1.7991604 2.0059477
-	// Arc  4840(steps   1). Coordinate: 0.0518783457 1.7993904 2.0069038
-	// Arc  4841(steps   1). Coordinate: 0.0520598873 1.7996203 2.0078599
-	// Arc  4842(steps   1). Coordinate: 0.0522414365 1.7998503 2.0088160
-	// Arc  4843(steps   1). Coordinate: 0.0524229933 1.8000802 2.0097721
-	// Arc  4844(steps   1). Coordinate: 0.0526045576 1.8003100 2.0107283
-	// Arc  4845(steps   1). Coordinate: 0.0527861295 1.8005399 2.0116844
-	// Arc  4846(steps   1). Coordinate: 0.0529677089 1.8007697 2.0126406
-	// Arc  4847(steps   1). Coordinate: 0.0531492959 1.8009995 2.0135967
-	// Arc  4848(steps   1). Coordinate: 0.0533308904 1.8012293 2.0145529
-	// Arc  4849(steps   1). Coordinate: 0.0535124924 1.8014590 2.0155090
-	// Arc  4850(steps   1). Coordinate: 0.0536941019 1.8016888 2.0164652
-	// Arc  4851(steps   1). Coordinate: 0.0538757190 1.8019185 2.0174213
-	// Arc  4852(steps   1). Coordinate: 0.0540573435 1.8021481 2.0183775
-	// Arc  4853(steps   1). Coordinate: 0.0542389755 1.8023778 2.0193337
-	// Arc  4854(steps   1). Coordinate: 0.0544206150 1.8026074 2.0202899
-	// Arc  4855(steps   1). Coordinate: 0.0546022620 1.8028370 2.0212461
-	// Arc  4856(steps   1). Coordinate: 0.0547839165 1.8030666 2.0222022
-	// Arc  4857(steps   1). Coordinate: 0.0549655784 1.8032961 2.0231584
-	// Arc  4858(steps   1). Coordinate: 0.0551472477 1.8035256 2.0241146
-	// Arc  4859(steps   1). Coordinate: 0.0553289245 1.8037551 2.0250708
-	// Arc  4860(steps   1). Coordinate: 0.0555106088 1.8039846 2.0260270
-	// Arc  4861(steps   1). Coordinate: 0.0556923004 1.8042141 2.0269833
-	// Arc  4862(steps   1). Coordinate: 0.0558739995 1.8044435 2.0279395
-	// Arc  4863(steps   1). Coordinate: 0.0560557060 1.8046729 2.0288957
-	// Arc  4864(steps   1). Coordinate: 0.0562374199 1.8049022 2.0298519
-	// Arc  4865(steps   1). Coordinate: 0.0564191412 1.8051316 2.0308082
-	// Arc  4866(steps   1). Coordinate: 0.0566008699 1.8053609 2.0317644
-	// Arc  4867(steps   1). Coordinate: 0.0567826060 1.8055902 2.0327206
-	// Arc  4868(steps   1). Coordinate: 0.0569643494 1.8058195 2.0336769
-	// Arc  4869(steps   1). Coordinate: 0.0571461002 1.8060487 2.0346331
-	// Arc  4870(steps   1). Coordinate: 0.0573278584 1.8062779 2.0355894
-	// Arc  4871(steps   1). Coordinate: 0.0575096239 1.8065071 2.0365456
-	// Arc  4872(steps   1). Coordinate: 0.0576913968 1.8067363 2.0375019
-	// Arc  4873(steps   1). Coordinate: 0.0578731770 1.8069655 2.0384582
-	// Arc  4874(steps   1). Coordinate: 0.0580549645 1.8071946 2.0394144
-	// Arc  4875(steps   1). Coordinate: 0.0582367593 1.8074237 2.0403707
-	// Arc  4876(steps   1). Coordinate: 0.0584185615 1.8076528 2.0413270
-	// Arc  4877(steps   1). Coordinate: 0.0586003709 1.8078818 2.0422833
-	// Arc  4878(steps   1). Coordinate: 0.0587821877 1.8081108 2.0432396
-	// Arc  4879(steps   1). Coordinate: 0.0589640117 1.8083398 2.0441959
-	// Arc  4880(steps   1). Coordinate: 0.0591458430 1.8085688 2.0451522
-	// Arc  4881(steps   1). Coordinate: 0.0593276816 1.8087977 2.0461085
-	// Arc  4882(steps   1). Coordinate: 0.0595095275 1.8090267 2.0470648
-	// Arc  4883(steps   1). Coordinate: 0.0596913806 1.8092556 2.0480211
-	// Arc  4884(steps   1). Coordinate: 0.0598732409 1.8094844 2.0489774
-	// Arc  4885(steps   1). Coordinate: 0.0600551086 1.8097133 2.0499337
-	// Arc  4886(steps   1). Coordinate: 0.0602369834 1.8099421 2.0508901
-	// Arc  4887(steps   1). Coordinate: 0.0604188655 1.8101709 2.0518464
-	// Arc  4888(steps   1). Coordinate: 0.0606007548 1.8103997 2.0528027
-	// Arc  4889(steps   1). Coordinate: 0.0607826513 1.8106285 2.0537591
-	// Arc  4890(steps   1). Coordinate: 0.0609645550 1.8108572 2.0547154
-	// Arc  4891(steps   1). Coordinate: 0.0611464659 1.8110859 2.0556718
-	// Arc  4892(steps   1). Coordinate: 0.0613283840 1.8113146 2.0566281
-	// Arc  4893(steps   1). Coordinate: 0.0615103093 1.8115432 2.0575845
-	// Arc  4894(steps   1). Coordinate: 0.0616922418 1.8117719 2.0585408
-	// Arc  4895(steps   1). Coordinate: 0.0618741814 1.8120005 2.0594972
-	// Arc  4896(steps   1). Coordinate: 0.0620561282 1.8122291 2.0604536
-	// Arc  4897(steps   1). Coordinate: 0.0622380821 1.8124576 2.0614099
-	// Arc  4898(steps   1). Coordinate: 0.0624200432 1.8126861 2.0623663
-	// Arc  4899(steps   1). Coordinate: 0.0626020114 1.8129147 2.0633227
-	// Arc  4900(steps   1). Coordinate: 0.0627839868 1.8131431 2.0642791
-	// Arc  4901(steps   1). Coordinate: 0.0629659693 1.8133716 2.0652355
-	// Arc  4902(steps   1). Coordinate: 0.0631479589 1.8136000 2.0661919
-	// Arc  4903(steps   1). Coordinate: 0.0633299556 1.8138285 2.0671483
-	// Arc  4904(steps   1). Coordinate: 0.0635119594 1.8140569 2.0681047
-	// Arc  4905(steps   1). Coordinate: 0.0636939703 1.8142852 2.0690611
-	// Arc  4906(steps   1). Coordinate: 0.0638759883 1.8145136 2.0700175
-	// Arc  4907(steps   1). Coordinate: 0.0640580134 1.8147419 2.0709739
-	// Arc  4908(steps   1). Coordinate: 0.0642400455 1.8149702 2.0719304
-	// Arc  4909(steps   1). Coordinate: 0.0644220847 1.8151984 2.0728868
-	// Arc  4910(steps   1). Coordinate: 0.0646041310 1.8154267 2.0738432
-	// Arc  4911(steps   1). Coordinate: 0.0647861843 1.8156549 2.0747997
-	// Arc  4912(steps   1). Coordinate: 0.0649682446 1.8158831 2.0757561
-	// Arc  4913(steps   1). Coordinate: 0.0651503120 1.8161113 2.0767125
-	// Arc  4914(steps   1). Coordinate: 0.0653323865 1.8163394 2.0776690
-	// Arc  4915(steps   1). Coordinate: 0.0655144679 1.8165676 2.0786254
-	// Arc  4916(steps   1). Coordinate: 0.0656965564 1.8167957 2.0795819
-	// Arc  4917(steps   1). Coordinate: 0.0658786518 1.8170238 2.0805384
-	// Arc  4918(steps   1). Coordinate: 0.0660607543 1.8172518 2.0814948
-	// Arc  4919(steps   1). Coordinate: 0.0662428638 1.8174798 2.0824513
-	// Arc  4920(steps   1). Coordinate: 0.0664249802 1.8177079 2.0834078
-	// Arc  4921(steps   1). Coordinate: 0.0666071036 1.8179358 2.0843643
-	// Arc  4922(steps   1). Coordinate: 0.0667892340 1.8181638 2.0853207
-	// Arc  4923(steps   1). Coordinate: 0.0669713714 1.8183917 2.0862772
-	// Arc  4924(steps   1). Coordinate: 0.0671535157 1.8186197 2.0872337
-	// Arc  4925(steps   1). Coordinate: 0.0673356670 1.8188475 2.0881902
-	// Arc  4926(steps   1). Coordinate: 0.0675178252 1.8190754 2.0891467
-	// Arc  4927(steps   1). Coordinate: 0.0676999903 1.8193033 2.0901032
-	// Arc  4928(steps   1). Coordinate: 0.0678821624 1.8195311 2.0910597
-	// Arc  4929(steps   1). Coordinate: 0.0680643414 1.8197589 2.0920162
-	// Arc  4930(steps   1). Coordinate: 0.0682465273 1.8199867 2.0929728
-	// Arc  4931(steps   1). Coordinate: 0.0684287201 1.8202144 2.0939293
-	// Arc  4932(steps   1). Coordinate: 0.0686109199 1.8204421 2.0948858
-	// Arc  4933(steps   1). Coordinate: 0.0687931265 1.8206698 2.0958423
-	// Arc  4934(steps   1). Coordinate: 0.0689753400 1.8208975 2.0967989
-	// Arc  4935(steps   1). Coordinate: 0.0691575603 1.8211252 2.0977554
-	// Arc  4936(steps   1). Coordinate: 0.0693397876 1.8213528 2.0987120
-	// Arc  4937(steps   1). Coordinate: 0.0695220217 1.8215804 2.0996685
-	// Arc  4938(steps   1). Coordinate: 0.0697042627 1.8218080 2.1006251
-	// Arc  4939(steps   1). Coordinate: 0.0698865105 1.8220356 2.1015816
-	// Arc  4940(steps   1). Coordinate: 0.0700687652 1.8222631 2.1025382
-	// Arc  4941(steps   1). Coordinate: 0.0702510267 1.8224906 2.1034947
-	// Arc  4942(steps   1). Coordinate: 0.0704332950 1.8227181 2.1044513
-	// Arc  4943(steps   1). Coordinate: 0.0706155702 1.8229456 2.1054079
-	// Arc  4944(steps   1). Coordinate: 0.0707978521 1.8231731 2.1063645
-	// Arc  4945(steps   1). Coordinate: 0.0709801409 1.8234005 2.1073210
-	// Arc  4946(steps   1). Coordinate: 0.0711624365 1.8236279 2.1082776
-	// Arc  4947(steps   1). Coordinate: 0.0713447389 1.8238553 2.1092342
-	// Arc  4948(steps   1). Coordinate: 0.0715270481 1.8240826 2.1101908
-	// Arc  4949(steps   1). Coordinate: 0.0717093640 1.8243100 2.1111474
-	// Arc  4950(steps   1). Coordinate: 0.0718916868 1.8245373 2.1121040
-	// Arc  4951(steps   1). Coordinate: 0.0720740162 1.8247646 2.1130606
-	// Arc  4952(steps   1). Coordinate: 0.0722563525 1.8249918 2.1140172
-	// Arc  4953(steps   1). Coordinate: 0.0724386955 1.8252191 2.1149738
-	// Arc  4954(steps   1). Coordinate: 0.0726210453 1.8254463 2.1159305
-	// Arc  4955(steps   1). Coordinate: 0.0728034018 1.8256735 2.1168871
-	// Arc  4956(steps   1). Coordinate: 0.0729857650 1.8259007 2.1178437
-	// Arc  4957(steps   1). Coordinate: 0.0731681350 1.8261278 2.1188003
-	// Arc  4958(steps   1). Coordinate: 0.0733505117 1.8263549 2.1197570
-	// Arc  4959(steps   1). Coordinate: 0.0735328951 1.8265820 2.1207136
-	// Arc  4960(steps   1). Coordinate: 0.0737152852 1.8268091 2.1216703
-	// Arc  4961(steps   1). Coordinate: 0.0738976820 1.8270362 2.1226269
-	// Arc  4962(steps   1). Coordinate: 0.0740800855 1.8272632 2.1235836
-	// Arc  4963(steps   1). Coordinate: 0.0742624956 1.8274902 2.1245402
-	// Arc  4964(steps   1). Coordinate: 0.0744449125 1.8277172 2.1254969
-	// Arc  4965(steps   1). Coordinate: 0.0746273361 1.8279442 2.1264535
-	// Arc  4966(steps   1). Coordinate: 0.0748097663 1.8281711 2.1274102
-	// Arc  4967(steps   1). Coordinate: 0.0749922031 1.8283981 2.1283669
-	// Arc  4968(steps   1). Coordinate: 0.0751746466 1.8286250 2.1293236
-	// Arc  4969(steps   1). Coordinate: 0.0753570968 1.8288519 2.1302802
-	// Arc  4970(steps   1). Coordinate: 0.0755395536 1.8290787 2.1312369
-	// Arc  4971(steps   1). Coordinate: 0.0757220170 1.8293055 2.1321936
-	// Arc  4972(steps   1). Coordinate: 0.0759044871 1.8295324 2.1331503
-	// Arc  4973(steps   1). Coordinate: 0.0760869638 1.8297592 2.1341070
-	// Arc  4974(steps   1). Coordinate: 0.0762694471 1.8299859 2.1350637
-	// Arc  4975(steps   1). Coordinate: 0.0764519370 1.8302127 2.1360204
-	// Arc  4976(steps   1). Coordinate: 0.0766344335 1.8304394 2.1369771
-	// Arc  4977(steps   1). Coordinate: 0.0768169366 1.8306661 2.1379338
-	// Arc  4978(steps   1). Coordinate: 0.0769994462 1.8308928 2.1388906
-	// Arc  4979(steps   1). Coordinate: 0.0771819625 1.8311194 2.1398473
-	// Arc  4980(steps   1). Coordinate: 0.0773644853 1.8313461 2.1408040
-	// Arc  4981(steps   1). Coordinate: 0.0775470147 1.8315727 2.1417607
-	// Arc  4982(steps   1). Coordinate: 0.0777295507 1.8317993 2.1427175
-	// Arc  4983(steps   1). Coordinate: 0.0779120932 1.8320258 2.1436742
-	// Arc  4984(steps   1). Coordinate: 0.0780946423 1.8322524 2.1446309
-	// Arc  4985(steps   1). Coordinate: 0.0782771979 1.8324789 2.1455877
-	// Arc  4986(steps   1). Coordinate: 0.0784597600 1.8327054 2.1465444
-	// Arc  4987(steps   1). Coordinate: 0.0786423287 1.8329319 2.1475012
-	// Arc  4988(steps   1). Coordinate: 0.0788249039 1.8331583 2.1484579
-	// Arc  4989(steps   1). Coordinate: 0.0790074856 1.8333848 2.1494147
-	// Arc  4990(steps   1). Coordinate: 0.0791900738 1.8336112 2.1503715
-	// Arc  4991(steps   1). Coordinate: 0.0793726685 1.8338376 2.1513282
-	// Arc  4992(steps   1). Coordinate: 0.0795552697 1.8340639 2.1522850
-	// Arc  4993(steps   1). Coordinate: 0.0797378774 1.8342903 2.1532418
-	// Arc  4994(steps   1). Coordinate: 0.0799204915 1.8345166 2.1541986
-	// Arc  4995(steps   1). Coordinate: 0.0801031122 1.8347429 2.1551554
-	// Arc  4996(steps   1). Coordinate: 0.0802857393 1.8349692 2.1561121
-	// Arc  4997(steps   1). Coordinate: 0.0804683729 1.8351954 2.1570689
-	// Arc  4998(steps   1). Coordinate: 0.0806510129 1.8354217 2.1580257
-	// Arc  4999(steps   1). Coordinate: 0.0808336594 1.8356479 2.1589825
-	// Arc  5000(steps   1). Coordinate: 0.0810163124 1.8358741 2.1599393
-	// Arc  5001(steps   1). Coordinate: 0.0811989717 1.8361003 2.1608961
-	// Arc  5002(steps   1). Coordinate: 0.0813816375 1.8363264 2.1618530
-	// Arc  5003(steps   1). Coordinate: 0.0815643098 1.8365525 2.1628098
-	// Arc  5004(steps   1). Coordinate: 0.0817469884 1.8367786 2.1637666
-	// Arc  5005(steps   1). Coordinate: 0.0819296735 1.8370047 2.1647234
-	// Arc  5006(steps   1). Coordinate: 0.0821123649 1.8372308 2.1656802
-	// Arc  5007(steps   1). Coordinate: 0.0822950628 1.8374568 2.1666371
-	// Arc  5008(steps   1). Coordinate: 0.0824777670 1.8376828 2.1675939
-	// Arc  5009(steps   1). Coordinate: 0.0826604777 1.8379088 2.1685507
-	// Arc  5010(steps   1). Coordinate: 0.0828431947 1.8381348 2.1695076
-	// Arc  5011(steps   1). Coordinate: 0.0830259181 1.8383608 2.1704644
-	// Arc  5012(steps   1). Coordinate: 0.0832086478 1.8385867 2.1714213
-	// Arc  5013(steps   1). Coordinate: 0.0833913840 1.8388126 2.1723781
-	// Arc  5014(steps   1). Coordinate: 0.0835741264 1.8390385 2.1733350
-	// Arc  5015(steps   1). Coordinate: 0.0837568753 1.8392644 2.1742919
-	// Arc  5016(steps   1). Coordinate: 0.0839396304 1.8394902 2.1752487
-	// Arc  5017(steps   1). Coordinate: 0.0841223919 1.8397160 2.1762056
-	// Arc  5018(steps   1). Coordinate: 0.0843051598 1.8399418 2.1771625
-	// Arc  5019(steps   1). Coordinate: 0.0844879339 1.8401676 2.1781194
-	// Arc  5020(steps   1). Coordinate: 0.0846707144 1.8403934 2.1790762
-	// Arc  5021(steps   1). Coordinate: 0.0848535012 1.8406191 2.1800331
-	// Arc  5022(steps   1). Coordinate: 0.0850362943 1.8408448 2.1809900
-	// Arc  5023(steps   1). Coordinate: 0.0852190936 1.8410705 2.1819469
-	// Arc  5024(steps   1). Coordinate: 0.0854018993 1.8412962 2.1829038
-	// Arc  5025(steps   1). Coordinate: 0.0855847113 1.8415219 2.1838607
-	// Arc  5026(steps   1). Coordinate: 0.0857675295 1.8417475 2.1848176
-	// Arc  5027(steps   1). Coordinate: 0.0859503541 1.8419731 2.1857745
-	// Arc  5028(steps   1). Coordinate: 0.0861331849 1.8421987 2.1867314
-	// Arc  5029(steps   1). Coordinate: 0.0863160219 1.8424243 2.1876884
-	// Arc  5030(steps   1). Coordinate: 0.0864988652 1.8426498 2.1886453
-	// Arc  5031(steps   1). Coordinate: 0.0866817148 1.8428753 2.1896022
-	// Arc  5032(steps   1). Coordinate: 0.0868645706 1.8431008 2.1905591
-	// Arc  5033(steps   1). Coordinate: 0.0870474326 1.8433263 2.1915161
-	// Arc  5034(steps   1). Coordinate: 0.0872303009 1.8435518 2.1924730
-	// Arc  5035(steps   1). Coordinate: 0.0874131754 1.8437772 2.1934299
-	// Arc  5036(steps   1). Coordinate: 0.0875960561 1.8440027 2.1943869
-	// Arc  5037(steps   1). Coordinate: 0.0877789430 1.8442281 2.1953438
-	// Arc  5038(steps   1). Coordinate: 0.0879618361 1.8444534 2.1963008
-	// Arc  5039(steps   1). Coordinate: 0.0881447355 1.8446788 2.1972577
-	// Arc  5040(steps   1). Coordinate: 0.0883276410 1.8449041 2.1982147
-	// Arc  5041(steps   1). Coordinate: 0.0885105527 1.8451294 2.1991716
-	// Arc  5042(steps   1). Coordinate: 0.0886934706 1.8453547 2.2001286
-	// Arc  5043(steps   1). Coordinate: 0.0888763947 1.8455800 2.2010856
-	// Arc  5044(steps   1). Coordinate: 0.0890593249 1.8458053 2.2020426
-	// Arc  5045(steps   1). Coordinate: 0.0892422614 1.8460305 2.2029995
-	// Arc  5046(steps   1). Coordinate: 0.0894252039 1.8462557 2.2039565
-	// Arc  5047(steps   1). Coordinate: 0.0896081526 1.8464809 2.2049135
-	// Arc  5048(steps   1). Coordinate: 0.0897911075 1.8467061 2.2058705
-	// Arc  5049(steps   1). Coordinate: 0.0899740685 1.8469312 2.2068275
-	// Arc  5050(steps   1). Coordinate: 0.0901570357 1.8471563 2.2077845
-	// Arc  5051(steps   1). Coordinate: 0.0903400089 1.8473814 2.2087415
-	// Arc  5052(steps   1). Coordinate: 0.0905229883 1.8476065 2.2096985
-	// Arc  5053(steps   1). Coordinate: 0.0907059738 1.8478316 2.2106555
-	// Arc  5054(steps   1). Coordinate: 0.0908889655 1.8480566 2.2116125
-	// Arc  5055(steps   1). Coordinate: 0.0910719632 1.8482817 2.2125695
-	// Arc  5056(steps   1). Coordinate: 0.0912549670 1.8485067 2.2135265
-	// Arc  5057(steps   1). Coordinate: 0.0914379769 1.8487316 2.2144836
-	// Arc  5058(steps   1). Coordinate: 0.0916209929 1.8489566 2.2154406
-	// Arc  5059(steps   1). Coordinate: 0.0918040150 1.8491815 2.2163976
-	// Arc  5060(steps   1). Coordinate: 0.0919870432 1.8494065 2.2173546
-	// Arc  5061(steps   1). Coordinate: 0.0921700774 1.8496314 2.2183117
-	// Arc  5062(steps   1). Coordinate: 0.0923531177 1.8498562 2.2192687
-	// Arc  5063(steps   1). Coordinate: 0.0925361641 1.8500811 2.2202258
-	// Arc  5064(steps   1). Coordinate: 0.0927192165 1.8503059 2.2211828
-	// Arc  5065(steps   1). Coordinate: 0.0929022749 1.8505308 2.2221399
-	// Arc  5066(steps   1). Coordinate: 0.0930853394 1.8507556 2.2230969
-	// Arc  5067(steps   1). Coordinate: 0.0932684099 1.8509803 2.2240540
-	// Arc  5068(steps   1). Coordinate: 0.0934514865 1.8512051 2.2250110
-	// Arc  5069(steps   1). Coordinate: 0.0936345691 1.8514298 2.2259681
-	// Arc  5070(steps   1). Coordinate: 0.0938176577 1.8516545 2.2269252
-	// Arc  5071(steps   1). Coordinate: 0.0940007523 1.8518792 2.2278822
-	// Arc  5072(steps   1). Coordinate: 0.0941838529 1.8521039 2.2288393
-	// Arc  5073(steps   1). Coordinate: 0.0943669595 1.8523286 2.2297964
-	// Arc  5074(steps   1). Coordinate: 0.0945500721 1.8525532 2.2307535
-	// Arc  5075(steps   1). Coordinate: 0.0947331907 1.8527778 2.2317106
-	// Arc  5076(steps   1). Coordinate: 0.0949163152 1.8530024 2.2326677
-	// Arc  5077(steps   1). Coordinate: 0.0950994458 1.8532270 2.2336248
-	// Arc  5078(steps   1). Coordinate: 0.0952825823 1.8534515 2.2345819
-	// Arc  5079(steps   1). Coordinate: 0.0954657248 1.8536761 2.2355390
-	// Arc  5080(steps   1). Coordinate: 0.0956488732 1.8539006 2.2364961
-	// Arc  5081(steps   1). Coordinate: 0.0958320276 1.8541251 2.2374532
-	// Arc  5082(steps   1). Coordinate: 0.0960151880 1.8543495 2.2384103
-	// Arc  5083(steps   1). Coordinate: 0.0961983543 1.8545740 2.2393674
-	// Arc  5084(steps   1). Coordinate: 0.0963815265 1.8547984 2.2403245
-	// Arc  5085(steps   1). Coordinate: 0.0965647046 1.8550228 2.2412816
-	// Arc  5086(steps   1). Coordinate: 0.0967478887 1.8552472 2.2422388
-	// Arc  5087(steps   1). Coordinate: 0.0969310787 1.8554716 2.2431959
-	// Arc  5088(steps   1). Coordinate: 0.0971142746 1.8556959 2.2441530
-	// Arc  5089(steps   1). Coordinate: 0.0972974764 1.8559203 2.2451102
-	// Arc  5090(steps   1). Coordinate: 0.0974806841 1.8561446 2.2460673
-	// Arc  5091(steps   1). Coordinate: 0.0976638978 1.8563689 2.2470245
-	// Arc  5092(steps   1). Coordinate: 0.0978471173 1.8565931 2.2479816
-	// Arc  5093(steps   1). Coordinate: 0.0980303427 1.8568174 2.2489388
-	// Arc  5094(steps   1). Coordinate: 0.0982135739 1.8570416 2.2498959
-	// Arc  5095(steps   1). Coordinate: 0.0983968111 1.8572658 2.2508531
-	// Arc  5096(steps   1). Coordinate: 0.0985800541 1.8574900 2.2518102
-	// Arc  5097(steps   1). Coordinate: 0.0987633030 1.8577142 2.2527674
-	// Arc  5098(steps   1). Coordinate: 0.0989465577 1.8579383 2.2537246
-	// Arc  5099(steps   1). Coordinate: 0.0991298183 1.8581625 2.2546817
-	// Arc  5100(steps   1). Coordinate: 0.0993130847 1.8583866 2.2556389
-	// Arc  5101(steps   1). Coordinate: 0.0994963570 1.8586107 2.2565961
-	// Arc  5102(steps   1). Coordinate: 0.0996796351 1.8588347 2.2575533
-	// Arc  5103(steps   1). Coordinate: 0.0998629190 1.8590588 2.2585105
-	// Arc  5104(steps   1). Coordinate: 0.1000462088 1.8592828 2.2594677
-	// Arc  5105(steps   1). Coordinate: 0.1002295044 1.8595068 2.2604249
-	// Arc  5106(steps   1). Coordinate: 0.1004128058 1.8597308 2.2613821
-	// Arc  5107(steps   1). Coordinate: 0.1005961130 1.8599548 2.2623393
-	// Arc  5108(steps   1). Coordinate: 0.1007794260 1.8601788 2.2632965
-	// Arc  5109(steps   1). Coordinate: 0.1009627447 1.8604027 2.2642537
-	// Arc  5110(steps   1). Coordinate: 0.1011460693 1.8606266 2.2652109
-	// Arc  5111(steps   1). Coordinate: 0.1013293997 1.8608505 2.2661681
-	// Arc  5112(steps   1). Coordinate: 0.1015127359 1.8610744 2.2671253
-	// Arc  5113(steps   1). Coordinate: 0.1016960778 1.8612982 2.2680825
-	// Arc  5114(steps   1). Coordinate: 0.1018794255 1.8615221 2.2690398
-	// Arc  5115(steps   1). Coordinate: 0.1020627789 1.8617459 2.2699970
-	// Arc  5116(steps   1). Coordinate: 0.1022461381 1.8619697 2.2709542
-	// Arc  5117(steps   1). Coordinate: 0.1024295031 1.8621935 2.2719115
-	// Arc  5118(steps   1). Coordinate: 0.1026128738 1.8624172 2.2728687
-	// Arc  5119(steps   1). Coordinate: 0.1027962503 1.8626409 2.2738259
-	// Arc  5120(steps   1). Coordinate: 0.1029796325 1.8628647 2.2747832
-	// Arc  5121(steps   1). Coordinate: 0.1031630204 1.8630884 2.2757404
-	// Arc  5122(steps   1). Coordinate: 0.1033464140 1.8633120 2.2766977
-	// Arc  5123(steps   1). Coordinate: 0.1035298134 1.8635357 2.2776550
-	// Arc  5124(steps   1). Coordinate: 0.1037132185 1.8637593 2.2786122
-	// Arc  5125(steps   1). Coordinate: 0.1038966292 1.8639830 2.2795695
-	// Arc  5126(steps   1). Coordinate: 0.1040800457 1.8642066 2.2805267
-	// Arc  5127(steps   1). Coordinate: 0.1042634679 1.8644301 2.2814840
-	// Arc  5128(steps   1). Coordinate: 0.1044468958 1.8646537 2.2824413
-	// Arc  5129(steps   1). Coordinate: 0.1046303294 1.8648773 2.2833986
-	// Arc  5130(steps   1). Coordinate: 0.1048137686 1.8651008 2.2843559
-	// Arc  5131(steps   1). Coordinate: 0.1049972136 1.8653243 2.2853131
-	// Arc  5132(steps   1). Coordinate: 0.1051806642 1.8655478 2.2862704
-	// Arc  5133(steps   1). Coordinate: 0.1053641204 1.8657712 2.2872277
-	// Arc  5134(steps   1). Coordinate: 0.1055475823 1.8659947 2.2881850
-	// Arc  5135(steps   1). Coordinate: 0.1057310499 1.8662181 2.2891423
-	// Arc  5136(steps   1). Coordinate: 0.1059145232 1.8664415 2.2900996
-	// Arc  5137(steps   1). Coordinate: 0.1060980020 1.8666649 2.2910569
-	// Arc  5138(steps   1). Coordinate: 0.1062814865 1.8668883 2.2920142
-	// Arc  5139(steps   1). Coordinate: 0.1064649767 1.8671116 2.2929715
-	// Arc  5140(steps   1). Coordinate: 0.1066484725 1.8673350 2.2939289
-	// Arc  5141(steps   1). Coordinate: 0.1068319739 1.8675583 2.2948862
-	// Arc  5142(steps   1). Coordinate: 0.1070154809 1.8677816 2.2958435
-	// Arc  5143(steps   1). Coordinate: 0.1071989935 1.8680048 2.2968008
-	// Arc  5144(steps   1). Coordinate: 0.1073825117 1.8682281 2.2977581
-	// Arc  5145(steps   1). Coordinate: 0.1075660356 1.8684513 2.2987155
-	// Arc  5146(steps   1). Coordinate: 0.1077495650 1.8686746 2.2996728
-	// Arc  5147(steps   1). Coordinate: 0.1079331001 1.8688977 2.3006301
-	// Arc  5148(steps   1). Coordinate: 0.1081166407 1.8691209 2.3015875
-	// Arc  5149(steps   1). Coordinate: 0.1083001869 1.8693441 2.3025448
-	// Arc  5150(steps   1). Coordinate: 0.1084837386 1.8695672 2.3035022
-	// Arc  5151(steps   1). Coordinate: 0.1086672960 1.8697904 2.3044595
-	// Arc  5152(steps   1). Coordinate: 0.1088508589 1.8700135 2.3054169
-	// Arc  5153(steps   1). Coordinate: 0.1090344274 1.8702365 2.3063743
-	// Arc  5154(steps   1). Coordinate: 0.1092180014 1.8704596 2.3073316
-	// Arc  5155(steps   1). Coordinate: 0.1094015810 1.8706827 2.3082890
-	// Arc  5156(steps   1). Coordinate: 0.1095851661 1.8709057 2.3092463
-	// Arc  5157(steps   1). Coordinate: 0.1097687567 1.8711287 2.3102037
-	// Arc  5158(steps   1). Coordinate: 0.1099523529 1.8713517 2.3111611
-	// Arc  5159(steps   1). Coordinate: 0.1101359547 1.8715747 2.3121185
-	// Arc  5160(steps   1). Coordinate: 0.1103195619 1.8717976 2.3130759
-	// Arc  5161(steps   1). Coordinate: 0.1105031747 1.8720205 2.3140332
-	// Arc  5162(steps   1). Coordinate: 0.1106867929 1.8722435 2.3149906
-	// Arc  5163(steps   1). Coordinate: 0.1108704167 1.8724664 2.3159480
-	// Arc  5164(steps   1). Coordinate: 0.1110540460 1.8726892 2.3169054
-	// Arc  5165(steps   1). Coordinate: 0.1112376808 1.8729121 2.3178628
-	// Arc  5166(steps   1). Coordinate: 0.1114213211 1.8731349 2.3188202
-	// Arc  5167(steps   1). Coordinate: 0.1116049669 1.8733578 2.3197776
-	// Arc  5168(steps   1). Coordinate: 0.1117886181 1.8735806 2.3207350
-	// Arc  5169(steps   1). Coordinate: 0.1119722749 1.8738033 2.3216924
-	// Arc  5170(steps   1). Coordinate: 0.1121559371 1.8740261 2.3226499
-	// Arc  5171(steps   1). Coordinate: 0.1123396047 1.8742489 2.3236073
-	// Arc  5172(steps   1). Coordinate: 0.1125232779 1.8744716 2.3245647
-	// Arc  5173(steps   1). Coordinate: 0.1127069565 1.8746943 2.3255221
-	// Arc  5174(steps   1). Coordinate: 0.1128906405 1.8749170 2.3264796
-	// Arc  5175(steps   1). Coordinate: 0.1130743300 1.8751397 2.3274370
-	// Arc  5176(steps   1). Coordinate: 0.1132580250 1.8753623 2.3283944
-	// Arc  5177(steps   1). Coordinate: 0.1134417253 1.8755850 2.3293519
-	// Arc  5178(steps   1). Coordinate: 0.1136254311 1.8758076 2.3303093
-	// Arc  5179(steps   1). Coordinate: 0.1138091424 1.8760302 2.3312667
-	// Arc  5180(steps   1). Coordinate: 0.1139928590 1.8762528 2.3322242
-	// Arc  5181(steps   1). Coordinate: 0.1141765811 1.8764753 2.3331816
-	// Arc  5182(steps   1). Coordinate: 0.1143603086 1.8766979 2.3341391
-	// Arc  5183(steps   1). Coordinate: 0.1145440415 1.8769204 2.3350966
-	// Arc  5184(steps   1). Coordinate: 0.1147277798 1.8771429 2.3360540
-	// Arc  5185(steps   1). Coordinate: 0.1149115235 1.8773654 2.3370115
-	// Arc  5186(steps   1). Coordinate: 0.1150952726 1.8775879 2.3379689
-	// Arc  5187(steps   1). Coordinate: 0.1152790271 1.8778103 2.3389264
-	// Arc  5188(steps   1). Coordinate: 0.1154627869 1.8780327 2.3398839
-	// Arc  5189(steps   1). Coordinate: 0.1156465522 1.8782552 2.3408414
-	// Arc  5190(steps   1). Coordinate: 0.1158303228 1.8784776 2.3417988
-	// Arc  5191(steps   1). Coordinate: 0.1160140987 1.8786999 2.3427563
-	// Arc  5192(steps   1). Coordinate: 0.1161978801 1.8789223 2.3437138
-	// Arc  5193(steps   1). Coordinate: 0.1163816668 1.8791446 2.3446713
-	// Arc  5194(steps   1). Coordinate: 0.1165654588 1.8793670 2.3456288
-	// Arc  5195(steps   1). Coordinate: 0.1167492562 1.8795893 2.3465863
-	// Arc  5196(steps   1). Coordinate: 0.1169330590 1.8798116 2.3475438
-	// Arc  5197(steps   1). Coordinate: 0.1171168670 1.8800338 2.3485013
-	// Arc  5198(steps   1). Coordinate: 0.1173006804 1.8802561 2.3494588
-	// Arc  5199(steps   1). Coordinate: 0.1174844992 1.8804783 2.3504163
-	// Arc  5200(steps   1). Coordinate: 0.1176683232 1.8807005 2.3513738
-	// Arc  5201(steps   1). Coordinate: 0.1178521526 1.8809227 2.3523313
-	// Arc  5202(steps   1). Coordinate: 0.1180359873 1.8811449 2.3532888
-	// Arc  5203(steps   1). Coordinate: 0.1182198273 1.8813671 2.3542464
-	// Arc  5204(steps   1). Coordinate: 0.1184036726 1.8815892 2.3552039
-	// Arc  5205(steps   1). Coordinate: 0.1185875232 1.8818113 2.3561614
-	// Arc  5206(steps   1). Coordinate: 0.1187713791 1.8820334 2.3571190
-	// Arc  5207(steps   1). Coordinate: 0.1189552403 1.8822555 2.3580765
-	// Arc  5208(steps   1). Coordinate: 0.1191391068 1.8824776 2.3590340
-	// Arc  5209(steps   1). Coordinate: 0.1193229785 1.8826997 2.3599916
-	// Arc  5210(steps   1). Coordinate: 0.1195068556 1.8829217 2.3609491
-	// Arc  5211(steps   1). Coordinate: 0.1196907379 1.8831437 2.3619067
-	// Arc  5212(steps   1). Coordinate: 0.1198746254 1.8833657 2.3628642
-	// Arc  5213(steps   1). Coordinate: 0.1200585183 1.8835877 2.3638218
-	// Arc  5214(steps   1). Coordinate: 0.1202424163 1.8838096 2.3647793
-	// Arc  5215(steps   1). Coordinate: 0.1204263197 1.8840316 2.3657369
-	// Arc  5216(steps   1). Coordinate: 0.1206102282 1.8842535 2.3666944
-	// Arc  5217(steps   1). Coordinate: 0.1207941420 1.8844754 2.3676520
-	// Arc  5218(steps   1). Coordinate: 0.1209780611 1.8846973 2.3686096
-	// Arc  5219(steps   1). Coordinate: 0.1211619854 1.8849192 2.3695671
-	// Arc  5220(steps   1). Coordinate: 0.1213459149 1.8851411 2.3705247
-	// Arc  5221(steps   1). Coordinate: 0.1215298496 1.8853629 2.3714823
-	// Arc  5222(steps   1). Coordinate: 0.1217137896 1.8855847 2.3724399
-	// Arc  5223(steps   1). Coordinate: 0.1218977347 1.8858065 2.3733975
-	// Arc  5224(steps   1). Coordinate: 0.1220816851 1.8860283 2.3743550
-	// Arc  5225(steps   1). Coordinate: 0.1222656407 1.8862501 2.3753126
-	// Arc  5226(steps   1). Coordinate: 0.1224496014 1.8864718 2.3762702
-	// Arc  5227(steps   1). Coordinate: 0.1226335674 1.8866936 2.3772278
-	// Arc  5228(steps   1). Coordinate: 0.1228175385 1.8869153 2.3781854
-	// Arc  5229(steps   1). Coordinate: 0.1230015149 1.8871370 2.3791430
-	// Arc  5230(steps   1). Coordinate: 0.1231854964 1.8873586 2.3801006
-	// Arc  5231(steps   1). Coordinate: 0.1233694831 1.8875803 2.3810582
-	// Arc  5232(steps   1). Coordinate: 0.1235534749 1.8878020 2.3820159
-	// Arc  5233(steps   1). Coordinate: 0.1237374720 1.8880236 2.3829735
-	// Arc  5234(steps   1). Coordinate: 0.1239214742 1.8882452 2.3839311
-	// Arc  5235(steps   1). Coordinate: 0.1241054815 1.8884668 2.3848887
-	// Arc  5236(steps   1). Coordinate: 0.1242894940 1.8886884 2.3858463
-	// Arc  5237(steps   1). Coordinate: 0.1244735116 1.8889099 2.3868040
-	// Arc  5238(steps   1). Coordinate: 0.1246575344 1.8891315 2.3877616
-	// Arc  5239(steps   1). Coordinate: 0.1248415623 1.8893530 2.3887192
-	// Arc  5240(steps   1). Coordinate: 0.1250255954 1.8895745 2.3896769
-	// Arc  5241(steps   1). Coordinate: 0.1252096335 1.8897960 2.3906345
-	// Arc  5242(steps   1). Coordinate: 0.1253936768 1.8900174 2.3915921
-	// Arc  5243(steps   1). Coordinate: 0.1255777253 1.8902389 2.3925498
-	// Arc  5244(steps   1). Coordinate: 0.1257617788 1.8904603 2.3935074
-	// Arc  5245(steps   1). Coordinate: 0.1259458374 1.8906817 2.3944651
-	// Arc  5246(steps   1). Coordinate: 0.1261299012 1.8909031 2.3954227
-	// Arc  5247(steps   1). Coordinate: 0.1263139700 1.8911245 2.3963804
-	// Arc  5248(steps   1). Coordinate: 0.1264980440 1.8913459 2.3973381
-	// Arc  5249(steps   1). Coordinate: 0.1266821230 1.8915672 2.3982957
-	// Arc  5250(steps   1). Coordinate: 0.1268662071 1.8917886 2.3992534
-	// Arc  5251(steps   1). Coordinate: 0.1270502963 1.8920099 2.4002111
-	// Arc  5252(steps   1). Coordinate: 0.1272343906 1.8922312 2.4011687
-	// Arc  5253(steps   1). Coordinate: 0.1274184900 1.8924525 2.4021264
-	// Arc  5254(steps   1). Coordinate: 0.1276025944 1.8926737 2.4030841
-	// Arc  5255(steps   1). Coordinate: 0.1277867039 1.8928950 2.4040418
-	// Arc  5256(steps   1). Coordinate: 0.1279708184 1.8931162 2.4049995
-	// Arc  5257(steps   1). Coordinate: 0.1281549380 1.8933374 2.4059571
-	// Arc  5258(steps   1). Coordinate: 0.1283390626 1.8935586 2.4069148
-	// Arc  5259(steps   1). Coordinate: 0.1285231923 1.8937798 2.4078725
-	// Arc  5260(steps   1). Coordinate: 0.1287073271 1.8940009 2.4088302
-	// Arc  5261(steps   1). Coordinate: 0.1288914668 1.8942221 2.4097879
-	// Arc  5262(steps   1). Coordinate: 0.1290756116 1.8944432 2.4107456
-	// Arc  5263(steps   1). Coordinate: 0.1292597614 1.8946643 2.4117033
-	// Arc  5264(steps   1). Coordinate: 0.1294439163 1.8948854 2.4126610
-	// Arc  5265(steps   1). Coordinate: 0.1296280762 1.8951065 2.4136188
-	// Arc  5266(steps   1). Coordinate: 0.1298122410 1.8953275 2.4145765
-	// Arc  5267(steps   1). Coordinate: 0.1299964109 1.8955485 2.4155342
-	// Arc  5268(steps   1). Coordinate: 0.1301805858 1.8957696 2.4164919
-	// Arc  5269(steps   1). Coordinate: 0.1303647657 1.8959906 2.4174496
-	// Arc  5270(steps   1). Coordinate: 0.1305489506 1.8962116 2.4184074
-	// Arc  5271(steps   1). Coordinate: 0.1307331405 1.8964325 2.4193651
-	// Arc  5272(steps   1). Coordinate: 0.1309173353 1.8966535 2.4203228
-	// Arc  5273(steps   1). Coordinate: 0.1311015352 1.8968744 2.4212806
-	// Arc  5274(steps   1). Coordinate: 0.1312857400 1.8970953 2.4222383
-	// Arc  5275(steps   1). Coordinate: 0.1314699498 1.8973162 2.4231960
-	// Arc  5276(steps   1). Coordinate: 0.1316541646 1.8975371 2.4241538
-	// Arc  5277(steps   1). Coordinate: 0.1318383843 1.8977580 2.4251115
-	// Arc  5278(steps   1). Coordinate: 0.1320226090 1.8979788 2.4260693
-	// Arc  5279(steps   1). Coordinate: 0.1322068386 1.8981997 2.4270270
-	// Arc  5280(steps   1). Coordinate: 0.1323910732 1.8984205 2.4279848
-	// Arc  5281(steps   1). Coordinate: 0.1325753128 1.8986413 2.4289426
-	// Arc  5282(steps   1). Coordinate: 0.1327595573 1.8988621 2.4299003
-	// Arc  5283(steps   1). Coordinate: 0.1329438067 1.8990829 2.4308581
-	// Arc  5284(steps   1). Coordinate: 0.1331280611 1.8993036 2.4318158
-	// Arc  5285(steps   1). Coordinate: 0.1333123203 1.8995243 2.4327736
-	// Arc  5286(steps   1). Coordinate: 0.1334965846 1.8997451 2.4337314
-	// Arc  5287(steps   1). Coordinate: 0.1336808537 1.8999658 2.4346892
-	// Arc  5288(steps   1). Coordinate: 0.1338651277 1.9001864 2.4356469
-	// Arc  5289(steps   1). Coordinate: 0.1340494067 1.9004071 2.4366047
-	// Arc  5290(steps   1). Coordinate: 0.1342336906 1.9006278 2.4375625
-	// Arc  5291(steps   1). Coordinate: 0.1344179793 1.9008484 2.4385203
-	// Arc  5292(steps   1). Coordinate: 0.1346022730 1.9010690 2.4394781
-	// Arc  5293(steps   1). Coordinate: 0.1347865716 1.9012896 2.4404359
-	// Arc  5294(steps   1). Coordinate: 0.1349708750 1.9015102 2.4413937
-	// Arc  5295(steps   1). Coordinate: 0.1351551833 1.9017308 2.4423515
-	// Arc  5296(steps   1). Coordinate: 0.1353394966 1.9019513 2.4433093
-	// Arc  5297(steps   1). Coordinate: 0.1355238147 1.9021718 2.4442671
-	// Arc  5298(steps   1). Coordinate: 0.1357081376 1.9023924 2.4452249
-	// Arc  5299(steps   1). Coordinate: 0.1358924655 1.9026129 2.4461827
-	// Arc  5300(steps   1). Coordinate: 0.1360767982 1.9028333 2.4471405
-	// Arc  5301(steps   1). Coordinate: 0.1362611357 1.9030538 2.4480983
-	// Arc  5302(steps   1). Coordinate: 0.1364454781 1.9032743 2.4490562
-	// Arc  5303(steps   1). Coordinate: 0.1366298254 1.9034947 2.4500140
-	// Arc  5304(steps   1). Coordinate: 0.1368141775 1.9037151 2.4509718
-	// Arc  5305(steps   1). Coordinate: 0.1369985344 1.9039355 2.4519296
-	// Arc  5306(steps   1). Coordinate: 0.1371828962 1.9041559 2.4528875
-	// Arc  5307(steps   1). Coordinate: 0.1373672629 1.9043763 2.4538453
-	// Arc  5308(steps   1). Coordinate: 0.1375516343 1.9045966 2.4548032
-	// Arc  5309(steps   1). Coordinate: 0.1377360106 1.9048169 2.4557610
-	// Arc  5310(steps   1). Coordinate: 0.1379203917 1.9050373 2.4567188
-	// Arc  5311(steps   1). Coordinate: 0.1381047776 1.9052576 2.4576767
-	// Arc  5312(steps   1). Coordinate: 0.1382891683 1.9054779 2.4586345
-	// Arc  5313(steps   1). Coordinate: 0.1384735639 1.9056981 2.4595924
-	// Arc  5314(steps   1). Coordinate: 0.1386579642 1.9059184 2.4605502
-	// Arc  5315(steps   1). Coordinate: 0.1388423693 1.9061386 2.4615081
-	// Arc  5316(steps   1). Coordinate: 0.1390267793 1.9063588 2.4624660
-	// Arc  5317(steps   1). Coordinate: 0.1392111940 1.9065790 2.4634238
-	// Arc  5318(steps   1). Coordinate: 0.1393956135 1.9067992 2.4643817
-	// Arc  5319(steps   1). Coordinate: 0.1395800378 1.9070194 2.4653395
-	// Arc  5320(steps   1). Coordinate: 0.1397644669 1.9072396 2.4662974
-	// Arc  5321(steps   1). Coordinate: 0.1399489007 1.9074597 2.4672553
-	// Arc  5322(steps   1). Coordinate: 0.1401333393 1.9076798 2.4682132
-	// Arc  5323(steps   1). Coordinate: 0.1403177827 1.9078999 2.4691711
-	// Arc  5324(steps   1). Coordinate: 0.1405022308 1.9081200 2.4701289
-	// Arc  5325(steps   1). Coordinate: 0.1406866837 1.9083401 2.4710868
-	// Arc  5326(steps   1). Coordinate: 0.1408711414 1.9085601 2.4720447
-	// Arc  5327(steps   1). Coordinate: 0.1410556038 1.9087802 2.4730026
-	// Arc  5328(steps   1). Coordinate: 0.1412400710 1.9090002 2.4739605
-	// Arc  5329(steps   1). Coordinate: 0.1414245428 1.9092202 2.4749184
-	// Arc  5330(steps   1). Coordinate: 0.1416090195 1.9094402 2.4758763
-	// Arc  5331(steps   1). Coordinate: 0.1417935008 1.9096602 2.4768342
-	// Arc  5332(steps   1). Coordinate: 0.1419779869 1.9098801 2.4777921
-	// Arc  5333(steps   1). Coordinate: 0.1421624777 1.9101001 2.4787500
-	// Arc  5334(steps   1). Coordinate: 0.1423469732 1.9103200 2.4797079
-	// Arc  5335(steps   1). Coordinate: 0.1425314735 1.9105399 2.4806658
-	// Arc  5336(steps   1). Coordinate: 0.1427159784 1.9107598 2.4816237
-	// Arc  5337(steps   1). Coordinate: 0.1429004881 1.9109797 2.4825817
-	// Arc  5338(steps   1). Coordinate: 0.1430850025 1.9111996 2.4835396
-	// Arc  5339(steps   1). Coordinate: 0.1432695215 1.9114194 2.4844975
-	// Arc  5340(steps   1). Coordinate: 0.1434540453 1.9116393 2.4854554
-	// Arc  5341(steps   1). Coordinate: 0.1436385738 1.9118591 2.4864134
-	// Arc  5342(steps   1). Coordinate: 0.1438231069 1.9120789 2.4873713
-	// Arc  5343(steps   1). Coordinate: 0.1440076447 1.9122987 2.4883292
-	// Arc  5344(steps   1). Coordinate: 0.1441921872 1.9125184 2.4892872
-	// Arc  5345(steps   1). Coordinate: 0.1443767344 1.9127382 2.4902451
-	// Arc  5346(steps   1). Coordinate: 0.1445612863 1.9129579 2.4912031
-	// Arc  5347(steps   1). Coordinate: 0.1447458428 1.9131776 2.4921610
-	// Arc  5348(steps   1). Coordinate: 0.1449304039 1.9133973 2.4931190
-	// Arc  5349(steps   1). Coordinate: 0.1451149698 1.9136170 2.4940769
-	// Arc  5350(steps   1). Coordinate: 0.1452995403 1.9138367 2.4950349
-	// Arc  5351(steps   1). Coordinate: 0.1454841154 1.9140564 2.4959928
-	// Arc  5352(steps   1). Coordinate: 0.1456686952 1.9142760 2.4969508
-	// Arc  5353(steps   1). Coordinate: 0.1458532796 1.9144956 2.4979087
-	// Arc  5354(steps   1). Coordinate: 0.1460378687 1.9147152 2.4988667
-	// Arc  5355(steps   1). Coordinate: 0.1462224624 1.9149348 2.4998247
-	// Arc  5356(steps   1). Coordinate: 0.1464070607 1.9151544 2.5007826
-	// Arc  5357(steps   1). Coordinate: 0.1465916637 1.9153740 2.5017406
-	// Arc  5358(steps   1). Coordinate: 0.1467762713 1.9155935 2.5026986
-	// Arc  5359(steps   1). Coordinate: 0.1469608835 1.9158130 2.5036566
-	// Arc  5360(steps   1). Coordinate: 0.1471455003 1.9160326 2.5046146
-	// Arc  5361(steps   1). Coordinate: 0.1473301217 1.9162521 2.5055725
-	// Arc  5362(steps   1). Coordinate: 0.1475147477 1.9164715 2.5065305
-	// Arc  5363(steps   1). Coordinate: 0.1476993783 1.9166910 2.5074885
-	// Arc  5364(steps   1). Coordinate: 0.1478840136 1.9169105 2.5084465
-	// Arc  5365(steps   1). Coordinate: 0.1480686534 1.9171299 2.5094045
-	// Arc  5366(steps   1). Coordinate: 0.1482532978 1.9173493 2.5103625
-	// Arc  5367(steps   1). Coordinate: 0.1484379468 1.9175687 2.5113205
-	// Arc  5368(steps   1). Coordinate: 0.1486226004 1.9177881 2.5122785
-	// Arc  5369(steps   1). Coordinate: 0.1488072585 1.9180075 2.5132365
-	// Arc  5370(steps   1). Coordinate: 0.1489919213 1.9182268 2.5141945
-	// Arc  5371(steps   1). Coordinate: 0.1491765886 1.9184462 2.5151525
-	// Arc  5372(steps   1). Coordinate: 0.1493612604 1.9186655 2.5161106
-	// Arc  5373(steps   1). Coordinate: 0.1495459369 1.9188848 2.5170686
-	// Arc  5374(steps   1). Coordinate: 0.1497306179 1.9191041 2.5180266
-	// Arc  5375(steps   1). Coordinate: 0.1499153034 1.9193234 2.5189846
-	// Arc  5376(steps   1). Coordinate: 0.1500999935 1.9195427 2.5199426
-	// Arc  5377(steps   1). Coordinate: 0.1502846881 1.9197619 2.5209007
-	// Arc  5378(steps   1). Coordinate: 0.1504693873 1.9199812 2.5218587
-	// Arc  5379(steps   1). Coordinate: 0.1506540910 1.9202004 2.5228167
-	// Arc  5380(steps   1). Coordinate: 0.1508387993 1.9204196 2.5237748
-	// Arc  5381(steps   1). Coordinate: 0.1510235121 1.9206388 2.5247328
-	// Arc  5382(steps   1). Coordinate: 0.1512082294 1.9208579 2.5256909
-	// Arc  5383(steps   1). Coordinate: 0.1513929512 1.9210771 2.5266489
-	// Arc  5384(steps   1). Coordinate: 0.1515776776 1.9212962 2.5276069
-	// Arc  5385(steps   1). Coordinate: 0.1517624085 1.9215154 2.5285650
-	// Arc  5386(steps   1). Coordinate: 0.1519471438 1.9217345 2.5295230
-	// Arc  5387(steps   1). Coordinate: 0.1521318837 1.9219536 2.5304811
-	// Arc  5388(steps   1). Coordinate: 0.1523166281 1.9221726 2.5314392
-	// Arc  5389(steps   1). Coordinate: 0.1525013770 1.9223917 2.5323972
-	// Arc  5390(steps   1). Coordinate: 0.1526861304 1.9226108 2.5333553
-	// Arc  5391(steps   1). Coordinate: 0.1528708883 1.9228298 2.5343133
-	// Arc  5392(steps   1). Coordinate: 0.1530556506 1.9230488 2.5352714
-	// Arc  5393(steps   1). Coordinate: 0.1532404175 1.9232678 2.5362295
-	// Arc  5394(steps   1). Coordinate: 0.1534251888 1.9234868 2.5371876
-	// Arc  5395(steps   1). Coordinate: 0.1536099646 1.9237058 2.5381456
-	// Arc  5396(steps   1). Coordinate: 0.1537947449 1.9239247 2.5391037
-	// Arc  5397(steps   1). Coordinate: 0.1539795297 1.9241437 2.5400618
-	// Arc  5398(steps   1). Coordinate: 0.1541643189 1.9243626 2.5410199
-	// Arc  5399(steps   1). Coordinate: 0.1543491126 1.9245815 2.5419780
-	// Arc  5400(steps   1). Coordinate: 0.1545339107 1.9248004 2.5429360
-	// Arc  5401(steps   1). Coordinate: 0.1547187133 1.9250193 2.5438941
-	// Arc  5402(steps   1). Coordinate: 0.1549035203 1.9252382 2.5448522
-	// Arc  5403(steps   1). Coordinate: 0.1550883318 1.9254570 2.5458103
-	// Arc  5404(steps   1). Coordinate: 0.1552731477 1.9256758 2.5467684
-	// Arc  5405(steps   1). Coordinate: 0.1554579681 1.9258947 2.5477265
-	// Arc  5406(steps   1). Coordinate: 0.1556427929 1.9261135 2.5486846
-	// Arc  5407(steps   1). Coordinate: 0.1558276221 1.9263323 2.5496427
-	// Arc  5408(steps   1). Coordinate: 0.1560124558 1.9265510 2.5506009
-	// Arc  5409(steps   1). Coordinate: 0.1561972939 1.9267698 2.5515590
-	// Arc  5410(steps   1). Coordinate: 0.1563821364 1.9269885 2.5525171
-	// Arc  5411(steps   1). Coordinate: 0.1565669833 1.9272073 2.5534752
-	// Arc  5412(steps   1). Coordinate: 0.1567518346 1.9274260 2.5544333
-	// Arc  5413(steps   1). Coordinate: 0.1569366904 1.9276447 2.5553914
-	// Arc  5414(steps   1). Coordinate: 0.1571215505 1.9278634 2.5563496
-	// Arc  5415(steps   1). Coordinate: 0.1573064150 1.9280820 2.5573077
-	// Arc  5416(steps   1). Coordinate: 0.1574912840 1.9283007 2.5582658
-	// Arc  5417(steps   1). Coordinate: 0.1576761573 1.9285193 2.5592240
-	// Arc  5418(steps   1). Coordinate: 0.1578610350 1.9287379 2.5601821
-	// Arc  5419(steps   1). Coordinate: 0.1580459171 1.9289566 2.5611402
-	// Arc  5420(steps   1). Coordinate: 0.1582308036 1.9291752 2.5620984
-	// Arc  5421(steps   1). Coordinate: 0.1584156945 1.9293937 2.5630565
-	// Arc  5422(steps   1). Coordinate: 0.1586005897 1.9296123 2.5640147
-	// Arc  5423(steps   1). Coordinate: 0.1587854893 1.9298308 2.5649728
-	// Arc  5424(steps   1). Coordinate: 0.1589703933 1.9300494 2.5659310
-	// Arc  5425(steps   1). Coordinate: 0.1591553016 1.9302679 2.5668891
-	// Arc  5426(steps   1). Coordinate: 0.1593402143 1.9304864 2.5678473
-	// Arc  5427(steps   1). Coordinate: 0.1595251314 1.9307049 2.5688054
-	// Arc  5428(steps   1). Coordinate: 0.1597100528 1.9309234 2.5697636
-	// Arc  5429(steps   1). Coordinate: 0.1598949785 1.9311418 2.5707217
-	// Arc  5430(steps   1). Coordinate: 0.1600799086 1.9313603 2.5716799
-	// Arc  5431(steps   1). Coordinate: 0.1602648431 1.9315787 2.5726381
-	// Arc  5432(steps   1). Coordinate: 0.1604497819 1.9317971 2.5735963
-	// Arc  5433(steps   1). Coordinate: 0.1606347250 1.9320155 2.5745544
-	// Arc  5434(steps   1). Coordinate: 0.1608196724 1.9322339 2.5755126
-	// Arc  5435(steps   1). Coordinate: 0.1610046242 1.9324523 2.5764708
-	// Arc  5436(steps   1). Coordinate: 0.1611895803 1.9326706 2.5774290
-	// Arc  5437(steps   1). Coordinate: 0.1613745407 1.9328890 2.5783871
-	// Arc  5438(steps   1). Coordinate: 0.1615595054 1.9331073 2.5793453
-	// Arc  5439(steps   1). Coordinate: 0.1617444744 1.9333256 2.5803035
-	// Arc  5440(steps   1). Coordinate: 0.1619294478 1.9335439 2.5812617
-	// Arc  5441(steps   1). Coordinate: 0.1621144254 1.9337622 2.5822199
-	// Arc  5442(steps   1). Coordinate: 0.1622994074 1.9339805 2.5831781
-	// Arc  5443(steps   1). Coordinate: 0.1624843936 1.9341987 2.5841363
-	// Arc  5444(steps   1). Coordinate: 0.1626693842 1.9344170 2.5850945
-	// Arc  5445(steps   1). Coordinate: 0.1628543790 1.9346352 2.5860527
-	// Arc  5446(steps   1). Coordinate: 0.1630393781 1.9348534 2.5870109
-	// Arc  5447(steps   1). Coordinate: 0.1632243815 1.9350716 2.5879691
-	// Arc  5448(steps   1). Coordinate: 0.1634093892 1.9352898 2.5889273
-	// Arc  5449(steps   1). Coordinate: 0.1635944011 1.9355079 2.5898856
-	// Arc  5450(steps   1). Coordinate: 0.1637794174 1.9357261 2.5908438
-	// Arc  5451(steps   1). Coordinate: 0.1639644379 1.9359442 2.5918020
-	// Arc  5452(steps   1). Coordinate: 0.1641494626 1.9361624 2.5927602
-	// Arc  5453(steps   1). Coordinate: 0.1643344916 1.9363805 2.5937184
-	// Arc  5454(steps   1). Coordinate: 0.1645195249 1.9365986 2.5946767
-	// Arc  5455(steps   1). Coordinate: 0.1647045624 1.9368166 2.5956349
-	// Arc  5456(steps   1). Coordinate: 0.1648896042 1.9370347 2.5965931
-	// Arc  5457(steps   1). Coordinate: 0.1650746502 1.9372528 2.5975514
-	// Arc  5458(steps   1). Coordinate: 0.1652597005 1.9374708 2.5985096
-	// Arc  5459(steps   1). Coordinate: 0.1654447550 1.9376888 2.5994678
-	// Arc  5460(steps   1). Coordinate: 0.1656298138 1.9379068 2.6004261
-	// Arc  5461(steps   1). Coordinate: 0.1658148767 1.9381248 2.6013843
-	// Arc  5462(steps   1). Coordinate: 0.1659999440 1.9383428 2.6023426
-	// Arc  5463(steps   1). Coordinate: 0.1661850154 1.9385607 2.6033008
-	// Arc  5464(steps   1). Coordinate: 0.1663700910 1.9387787 2.6042591
-	// Arc  5465(steps   1). Coordinate: 0.1665551709 1.9389966 2.6052173
-	// Arc  5466(steps   1). Coordinate: 0.1667402550 1.9392145 2.6061756
-	// Arc  5467(steps   1). Coordinate: 0.1669253433 1.9394325 2.6071338
-	// Arc  5468(steps   1). Coordinate: 0.1671104358 1.9396503 2.6080921
-	// Arc  5469(steps   1). Coordinate: 0.1672955325 1.9398682 2.6090504
-	// Arc  5470(steps   1). Coordinate: 0.1674806334 1.9400861 2.6100086
-	// Arc  5471(steps   1). Coordinate: 0.1676657385 1.9403039 2.6109669
-	// Arc  5472(steps   1). Coordinate: 0.1678508478 1.9405218 2.6119252
-	// Arc  5473(steps   1). Coordinate: 0.1680359613 1.9407396 2.6128834
-	// Arc  5474(steps   1). Coordinate: 0.1682210790 1.9409574 2.6138417
-	// Arc  5475(steps   1). Coordinate: 0.1684062008 1.9411752 2.6148000
-	// Arc  5476(steps   1). Coordinate: 0.1685913269 1.9413930 2.6157583
-	// Arc  5477(steps   1). Coordinate: 0.1687764571 1.9416107 2.6167165
-	// Arc  5478(steps   1). Coordinate: 0.1689615915 1.9418285 2.6176748
-	// Arc  5479(steps   1). Coordinate: 0.1691467300 1.9420462 2.6186331
-	// Arc  5480(steps   1). Coordinate: 0.1693318727 1.9422639 2.6195914
-	// Arc  5481(steps   1). Coordinate: 0.1695170196 1.9424816 2.6205497
-	// Arc  5482(steps   1). Coordinate: 0.1697021707 1.9426993 2.6215080
-	// Arc  5483(steps   1). Coordinate: 0.1698873259 1.9429170 2.6224663
-	// Arc  5484(steps   1). Coordinate: 0.1700724852 1.9431347 2.6234246
-	// Arc  5485(steps   1). Coordinate: 0.1702576487 1.9433523 2.6243829
-	// Arc  5486(steps   1). Coordinate: 0.1704428163 1.9435699 2.6253412
-	// Arc  5487(steps   1). Coordinate: 0.1706279881 1.9437876 2.6262995
-	// Arc  5488(steps   1). Coordinate: 0.1708131640 1.9440052 2.6272578
-	// Arc  5489(steps   1). Coordinate: 0.1709983441 1.9442228 2.6282161
-	// Arc  5490(steps   1). Coordinate: 0.1711835283 1.9444403 2.6291744
-	// Arc  5491(steps   1). Coordinate: 0.1713687166 1.9446579 2.6301328
-	// Arc  5492(steps   1). Coordinate: 0.1715539090 1.9448754 2.6310911
-	// Arc  5493(steps   1). Coordinate: 0.1717391056 1.9450930 2.6320494
-	// Arc  5494(steps   1). Coordinate: 0.1719243062 1.9453105 2.6330077
-	// Arc  5495(steps   1). Coordinate: 0.1721095110 1.9455280 2.6339661
-	// Arc  5496(steps   1). Coordinate: 0.1722947199 1.9457455 2.6349244
-	// Arc  5497(steps   1). Coordinate: 0.1724799329 1.9459630 2.6358827
-	// Arc  5498(steps   1). Coordinate: 0.1726651500 1.9461805 2.6368411
-	// Arc  5499(steps   1). Coordinate: 0.1728503712 1.9463979 2.6377994
-	// Arc  5500(steps   1). Coordinate: 0.1730355965 1.9466153 2.6387577
-	// Arc  5501(steps   1). Coordinate: 0.1732208259 1.9468328 2.6397161
-	// Arc  5502(steps   1). Coordinate: 0.1734060594 1.9470502 2.6406744
-	// Arc  5503(steps   1). Coordinate: 0.1735912970 1.9472676 2.6416328
-	// Arc  5504(steps   1). Coordinate: 0.1737765386 1.9474849 2.6425911
-	// Arc  5505(steps   1). Coordinate: 0.1739617844 1.9477023 2.6435495
-	// Arc  5506(steps   1). Coordinate: 0.1741470342 1.9479197 2.6445078
-	// Arc  5507(steps   1). Coordinate: 0.1743322881 1.9481370 2.6454662
-	// Arc  5508(steps   1). Coordinate: 0.1745175460 1.9483543 2.6464245
-	// Arc  5509(steps   1). Coordinate: 0.1747028080 1.9485716 2.6473829
-	// Arc  5510(steps   1). Coordinate: 0.1748880741 1.9487889 2.6483412
-	// Arc  5511(steps   1). Coordinate: 0.1750733443 1.9490062 2.6492996
-	// Arc  5512(steps   1). Coordinate: 0.1752586185 1.9492235 2.6502580
-	// Arc  5513(steps   1). Coordinate: 0.1754438967 1.9494408 2.6512163
-	// Arc  5514(steps   1). Coordinate: 0.1756291790 1.9496580 2.6521747
-	// Arc  5515(steps   1). Coordinate: 0.1758144654 1.9498752 2.6531331
-	// Arc  5516(steps   1). Coordinate: 0.1759997558 1.9500924 2.6540915
-	// Arc  5517(steps   1). Coordinate: 0.1761850502 1.9503096 2.6550498
-	// Arc  5518(steps   1). Coordinate: 0.1763703486 1.9505268 2.6560082
-	// Arc  5519(steps   1). Coordinate: 0.1765556511 1.9507440 2.6569666
-	// Arc  5520(steps   1). Coordinate: 0.1767409577 1.9509612 2.6579250
-	// Arc  5521(steps   1). Coordinate: 0.1769262682 1.9511783 2.6588834
-	// Arc  5522(steps   1). Coordinate: 0.1771115828 1.9513954 2.6598418
-	// Arc  5523(steps   1). Coordinate: 0.1772969014 1.9516126 2.6608002
-	// Arc  5524(steps   1). Coordinate: 0.1774822240 1.9518297 2.6617586
-	// Arc  5525(steps   1). Coordinate: 0.1776675506 1.9520468 2.6627170
-	// Arc  5526(steps   1). Coordinate: 0.1778528813 1.9522638 2.6636754
-	// Arc  5527(steps   1). Coordinate: 0.1780382159 1.9524809 2.6646338
-	// Arc  5528(steps   1). Coordinate: 0.1782235545 1.9526979 2.6655922
-	// Arc  5529(steps   1). Coordinate: 0.1784088972 1.9529150 2.6665506
-	// Arc  5530(steps   1). Coordinate: 0.1785942438 1.9531320 2.6675090
-	// Arc  5531(steps   1). Coordinate: 0.1787795944 1.9533490 2.6684674
-	// Arc  5532(steps   1). Coordinate: 0.1789649491 1.9535660 2.6694258
-	// Arc  5533(steps   1). Coordinate: 0.1791503077 1.9537830 2.6703842
-	// Arc  5534(steps   1). Coordinate: 0.1793356703 1.9540000 2.6713426
-	// Arc  5535(steps   1). Coordinate: 0.1795210368 1.9542169 2.6723011
-	// Arc  5536(steps   1). Coordinate: 0.1797064074 1.9544339 2.6732595
-	// Arc  5537(steps   1). Coordinate: 0.1798917819 1.9546508 2.6742179
-	// Arc  5538(steps   1). Coordinate: 0.1800771604 1.9548677 2.6751763
-	// Arc  5539(steps   1). Coordinate: 0.1802625428 1.9550846 2.6761348
-	// Arc  5540(steps   1). Coordinate: 0.1804479293 1.9553015 2.6770932
-	// Arc  5541(steps   1). Coordinate: 0.1806333196 1.9555184 2.6780516
-	// Arc  5542(steps   1). Coordinate: 0.1808187140 1.9557352 2.6790101
-	// Arc  5543(steps   1). Coordinate: 0.1810041123 1.9559521 2.6799685
-	// Arc  5544(steps   1). Coordinate: 0.1811895145 1.9561689 2.6809269
-	// Arc  5545(steps   1). Coordinate: 0.1813749207 1.9563857 2.6818854
-	// Arc  5546(steps   1). Coordinate: 0.1815603308 1.9566025 2.6828438
-	// Arc  5547(steps   1). Coordinate: 0.1817457449 1.9568193 2.6838023
-	// Arc  5548(steps   1). Coordinate: 0.1819311629 1.9570361 2.6847607
-	// Arc  5549(steps   1). Coordinate: 0.1821165849 1.9572528 2.6857192
-	// Arc  5550(steps   1). Coordinate: 0.1823020107 1.9574696 2.6866776
-	// Arc  5551(steps   1). Coordinate: 0.1824874405 1.9576863 2.6876361
-	// Arc  5552(steps   1). Coordinate: 0.1826728743 1.9579031 2.6885946
-	// Arc  5553(steps   1). Coordinate: 0.1828583119 1.9581198 2.6895530
-	// Arc  5554(steps   1). Coordinate: 0.1830437535 1.9583365 2.6905115
-	// Arc  5555(steps   1). Coordinate: 0.1832291990 1.9585532 2.6914700
-	// Arc  5556(steps   1). Coordinate: 0.1834146484 1.9587698 2.6924284
-	// Arc  5557(steps   1). Coordinate: 0.1836001017 1.9589865 2.6933869
-	// Arc  5558(steps   1). Coordinate: 0.1837855589 1.9592031 2.6943454
-	// Arc  5559(steps   1). Coordinate: 0.1839710200 1.9594198 2.6953038
-	// Arc  5560(steps   1). Coordinate: 0.1841564850 1.9596364 2.6962623
-	// Arc  5561(steps   1). Coordinate: 0.1843419539 1.9598530 2.6972208
-	// Arc  5562(steps   1). Coordinate: 0.1845274267 1.9600696 2.6981793
-	// Arc  5563(steps   1). Coordinate: 0.1847129034 1.9602862 2.6991378
-	// Arc  5564(steps   1). Coordinate: 0.1848983840 1.9605027 2.7000963
-	// Arc  5565(steps   1). Coordinate: 0.1850838684 1.9607193 2.7010547
-	// Arc  5566(steps   1). Coordinate: 0.1852693568 1.9609358 2.7020132
-	// Arc  5567(steps   1). Coordinate: 0.1854548490 1.9611523 2.7029717
-	// Arc  5568(steps   1). Coordinate: 0.1856403451 1.9613688 2.7039302
-	// Arc  5569(steps   1). Coordinate: 0.1858258451 1.9615853 2.7048887
-	// Arc  5570(steps   1). Coordinate: 0.1860113489 1.9618018 2.7058472
-	// Arc  5571(steps   1). Coordinate: 0.1861968566 1.9620183 2.7068057
-	// Arc  5572(steps   1). Coordinate: 0.1863823681 1.9622348 2.7077642
-	// Arc  5573(steps   1). Coordinate: 0.1865678836 1.9624512 2.7087227
-	// Arc  5574(steps   1). Coordinate: 0.1867534028 1.9626676 2.7096812
-	// Arc  5575(steps   1). Coordinate: 0.1869389260 1.9628841 2.7106398
-	// Arc  5576(steps   1). Coordinate: 0.1871244529 1.9631005 2.7115983
-	// Arc  5577(steps   1). Coordinate: 0.1873099837 1.9633168 2.7125568
-	// Arc  5578(steps   1). Coordinate: 0.1874955184 1.9635332 2.7135153
-	// Arc  5579(steps   1). Coordinate: 0.1876810569 1.9637496 2.7144738
-	// Arc  5580(steps   1). Coordinate: 0.1878665992 1.9639659 2.7154323
-	// Arc  5581(steps   1). Coordinate: 0.1880521454 1.9641823 2.7163909
-	// Arc  5582(steps   1). Coordinate: 0.1882376954 1.9643986 2.7173494
-	// Arc  5583(steps   1). Coordinate: 0.1884232492 1.9646149 2.7183079
-	// Arc  5584(steps   1). Coordinate: 0.1886088069 1.9648312 2.7192665
-	// Arc  5585(steps   1). Coordinate: 0.1887943684 1.9650475 2.7202250
-	// Arc  5586(steps   1). Coordinate: 0.1889799336 1.9652638 2.7211835
-	// Arc  5587(steps   1). Coordinate: 0.1891655027 1.9654801 2.7221421
-	// Arc  5588(steps   1). Coordinate: 0.1893510757 1.9656963 2.7231006
-	// Arc  5589(steps   1). Coordinate: 0.1895366524 1.9659125 2.7240591
-	// Arc  5590(steps   1). Coordinate: 0.1897222329 1.9661288 2.7250177
-	// Arc  5591(steps   1). Coordinate: 0.1899078172 1.9663450 2.7259762
-	// Arc  5592(steps   1). Coordinate: 0.1900934054 1.9665612 2.7269348
-	// Arc  5593(steps   1). Coordinate: 0.1902789973 1.9667773 2.7278933
-	// Arc  5594(steps   1). Coordinate: 0.1904645930 1.9669935 2.7288519
-	// Arc  5595(steps   1). Coordinate: 0.1906501925 1.9672097 2.7298104
-	// Arc  5596(steps   1). Coordinate: 0.1908357958 1.9674258 2.7307690
-	// Arc  5597(steps   1). Coordinate: 0.1910214029 1.9676420 2.7317276
-	// Arc  5598(steps   1). Coordinate: 0.1912070138 1.9678581 2.7326861
-	// Arc  5599(steps   1). Coordinate: 0.1913926284 1.9680742 2.7336447
-	// Arc  5600(steps   1). Coordinate: 0.1915782468 1.9682903 2.7346033
-	// Arc  5601(steps   1). Coordinate: 0.1917638690 1.9685063 2.7355618
-	// Arc  5602(steps   1). Coordinate: 0.1919494950 1.9687224 2.7365204
-	// Arc  5603(steps   1). Coordinate: 0.1921351247 1.9689385 2.7374790
-	// Arc  5604(steps   1). Coordinate: 0.1923207582 1.9691545 2.7384375
-	// Arc  5605(steps   1). Coordinate: 0.1925063954 1.9693705 2.7393961
-	// Arc  5606(steps   1). Coordinate: 0.1926920364 1.9695866 2.7403547
-	// Arc  5607(steps   1). Coordinate: 0.1928776812 1.9698026 2.7413133
-	// Arc  5608(steps   1). Coordinate: 0.1930633297 1.9700185 2.7422719
-	// Arc  5609(steps   1). Coordinate: 0.1932489819 1.9702345 2.7432305
-	// Arc  5610(steps   1). Coordinate: 0.1934346379 1.9704505 2.7441890
-	// Arc  5611(steps   1). Coordinate: 0.1936202977 1.9706664 2.7451476
-	// Arc  5612(steps   1). Coordinate: 0.1938059611 1.9708824 2.7461062
-	// Arc  5613(steps   1). Coordinate: 0.1939916284 1.9710983 2.7470648
-	// Arc  5614(steps   1). Coordinate: 0.1941772993 1.9713142 2.7480234
-	// Arc  5615(steps   1). Coordinate: 0.1943629740 1.9715301 2.7489820
-	// Arc  5616(steps   1). Coordinate: 0.1945486524 1.9717460 2.7499406
-	// Arc  5617(steps   1). Coordinate: 0.1947343345 1.9719619 2.7508992
-	// Arc  5618(steps   1). Coordinate: 0.1949200203 1.9721777 2.7518578
-	// Arc  5619(steps   1). Coordinate: 0.1951057099 1.9723936 2.7528164
-	// Arc  5620(steps   1). Coordinate: 0.1952914032 1.9726094 2.7537750
-	// Arc  5621(steps   1). Coordinate: 0.1954771002 1.9728253 2.7547337
-	// Arc  5622(steps   1). Coordinate: 0.1956628009 1.9730411 2.7556923
-	// Arc  5623(steps   1). Coordinate: 0.1958485053 1.9732569 2.7566509
-	// Arc  5624(steps   1). Coordinate: 0.1960342134 1.9734726 2.7576095
-	// Arc  5625(steps   1). Coordinate: 0.1962199252 1.9736884 2.7585681
-	// Arc  5626(steps   1). Coordinate: 0.1964056407 1.9739042 2.7595267
-	// Arc  5627(steps   1). Coordinate: 0.1965913599 1.9741199 2.7604854
-	// Arc  5628(steps   1). Coordinate: 0.1967770828 1.9743357 2.7614440
-	// Arc  5629(steps   1). Coordinate: 0.1969628094 1.9745514 2.7624026
-	// Arc  5630(steps   1). Coordinate: 0.1971485396 1.9747671 2.7633613
-	// Arc  5631(steps   1). Coordinate: 0.1973342736 1.9749828 2.7643199
-	// Arc  5632(steps   1). Coordinate: 0.1975200112 1.9751985 2.7652785
-	// Arc  5633(steps   1). Coordinate: 0.1977057525 1.9754142 2.7662372
-	// Arc  5634(steps   1). Coordinate: 0.1978914975 1.9756298 2.7671958
-	// Arc  5635(steps   1). Coordinate: 0.1980772461 1.9758455 2.7681544
-	// Arc  5636(steps   1). Coordinate: 0.1982629984 1.9760611 2.7691131
-	// Arc  5637(steps   1). Coordinate: 0.1984487544 1.9762767 2.7700717
-	// Arc  5638(steps   1). Coordinate: 0.1986345141 1.9764923 2.7710304
-	// Arc  5639(steps   1). Coordinate: 0.1988202774 1.9767079 2.7719890
-	// Arc  5640(steps   1). Coordinate: 0.1990060443 1.9769235 2.7729477
-	// Arc  5641(steps   1). Coordinate: 0.1991918149 1.9771391 2.7739063
-	// Arc  5642(steps   1). Coordinate: 0.1993775892 1.9773546 2.7748650
-	// Arc  5643(steps   1). Coordinate: 0.1995633671 1.9775702 2.7758237
-	// Arc  5644(steps   1). Coordinate: 0.1997491486 1.9777857 2.7767823
-	// Arc  5645(steps   1). Coordinate: 0.1999349338 1.9780012 2.7777410
-	// Arc  5646(steps   1). Coordinate: 0.2001207226 1.9782168 2.7786996
-	// Arc  5647(steps   1). Coordinate: 0.2003065151 1.9784322 2.7796583
-	// Arc  5648(steps   1). Coordinate: 0.2004923112 1.9786477 2.7806170
-	// Arc  5649(steps   1). Coordinate: 0.2006781109 1.9788632 2.7815756
-	// Arc  5650(steps   1). Coordinate: 0.2008639143 1.9790787 2.7825343
-	// Arc  5651(steps   1). Coordinate: 0.2010497213 1.9792941 2.7834930
-	// Arc  5652(steps   1). Coordinate: 0.2012355319 1.9795095 2.7844517
-	// Arc  5653(steps   1). Coordinate: 0.2014213461 1.9797250 2.7854104
-	// Arc  5654(steps   1). Coordinate: 0.2016071639 1.9799404 2.7863690
-	// Arc  5655(steps   1). Coordinate: 0.2017929854 1.9801558 2.7873277
-	// Arc  5656(steps   1). Coordinate: 0.2019788104 1.9803712 2.7882864
-	// Arc  5657(steps   1). Coordinate: 0.2021646391 1.9805865 2.7892451
-	// Arc  5658(steps   1). Coordinate: 0.2023504713 1.9808019 2.7902038
-	// Arc  5659(steps   1). Coordinate: 0.2025363072 1.9810172 2.7911625
-	// Arc  5660(steps   1). Coordinate: 0.2027221467 1.9812326 2.7921212
-	// Arc  5661(steps   1). Coordinate: 0.2029079897 1.9814479 2.7930799
-	// Arc  5662(steps   1). Coordinate: 0.2030938364 1.9816632 2.7940386
-	// Arc  5663(steps   1). Coordinate: 0.2032796866 1.9818785 2.7949973
-	// Arc  5664(steps   1). Coordinate: 0.2034655405 1.9820938 2.7959560
-	// Arc  5665(steps   1). Coordinate: 0.2036513979 1.9823091 2.7969147
-	// Arc  5666(steps   1). Coordinate: 0.2038372589 1.9825243 2.7978734
-	// Arc  5667(steps   1). Coordinate: 0.2040231234 1.9827396 2.7988321
-	// Arc  5668(steps   1). Coordinate: 0.2042089916 1.9829548 2.7997908
-	// Arc  5669(steps   1). Coordinate: 0.2043948633 1.9831701 2.8007495
-	// Arc  5670(steps   1). Coordinate: 0.2045807386 1.9833853 2.8017082
-	// Arc  5671(steps   1). Coordinate: 0.2047666175 1.9836005 2.8026669
-	// Arc  5672(steps   1). Coordinate: 0.2049524999 1.9838157 2.8036257
-	// Arc  5673(steps   1). Coordinate: 0.2051383859 1.9840308 2.8045844
-	// Arc  5674(steps   1). Coordinate: 0.2053242754 1.9842460 2.8055431
-	// Arc  5675(steps   1). Coordinate: 0.2055101685 1.9844611 2.8065018
-	// Arc  5676(steps   1). Coordinate: 0.2056960652 1.9846763 2.8074606
-	// Arc  5677(steps   1). Coordinate: 0.2058819654 1.9848914 2.8084193
-	// Arc  5678(steps   1). Coordinate: 0.2060678691 1.9851065 2.8093780
-	// Arc  5679(steps   1). Coordinate: 0.2062537764 1.9853216 2.8103367
-	// Arc  5680(steps   1). Coordinate: 0.2064396873 1.9855367 2.8112955
-	// Arc  5681(steps   1). Coordinate: 0.2066256016 1.9857518 2.8122542
-	// Arc  5682(steps   1). Coordinate: 0.2068115196 1.9859669 2.8132130
-	// Arc  5683(steps   1). Coordinate: 0.2069974410 1.9861819 2.8141717
-	// Arc  5684(steps   1). Coordinate: 0.2071833660 1.9863970 2.8151304
-	// Arc  5685(steps   1). Coordinate: 0.2073692945 1.9866120 2.8160892
-	// Arc  5686(steps   1). Coordinate: 0.2075552265 1.9868270 2.8170479
-	// Arc  5687(steps   1). Coordinate: 0.2077411621 1.9870420 2.8180067
-	// Arc  5688(steps   1). Coordinate: 0.2079271012 1.9872570 2.8189654
-	// Arc  5689(steps   1). Coordinate: 0.2081130437 1.9874720 2.8199242
-	// Arc  5690(steps   1). Coordinate: 0.2082989899 1.9876870 2.8208829
-	// Arc  5691(steps   1). Coordinate: 0.2084849395 1.9879019 2.8218417
-	// Arc  5692(steps   1). Coordinate: 0.2086708926 1.9881169 2.8228005
-	// Arc  5693(steps   1). Coordinate: 0.2088568492 1.9883318 2.8237592
-	// Arc  5694(steps   1). Coordinate: 0.2090428094 1.9885467 2.8247180
-	// Arc  5695(steps   1). Coordinate: 0.2092287730 1.9887617 2.8256767
-	// Arc  5696(steps   1). Coordinate: 0.2094147401 1.9889766 2.8266355
-	// Arc  5697(steps   1). Coordinate: 0.2096007108 1.9891914 2.8275943
-	// Arc  5698(steps   1). Coordinate: 0.2097866849 1.9894063 2.8285531
-	// Arc  5699(steps   1). Coordinate: 0.2099726625 1.9896212 2.8295118
-	// Arc  5700(steps   1). Coordinate: 0.2101586436 1.9898360 2.8304706
-	// Arc  5701(steps   1). Coordinate: 0.2103446282 1.9900509 2.8314294
-	// Arc  5702(steps   1). Coordinate: 0.2105306162 1.9902657 2.8323882
-	// Arc  5703(steps   1). Coordinate: 0.2107166078 1.9904805 2.8333469
-	// Arc  5704(steps   1). Coordinate: 0.2109026028 1.9906953 2.8343057
-	// Arc  5705(steps   1). Coordinate: 0.2110886013 1.9909101 2.8352645
-	// Arc  5706(steps   1). Coordinate: 0.2112746033 1.9911249 2.8362233
-	// Arc  5707(steps   1). Coordinate: 0.2114606087 1.9913397 2.8371821
-	// Arc  5708(steps   1). Coordinate: 0.2116466176 1.9915544 2.8381409
-	// Arc  5709(steps   1). Coordinate: 0.2118326299 1.9917691 2.8390997
-	// Arc  5710(steps   1). Coordinate: 0.2120186458 1.9919839 2.8400585
-	// Arc  5711(steps   1). Coordinate: 0.2122046650 1.9921986 2.8410173
-	// Arc  5712(steps   1). Coordinate: 0.2123906878 1.9924133 2.8419761
-	// Arc  5713(steps   1). Coordinate: 0.2125767139 1.9926280 2.8429349
-	// Arc  5714(steps   1). Coordinate: 0.2127627436 1.9928427 2.8438937
-	// Arc  5715(steps   1). Coordinate: 0.2129487766 1.9930574 2.8448525
-	// Arc  5716(steps   1). Coordinate: 0.2131348132 1.9932720 2.8458113
-	// Arc  5717(steps   1). Coordinate: 0.2133208531 1.9934867 2.8467701
-	// Arc  5718(steps   1). Coordinate: 0.2135068965 1.9937013 2.8477289
-	// Arc  5719(steps   1). Coordinate: 0.2136929434 1.9939159 2.8486877
-	// Arc  5720(steps   1). Coordinate: 0.2138789936 1.9941306 2.8496465
-	// Arc  5721(steps   1). Coordinate: 0.2140650473 1.9943452 2.8506053
-	// Arc  5722(steps   1). Coordinate: 0.2142511044 1.9945597 2.8515642
-	// Arc  5723(steps   1). Coordinate: 0.2144371650 1.9947743 2.8525230
-	// Arc  5724(steps   1). Coordinate: 0.2146232290 1.9949889 2.8534818
-	// Arc  5725(steps   1). Coordinate: 0.2148092964 1.9952034 2.8544406
-	// Arc  5726(steps   1). Coordinate: 0.2149953672 1.9954180 2.8553995
-	// Arc  5727(steps   1). Coordinate: 0.2151814414 1.9956325 2.8563583
-	// Arc  5728(steps   1). Coordinate: 0.2153675190 1.9958470 2.8573171
-	// Arc  5729(steps   1). Coordinate: 0.2155536001 1.9960615 2.8582759
-	// Arc  5730(steps   1). Coordinate: 0.2157396845 1.9962760 2.8592348
-	// Arc  5731(steps   1). Coordinate: 0.2159257724 1.9964905 2.8601936
-	// Arc  5732(steps   1). Coordinate: 0.2161118636 1.9967050 2.8611525
-	// Arc  5733(steps   1). Coordinate: 0.2162979583 1.9969195 2.8621113
-	// Arc  5734(steps   1). Coordinate: 0.2164840563 1.9971339 2.8630701
-	// Arc  5735(steps   1). Coordinate: 0.2166701578 1.9973484 2.8640290
-	// Arc  5736(steps   1). Coordinate: 0.2168562626 1.9975628 2.8649878
-	// Arc  5737(steps   1). Coordinate: 0.2170423708 1.9977772 2.8659467
-	// Arc  5738(steps   1). Coordinate: 0.2172284824 1.9979916 2.8669055
-	// Arc  5739(steps   1). Coordinate: 0.2174145974 1.9982060 2.8678644
-	// Arc  5740(steps   1). Coordinate: 0.2176007158 1.9984204 2.8688232
-	// Arc  5741(steps   1). Coordinate: 0.2177868375 1.9986347 2.8697821
-	// Arc  5742(steps   1). Coordinate: 0.2179729626 1.9988491 2.8707409
-	// Arc  5743(steps   1). Coordinate: 0.2181590911 1.9990634 2.8716998
-	// Arc  5744(steps   1). Coordinate: 0.2183452230 1.9992778 2.8726587
-	// Arc  5745(steps   1). Coordinate: 0.2185313582 1.9994921 2.8736175
-	// Arc  5746(steps   1). Coordinate: 0.2187174968 1.9997064 2.8745764
-	// Arc  5747(steps   1). Coordinate: 0.2189036388 1.9999207 2.8755353
-	// Arc  5748(steps   1). Coordinate: 0.2190897841 2.0001350 2.8764941
-	// Arc  5749(steps   1). Coordinate: 0.2192759328 2.0003493 2.8774530
-	// Arc  5750(steps   1). Coordinate: 0.2194620848 2.0005635 2.8784119
-	// Arc  5751(steps   1). Coordinate: 0.2196482402 2.0007778 2.8793708
-	// Arc  5752(steps   1). Coordinate: 0.2198343989 2.0009920 2.8803296
-	// Arc  5753(steps   1). Coordinate: 0.2200205610 2.0012063 2.8812885
-	// Arc  5754(steps   1). Coordinate: 0.2202067264 2.0014205 2.8822474
-	// Arc  5755(steps   1). Coordinate: 0.2203928951 2.0016347 2.8832063
-	// Arc  5756(steps   1). Coordinate: 0.2205790672 2.0018489 2.8841652
-	// Arc  5757(steps   1). Coordinate: 0.2207652427 2.0020631 2.8851240
-	// Arc  5758(steps   1). Coordinate: 0.2209514214 2.0022773 2.8860829
-	// Arc  5759(steps   1). Coordinate: 0.2211376035 2.0024914 2.8870418
-	// Arc  5760(steps   1). Coordinate: 0.2213237889 2.0027056 2.8880007
-	// Arc  5761(steps   1). Coordinate: 0.2215099777 2.0029197 2.8889596
-	// Arc  5762(steps   1). Coordinate: 0.2216961698 2.0031338 2.8899185
-	// Arc  5763(steps   1). Coordinate: 0.2218823652 2.0033479 2.8908774
-	// Arc  5764(steps   1). Coordinate: 0.2220685639 2.0035621 2.8918363
-	// Arc  5765(steps   1). Coordinate: 0.2222547659 2.0037761 2.8927952
-	// Arc  5766(steps   1). Coordinate: 0.2224409713 2.0039902 2.8937541
-	// Arc  5767(steps   1). Coordinate: 0.2226271799 2.0042043 2.8947130
-	// Arc  5768(steps   1). Coordinate: 0.2228133919 2.0044184 2.8956719
-	// Arc  5769(steps   1). Coordinate: 0.2229996071 2.0046324 2.8966308
-	// Arc  5770(steps   1). Coordinate: 0.2231858257 2.0048464 2.8975897
-	// Arc  5771(steps   1). Coordinate: 0.2233720476 2.0050605 2.8985487
-	// Arc  5772(steps   1). Coordinate: 0.2235582727 2.0052745 2.8995076
-	// Arc  5773(steps   1). Coordinate: 0.2237445012 2.0054885 2.9004665
-	// Arc  5774(steps   1). Coordinate: 0.2239307329 2.0057025 2.9014254
-	// Arc  5775(steps   1). Coordinate: 0.2241169680 2.0059165 2.9023843
-	// Arc  5776(steps   1). Coordinate: 0.2243032063 2.0061304 2.9033433
-	// Arc  5777(steps   1). Coordinate: 0.2244894479 2.0063444 2.9043022
-	// Arc  5778(steps   1). Coordinate: 0.2246756928 2.0065583 2.9052611
-	// Arc  5779(steps   1). Coordinate: 0.2248619410 2.0067723 2.9062200
-	// Arc  5780(steps   1). Coordinate: 0.2250481925 2.0069862 2.9071790
-	// Arc  5781(steps   1). Coordinate: 0.2252344472 2.0072001 2.9081379
-	// Arc  5782(steps   1). Coordinate: 0.2254207052 2.0074140 2.9090968
-	// Arc  5783(steps   1). Coordinate: 0.2256069665 2.0076279 2.9100558
-	// Arc  5784(steps   1). Coordinate: 0.2257932310 2.0078418 2.9110147
-	// Arc  5785(steps   1). Coordinate: 0.2259794988 2.0080556 2.9119736
-	// Arc  5786(steps   1). Coordinate: 0.2261657699 2.0082695 2.9129326
-	// Arc  5787(steps   1). Coordinate: 0.2263520442 2.0084833 2.9138915
-	// Arc  5788(steps   1). Coordinate: 0.2265383218 2.0086972 2.9148505
-	// Arc  5789(steps   1). Coordinate: 0.2267246027 2.0089110 2.9158094
-	// Arc  5790(steps   1). Coordinate: 0.2269108868 2.0091248 2.9167684
-	// Arc  5791(steps   1). Coordinate: 0.2270971741 2.0093386 2.9177273
-	// Arc  5792(steps   1). Coordinate: 0.2272834647 2.0095524 2.9186863
-	// Arc  5793(steps   1). Coordinate: 0.2274697586 2.0097662 2.9196452
-	// Arc  5794(steps   1). Coordinate: 0.2276560557 2.0099800 2.9206042
-	// Arc  5795(steps   1). Coordinate: 0.2278423560 2.0101937 2.9215631
-	// Arc  5796(steps   1). Coordinate: 0.2280286595 2.0104075 2.9225221
-	// Arc  5797(steps   1). Coordinate: 0.2282149663 2.0106212 2.9234811
-	// Arc  5798(steps   1). Coordinate: 0.2284012764 2.0108349 2.9244400
-	// Arc  5799(steps   1). Coordinate: 0.2285875896 2.0110486 2.9253990
-	// Arc  5800(steps   1). Coordinate: 0.2287739061 2.0112623 2.9263580
-	// Arc  5801(steps   1). Coordinate: 0.2289602258 2.0114760 2.9273169
-	// Arc  5802(steps   1). Coordinate: 0.2291465488 2.0116897 2.9282759
-	// Arc  5803(steps   1). Coordinate: 0.2293328749 2.0119034 2.9292349
-	// Arc  5804(steps   1). Coordinate: 0.2295192043 2.0121170 2.9301938
-	// Arc  5805(steps   1). Coordinate: 0.2297055369 2.0123307 2.9311528
-	// Arc  5806(steps   1). Coordinate: 0.2298918727 2.0125443 2.9321118
-	// Arc  5807(steps   1). Coordinate: 0.2300782117 2.0127579 2.9330708
-	// Arc  5808(steps   1). Coordinate: 0.2302645539 2.0129715 2.9340298
-	// Arc  5809(steps   1). Coordinate: 0.2304508994 2.0131851 2.9349887
-	// Arc  5810(steps   1). Coordinate: 0.2306372480 2.0133987 2.9359477
-	// Arc  5811(steps   1). Coordinate: 0.2308235999 2.0136123 2.9369067
-	// Arc  5812(steps   1). Coordinate: 0.2310099549 2.0138259 2.9378657
-	// Arc  5813(steps   1). Coordinate: 0.2311963131 2.0140394 2.9388247
-	// Arc  5814(steps   1). Coordinate: 0.2313826745 2.0142530 2.9397837
-	// Arc  5815(steps   1). Coordinate: 0.2315690392 2.0144665 2.9407427
-	// Arc  5816(steps   1). Coordinate: 0.2317554070 2.0146800 2.9417017
-	// Arc  5817(steps   1). Coordinate: 0.2319417780 2.0148936 2.9426607
-	// Arc  5818(steps   1). Coordinate: 0.2321281521 2.0151071 2.9436197
-	// Arc  5819(steps   1). Coordinate: 0.2323145295 2.0153206 2.9445787
-	// Arc  5820(steps   1). Coordinate: 0.2325009100 2.0155340 2.9455377
-	// Arc  5821(steps   1). Coordinate: 0.2326872938 2.0157475 2.9464967
-	// Arc  5822(steps   1). Coordinate: 0.2328736806 2.0159610 2.9474557
-	// Arc  5823(steps   1). Coordinate: 0.2330600707 2.0161744 2.9484147
-	// Arc  5824(steps   1). Coordinate: 0.2332464639 2.0163879 2.9493737
-	// Arc  5825(steps   1). Coordinate: 0.2334328603 2.0166013 2.9503327
-	// Arc  5826(steps   1). Coordinate: 0.2336192599 2.0168147 2.9512917
-	// Arc  5827(steps   1). Coordinate: 0.2338056626 2.0170281 2.9522508
-	// Arc  5828(steps   1). Coordinate: 0.2339920685 2.0172415 2.9532098
-	// Arc  5829(steps   1). Coordinate: 0.2341784776 2.0174549 2.9541688
-	// Arc  5830(steps   1). Coordinate: 0.2343648898 2.0176683 2.9551278
-	// Arc  5831(steps   1). Coordinate: 0.2345513051 2.0178816 2.9560868
-	// Arc  5832(steps   1). Coordinate: 0.2347377236 2.0180950 2.9570459
-	// Arc  5833(steps   1). Coordinate: 0.2349241453 2.0183083 2.9580049
-	// Arc  5834(steps   1). Coordinate: 0.2351105701 2.0185216 2.9589639
-	// Arc  5835(steps   1). Coordinate: 0.2352969980 2.0187350 2.9599230
-	// Arc  5836(steps   1). Coordinate: 0.2354834291 2.0189483 2.9608820
-	// Arc  5837(steps   1). Coordinate: 0.2356698634 2.0191616 2.9618410
-	// Arc  5838(steps   1). Coordinate: 0.2358563007 2.0193749 2.9628001
-	// Arc  5839(steps   1). Coordinate: 0.2360427412 2.0195881 2.9637591
-	// Arc  5840(steps   1). Coordinate: 0.2362291848 2.0198014 2.9647181
-	// Arc  5841(steps   1). Coordinate: 0.2364156316 2.0200146 2.9656772
-	// Arc  5842(steps   1). Coordinate: 0.2366020815 2.0202279 2.9666362
-	// Arc  5843(steps   1). Coordinate: 0.2367885345 2.0204411 2.9675953
-	// Arc  5844(steps   1). Coordinate: 0.2369749906 2.0206543 2.9685543
-	// Arc  5845(steps   1). Coordinate: 0.2371614499 2.0208676 2.9695134
-	// Arc  5846(steps   1). Coordinate: 0.2373479122 2.0210808 2.9704724
-	// Arc  5847(steps   1). Coordinate: 0.2375343777 2.0212939 2.9714315
-	// Arc  5848(steps   1). Coordinate: 0.2377208463 2.0215071 2.9723905
-	// Arc  5849(steps   1). Coordinate: 0.2379073180 2.0217203 2.9733496
-	// Arc  5850(steps   1). Coordinate: 0.2380937929 2.0219335 2.9743086
-	// Arc  5851(steps   1). Coordinate: 0.2382802708 2.0221466 2.9752677
-	// Arc  5852(steps   1). Coordinate: 0.2384667518 2.0223597 2.9762267
-	// Arc  5853(steps   1). Coordinate: 0.2386532359 2.0225729 2.9771858
-	// Arc  5854(steps   1). Coordinate: 0.2388397232 2.0227860 2.9781449
-	// Arc  5855(steps   1). Coordinate: 0.2390262135 2.0229991 2.9791039
-	// Arc  5856(steps   1). Coordinate: 0.2392127069 2.0232122 2.9800630
-	// Arc  5857(steps   1). Coordinate: 0.2393992034 2.0234253 2.9810221
-	// Arc  5858(steps   1). Coordinate: 0.2395857030 2.0236383 2.9819811
-	// Arc  5859(steps   1). Coordinate: 0.2397722057 2.0238514 2.9829402
-	// Arc  5860(steps   1). Coordinate: 0.2399587115 2.0240644 2.9838993
-	// Arc  5861(steps   1). Coordinate: 0.2401452203 2.0242775 2.9848584
-	// Arc  5862(steps   1). Coordinate: 0.2403317323 2.0244905 2.9858174
-	// Arc  5863(steps   1). Coordinate: 0.2405182473 2.0247035 2.9867765
-	// Arc  5864(steps   1). Coordinate: 0.2407047654 2.0249165 2.9877356
-	// Arc  5865(steps   1). Coordinate: 0.2408912866 2.0251295 2.9886947
-	// Arc  5866(steps   1). Coordinate: 0.2410778108 2.0253425 2.9896538
-	// Arc  5867(steps   1). Coordinate: 0.2412643381 2.0255555 2.9906129
-	// Arc  5868(steps   1). Coordinate: 0.2414508685 2.0257685 2.9915720
-	// Arc  5869(steps   1). Coordinate: 0.2416374019 2.0259814 2.9925310
-	// Arc  5870(steps   1). Coordinate: 0.2418239384 2.0261944 2.9934901
-	// Arc  5871(steps   1). Coordinate: 0.2420104780 2.0264073 2.9944492
-	// Arc  5872(steps   1). Coordinate: 0.2421970206 2.0266202 2.9954083
-	// Arc  5873(steps   1). Coordinate: 0.2423835663 2.0268332 2.9963674
-	// Arc  5874(steps   1). Coordinate: 0.2425701150 2.0270461 2.9973265
-	// Arc  5875(steps   1). Coordinate: 0.2427566668 2.0272590 2.9982856
-	// Arc  5876(steps   1). Coordinate: 0.2429432216 2.0274718 2.9992447
-	// Arc  5877(steps   1). Coordinate: 0.2431297795 2.0276847 3.0002038
-	// Arc  5878(steps   1). Coordinate: 0.2433163404 2.0278976 3.0011629
-	// Arc  5879(steps   1). Coordinate: 0.2435029043 2.0281104 3.0021220
-	// Arc  5880(steps   1). Coordinate: 0.2436894713 2.0283233 3.0030812
-	// Arc  5881(steps   1). Coordinate: 0.2438760414 2.0285361 3.0040403
-	// Arc  5882(steps   1). Coordinate: 0.2440626145 2.0287489 3.0049994
-	// Arc  5883(steps   1). Coordinate: 0.2442491906 2.0289617 3.0059585
-	// Arc  5884(steps   1). Coordinate: 0.2444357697 2.0291745 3.0069176
-	// Arc  5885(steps   1). Coordinate: 0.2446223519 2.0293873 3.0078767
-	// Arc  5886(steps   1). Coordinate: 0.2448089370 2.0296001 3.0088359
-	// Arc  5887(steps   1). Coordinate: 0.2449955253 2.0298129 3.0097950
-	// Arc  5888(steps   1). Coordinate: 0.2451821165 2.0300256 3.0107541
-	// Arc  5889(steps   1). Coordinate: 0.2453687107 2.0302384 3.0117132
-	// Arc  5890(steps   1). Coordinate: 0.2455553080 2.0304511 3.0126723
-	// Arc  5891(steps   1). Coordinate: 0.2457419083 2.0306638 3.0136315
-	// Arc  5892(steps   1). Coordinate: 0.2459285116 2.0308766 3.0145906
-	// Arc  5893(steps   1). Coordinate: 0.2461151179 2.0310893 3.0155497
-	// Arc  5894(steps   1). Coordinate: 0.2463017272 2.0313020 3.0165089
-	// Arc  5895(steps   1). Coordinate: 0.2464883395 2.0315146 3.0174680
-	// Arc  5896(steps   1). Coordinate: 0.2466749549 2.0317273 3.0184271
-	// Arc  5897(steps   1). Coordinate: 0.2468615732 2.0319400 3.0193863
-	// Arc  5898(steps   1). Coordinate: 0.2470481945 2.0321526 3.0203454
-	// Arc  5899(steps   1). Coordinate: 0.2472348188 2.0323653 3.0213046
-	// Arc  5900(steps   1). Coordinate: 0.2474214462 2.0325779 3.0222637
-	// Arc  5901(steps   1). Coordinate: 0.2476080765 2.0327905 3.0232229
-	// Arc  5902(steps   1). Coordinate: 0.2477947098 2.0330032 3.0241820
-	// Arc  5903(steps   1). Coordinate: 0.2479813461 2.0332158 3.0251411
-	// Arc  5904(steps   1). Coordinate: 0.2481679853 2.0334284 3.0261003
-	// Arc  5905(steps   1). Coordinate: 0.2483546276 2.0336409 3.0270595
-	// Arc  5906(steps   1). Coordinate: 0.2485412728 2.0338535 3.0280186
-	// Arc  5907(steps   1). Coordinate: 0.2487279211 2.0340661 3.0289778
-	// Arc  5908(steps   1). Coordinate: 0.2489145723 2.0342786 3.0299369
-	// Arc  5909(steps   1). Coordinate: 0.2491012264 2.0344912 3.0308961
-	// Arc  5910(steps   1). Coordinate: 0.2492878836 2.0347037 3.0318552
-	// Arc  5911(steps   1). Coordinate: 0.2494745437 2.0349162 3.0328144
-	// Arc  5912(steps   1). Coordinate: 0.2496612068 2.0351287 3.0337736
-	// Arc  5913(steps   1). Coordinate: 0.2498478728 2.0353412 3.0347327
-	// Arc  5914(steps   1). Coordinate: 0.2500345418 2.0355537 3.0356919
-	// Arc  5915(steps   1). Coordinate: 0.2502212138 2.0357662 3.0366511
-	// Arc  5916(steps   1). Coordinate: 0.2504078887 2.0359787 3.0376102
-	// Arc  5917(steps   1). Coordinate: 0.2505945666 2.0361911 3.0385694
-	// Arc  5918(steps   1). Coordinate: 0.2507812475 2.0364036 3.0395286
-	// Arc  5919(steps   1). Coordinate: 0.2509679313 2.0366160 3.0404878
-	// Arc  5920(steps   1). Coordinate: 0.2511546180 2.0368285 3.0414469
-	// Arc  5921(steps   1). Coordinate: 0.2513413077 2.0370409 3.0424061
-	// Arc  5922(steps   1). Coordinate: 0.2515280004 2.0372533 3.0433653
-	// Arc  5923(steps   1). Coordinate: 0.2517146960 2.0374657 3.0443245
-	// Arc  5924(steps   1). Coordinate: 0.2519013945 2.0376781 3.0452837
-	// Arc  5925(steps   1). Coordinate: 0.2520880960 2.0378905 3.0462429
-	// Arc  5926(steps   1). Coordinate: 0.2522748004 2.0381028 3.0472020
-	// Arc  5927(steps   1). Coordinate: 0.2524615077 2.0383152 3.0481612
-	// Arc  5928(steps   1). Coordinate: 0.2526482180 2.0385275 3.0491204
-	// Arc  5929(steps   1). Coordinate: 0.2528349312 2.0387399 3.0500796
-	// Arc  5930(steps   1). Coordinate: 0.2530216474 2.0389522 3.0510388
-	// Arc  5931(steps   1). Coordinate: 0.2532083664 2.0391645 3.0519980
-	// Arc  5932(steps   1). Coordinate: 0.2533950884 2.0393768 3.0529572
-	// Arc  5933(steps   1). Coordinate: 0.2535818134 2.0395891 3.0539164
-	// Arc  5934(steps   1). Coordinate: 0.2537685412 2.0398014 3.0548756
-	// Arc  5935(steps   1). Coordinate: 0.2539552720 2.0400137 3.0558348
-	// Arc  5936(steps   1). Coordinate: 0.2541420056 2.0402260 3.0567940
-	// Arc  5937(steps   1). Coordinate: 0.2543287422 2.0404382 3.0577532
-	// Arc  5938(steps   1). Coordinate: 0.2545154817 2.0406505 3.0587124
-	// Arc  5939(steps   1). Coordinate: 0.2547022241 2.0408627 3.0596716
-	// Arc  5940(steps   1). Coordinate: 0.2548889694 2.0410750 3.0606308
-	// Arc  5941(steps   1). Coordinate: 0.2550757177 2.0412872 3.0615900
-	// Arc  5942(steps   1). Coordinate: 0.2552624688 2.0414994 3.0625493
-	// Arc  5943(steps   1). Coordinate: 0.2554492228 2.0417116 3.0635085
-	// Arc  5944(steps   1). Coordinate: 0.2556359797 2.0419238 3.0644677
-	// Arc  5945(steps   1). Coordinate: 0.2558227396 2.0421360 3.0654269
-	// Arc  5946(steps   1). Coordinate: 0.2560095023 2.0423481 3.0663861
-	// Arc  5947(steps   1). Coordinate: 0.2561962679 2.0425603 3.0673454
-	// Arc  5948(steps   1). Coordinate: 0.2563830364 2.0427724 3.0683046
-	// Arc  5949(steps   1). Coordinate: 0.2565698078 2.0429846 3.0692638
-	// Arc  5950(steps   1). Coordinate: 0.2567565821 2.0431967 3.0702230
-	// Arc  5951(steps   1). Coordinate: 0.2569433592 2.0434088 3.0711823
-	// Arc  5952(steps   1). Coordinate: 0.2571301393 2.0436209 3.0721415
-	// Arc  5953(steps   1). Coordinate: 0.2573169222 2.0438330 3.0731007
-	// Arc  5954(steps   1). Coordinate: 0.2575037080 2.0440451 3.0740600
-	// Arc  5955(steps   1). Coordinate: 0.2576904967 2.0442572 3.0750192
-	// Arc  5956(steps   1). Coordinate: 0.2578772882 2.0444693 3.0759784
-	// Arc  5957(steps   1). Coordinate: 0.2580640827 2.0446813 3.0769377
-	// Arc  5958(steps   1). Coordinate: 0.2582508800 2.0448934 3.0778969
-	// Arc  5959(steps   1). Coordinate: 0.2584376801 2.0451054 3.0788561
-	// Arc  5960(steps   1). Coordinate: 0.2586244832 2.0453175 3.0798154
-	// Arc  5961(steps   1). Coordinate: 0.2588112891 2.0455295 3.0807746
-	// Arc  5962(steps   1). Coordinate: 0.2589980978 2.0457415 3.0817339
-	// Arc  5963(steps   1). Coordinate: 0.2591849094 2.0459535 3.0826931
-	// Arc  5964(steps   1). Coordinate: 0.2593717239 2.0461655 3.0836524
-	// Arc  5965(steps   1). Coordinate: 0.2595585412 2.0463775 3.0846116
-	// Arc  5966(steps   1). Coordinate: 0.2597453614 2.0465894 3.0855709
-	// Arc  5967(steps   1). Coordinate: 0.2599321844 2.0468014 3.0865301
-	// Arc  5968(steps   1). Coordinate: 0.2601190103 2.0470134 3.0874894
-	// Arc  5969(steps   1). Coordinate: 0.2603058390 2.0472253 3.0884487
-	// Arc  5970(steps   1). Coordinate: 0.2604926706 2.0474372 3.0894079
-	// Arc  5971(steps   1). Coordinate: 0.2606795050 2.0476492 3.0903672
-	// Arc  5972(steps   1). Coordinate: 0.2608663423 2.0478611 3.0913264
-	// Arc  5973(steps   1). Coordinate: 0.2610531824 2.0480730 3.0922857
-	// Arc  5974(steps   1). Coordinate: 0.2612400253 2.0482849 3.0932450
-	// Arc  5975(steps   1). Coordinate: 0.2614268711 2.0484967 3.0942042
-	// Arc  5976(steps   1). Coordinate: 0.2616137197 2.0487086 3.0951635
-	// Arc  5977(steps   1). Coordinate: 0.2618005711 2.0489205 3.0961228
-	// Arc  5978(steps   1). Coordinate: 0.2619874254 2.0491323 3.0970820
-	// Arc  5979(steps   1). Coordinate: 0.2621742825 2.0493442 3.0980413
-	// Arc  5980(steps   1). Coordinate: 0.2623611424 2.0495560 3.0990006
-	// Arc  5981(steps   1). Coordinate: 0.2625480051 2.0497678 3.0999599
-	// Arc  5982(steps   1). Coordinate: 0.2627348706 2.0499797 3.1009191
-	// Arc  5983(steps   1). Coordinate: 0.2629217390 2.0501915 3.1018784
-	// Arc  5984(steps   1). Coordinate: 0.2631086102 2.0504033 3.1028377
-	// Arc  5985(steps   1). Coordinate: 0.2632954842 2.0506151 3.1037970
-	// Arc  5986(steps   1). Coordinate: 0.2634823610 2.0508268 3.1047563
-	// Arc  5987(steps   1). Coordinate: 0.2636692406 2.0510386 3.1057156
-	// Arc  5988(steps   1). Coordinate: 0.2638561231 2.0512504 3.1066749
-	// Arc  5989(steps   1). Coordinate: 0.2640430083 2.0514621 3.1076341
-	// Arc  5990(steps   1). Coordinate: 0.2642298963 2.0516738 3.1085934
-	// Arc  5991(steps   1). Coordinate: 0.2644167872 2.0518856 3.1095527
-	// Arc  5992(steps   1). Coordinate: 0.2646036808 2.0520973 3.1105120
-	// Arc  5993(steps   1). Coordinate: 0.2647905773 2.0523090 3.1114713
-	// Arc  5994(steps   1). Coordinate: 0.2649774765 2.0525207 3.1124306
-	// Arc  5995(steps   1). Coordinate: 0.2651643785 2.0527324 3.1133899
-	// Arc  5996(steps   1). Coordinate: 0.2653512833 2.0529441 3.1143492
-	// Arc  5997(steps   1). Coordinate: 0.2655381910 2.0531557 3.1153085
-	// Arc  5998(steps   1). Coordinate: 0.2657251014 2.0533674 3.1162678
-	// Arc  5999(steps   1). Coordinate: 0.2659120145 2.0535791 3.1172271
-	// Arc  6000(steps   1). Coordinate: 0.2660989305 2.0537907 3.1181864
-	// Arc  6001(steps   1). Coordinate: 0.2662858493 2.0540023 3.1191457
-	// Arc  6002(steps   1). Coordinate: 0.2664727708 2.0542140 3.1201050
-	// Arc  6003(steps   1). Coordinate: 0.2666596951 2.0544256 3.1210644
-	// Arc  6004(steps   1). Coordinate: 0.2668466222 2.0546372 3.1220237
-	// Arc  6005(steps   1). Coordinate: 0.2670335520 2.0548488 3.1229830
-	// Arc  6006(steps   1). Coordinate: 0.2672204847 2.0550604 3.1239423
-	// Arc  6007(steps   1). Coordinate: 0.2674074201 2.0552719 3.1249016
-	// Arc  6008(steps   1). Coordinate: 0.2675943582 2.0554835 3.1258609
-	// Arc  6009(steps   1). Coordinate: 0.2677812992 2.0556951 3.1268203
-	// Arc  6010(steps   1). Coordinate: 0.2679682429 2.0559066 3.1277796
-	// Arc  6011(steps   1). Coordinate: 0.2681551893 2.0561182 3.1287389
-	// Arc  6012(steps   1). Coordinate: 0.2683421385 2.0563297 3.1296982
-	// Arc  6013(steps   1). Coordinate: 0.2685290905 2.0565412 3.1306576
-	// Arc  6014(steps   1). Coordinate: 0.2687160453 2.0567527 3.1316169
-	// Arc  6015(steps   1). Coordinate: 0.2689030027 2.0569642 3.1325762
-	// Arc  6016(steps   1). Coordinate: 0.2690899630 2.0571757 3.1335356
-	// Arc  6017(steps   1). Coordinate: 0.2692769260 2.0573872 3.1344949
-	// Arc  6018(steps   1). Coordinate: 0.2694638917 2.0575987 3.1354542
-	// Arc  6019(steps   1). Coordinate: 0.2696508602 2.0578101 3.1364136
-	// Arc  6020(steps   1). Coordinate: 0.2698378314 2.0580216 3.1373729
-	// Arc  6021(steps   1). Coordinate: 0.2700248054 2.0582330 3.1383322
-	// Arc  6022(steps   1). Coordinate: 0.2702117821 2.0584444 3.1392916
-	// Arc  6023(steps   1). Coordinate: 0.2703987615 2.0586559 3.1402509
-	// Arc  6024(steps   1). Coordinate: 0.2705857437 2.0588673 3.1412103
-	// Arc  6025(steps   1). Coordinate: 0.2707727286 2.0590787 3.1421696
-	// Arc  6026(steps   1). Coordinate: 0.2709597163 2.0592901 3.1431290
-	// Arc  6027(steps   1). Coordinate: 0.2711467067 2.0595015 3.1440883
-	// Arc  6028(steps   1). Coordinate: 0.2713336998 2.0597129 3.1450477
-	// Arc  6029(steps   1). Coordinate: 0.2715206956 2.0599242 3.1460070
-	// Arc  6030(steps   1). Coordinate: 0.2717076942 2.0601356 3.1469664
-	// Arc  6031(steps   1). Coordinate: 0.2718946954 2.0603469 3.1479257
-	// Arc  6032(steps   1). Coordinate: 0.2720816994 2.0605583 3.1488851
-	// Arc  6033(steps   1). Coordinate: 0.2722687062 2.0607696 3.1498444
-	// Arc  6034(steps   1). Coordinate: 0.2724557156 2.0609809 3.1508038
-	// Arc  6035(steps   1). Coordinate: 0.2726427278 2.0611922 3.1517631
-	// Arc  6036(steps   1). Coordinate: 0.2728297426 2.0614035 3.1527225
-	// Arc  6037(steps   1). Coordinate: 0.2730167602 2.0616148 3.1536819
-	// Arc  6038(steps   1). Coordinate: 0.2732037805 2.0618261 3.1546412
-	// Arc  6039(steps   1). Coordinate: 0.2733908035 2.0620374 3.1556006
-	// Arc  6040(steps   1). Coordinate: 0.2735778292 2.0622487 3.1565600
-	// Arc  6041(steps   1). Coordinate: 0.2737648576 2.0624599 3.1575193
-	// Arc  6042(steps   1). Coordinate: 0.2739518887 2.0626712 3.1584787
-	// Arc  6043(steps   1). Coordinate: 0.2741389225 2.0628824 3.1594381
-	// Arc  6044(steps   1). Coordinate: 0.2743259590 2.0630936 3.1603975
-	// Arc  6045(steps   1). Coordinate: 0.2745129982 2.0633048 3.1613568
-	// Arc  6046(steps   1). Coordinate: 0.2747000400 2.0635161 3.1623162
-	// Arc  6047(steps   1). Coordinate: 0.2748870846 2.0637273 3.1632756
-	// Arc  6048(steps   1). Coordinate: 0.2750741319 2.0639385 3.1642350
-	// Arc  6049(steps   1). Coordinate: 0.2752611818 2.0641496 3.1651944
-	// Arc  6050(steps   1). Coordinate: 0.2754482345 2.0643608 3.1661537
-	// Arc  6051(steps   1). Coordinate: 0.2756352898 2.0645720 3.1671131
-	// Arc  6052(steps   1). Coordinate: 0.2758223478 2.0647831 3.1680725
-	// Arc  6053(steps   1). Coordinate: 0.2760094085 2.0649943 3.1690319
-	// Arc  6054(steps   1). Coordinate: 0.2761964719 2.0652054 3.1699913
-	// Arc  6055(steps   1). Coordinate: 0.2763835379 2.0654165 3.1709507
-	// Arc  6056(steps   1). Coordinate: 0.2765706066 2.0656277 3.1719101
-	// Arc  6057(steps   1). Coordinate: 0.2767576780 2.0658388 3.1728695
-	// Arc  6058(steps   1). Coordinate: 0.2769447521 2.0660499 3.1738289
-	// Arc  6059(steps   1). Coordinate: 0.2771318288 2.0662610 3.1747883
-	// Arc  6060(steps   1). Coordinate: 0.2773189082 2.0664720 3.1757477
-	// Arc  6061(steps   1). Coordinate: 0.2775059903 2.0666831 3.1767071
-	// Arc  6062(steps   1). Coordinate: 0.2776930750 2.0668942 3.1776665
-	// Arc  6063(steps   1). Coordinate: 0.2778801624 2.0671052 3.1786259
-	// Arc  6064(steps   1). Coordinate: 0.2780672524 2.0673163 3.1795853
-	// Arc  6065(steps   1). Coordinate: 0.2782543451 2.0675273 3.1805447
-	// Arc  6066(steps   1). Coordinate: 0.2784414405 2.0677383 3.1815041
-	// Arc  6067(steps   1). Coordinate: 0.2786285385 2.0679493 3.1824635
-	// Arc  6068(steps   1). Coordinate: 0.2788156391 2.0681604 3.1834229
-	// Arc  6069(steps   1). Coordinate: 0.2790027424 2.0683714 3.1843823
-	// Arc  6070(steps   1). Coordinate: 0.2791898484 2.0685823 3.1853417
-	// Arc  6071(steps   1). Coordinate: 0.2793769570 2.0687933 3.1863012
-	// Arc  6072(steps   1). Coordinate: 0.2795640683 2.0690043 3.1872606
-	// Arc  6073(steps   1). Coordinate: 0.2797511821 2.0692153 3.1882200
-	// Arc  6074(steps   1). Coordinate: 0.2799382987 2.0694262 3.1891794
-	// Arc  6075(steps   1). Coordinate: 0.2801254178 2.0696372 3.1901388
-	// Arc  6076(steps   1). Coordinate: 0.2803125397 2.0698481 3.1910982
-	// Arc  6077(steps   1). Coordinate: 0.2804996641 2.0700590 3.1920577
-	// Arc  6078(steps   1). Coordinate: 0.2806867912 2.0702699 3.1930171
-	// Arc  6079(steps   1). Coordinate: 0.2808739209 2.0704808 3.1939765
-	// Arc  6080(steps   1). Coordinate: 0.2810610532 2.0706917 3.1949360
-	// Arc  6081(steps   1). Coordinate: 0.2812481882 2.0709026 3.1958954
-	// Arc  6082(steps   1). Coordinate: 0.2814353258 2.0711135 3.1968548
-	// Arc  6083(steps   1). Coordinate: 0.2816224660 2.0713244 3.1978142
-	// Arc  6084(steps   1). Coordinate: 0.2818096088 2.0715352 3.1987737
-	// Arc  6085(steps   1). Coordinate: 0.2819967543 2.0717461 3.1997331
-	// Arc  6086(steps   1). Coordinate: 0.2821839023 2.0719569 3.2006926
-	// Arc  6087(steps   1). Coordinate: 0.2823710530 2.0721678 3.2016520
-	// Arc  6088(steps   1). Coordinate: 0.2825582063 2.0723786 3.2026114
-	// Arc  6089(steps   1). Coordinate: 0.2827453622 2.0725894 3.2035709
-	// Arc  6090(steps   1). Coordinate: 0.2829325208 2.0728002 3.2045303
-	// Arc  6091(steps   1). Coordinate: 0.2831196819 2.0730110 3.2054898
-	// Arc  6092(steps   1). Coordinate: 0.2833068456 2.0732218 3.2064492
-	// Arc  6093(steps   1). Coordinate: 0.2834940120 2.0734326 3.2074087
-	// Arc  6094(steps   1). Coordinate: 0.2836811809 2.0736434 3.2083681
-	// Arc  6095(steps   1). Coordinate: 0.2838683525 2.0738541 3.2093276
-	// Arc  6096(steps   1). Coordinate: 0.2840555266 2.0740649 3.2102870
-	// Arc  6097(steps   1). Coordinate: 0.2842427034 2.0742757 3.2112465
-	// Arc  6098(steps   1). Coordinate: 0.2844298827 2.0744864 3.2122059
-	// Arc  6099(steps   1). Coordinate: 0.2846170647 2.0746971 3.2131654
-	// Arc  6100(steps   1). Coordinate: 0.2848042492 2.0749078 3.2141248
-	// Arc  6101(steps   1). Coordinate: 0.2849914363 2.0751185 3.2150843
-	// Arc  6102(steps   1). Coordinate: 0.2851786261 2.0753292 3.2160438
-	// Arc  6103(steps   1). Coordinate: 0.2853658184 2.0755399 3.2170032
-	// Arc  6104(steps   1). Coordinate: 0.2855530132 2.0757506 3.2179627
-	// Arc  6105(steps   1). Coordinate: 0.2857402107 2.0759613 3.2189221
-	// Arc  6106(steps   1). Coordinate: 0.2859274108 2.0761720 3.2198816
-	// Arc  6107(steps   1). Coordinate: 0.2861146134 2.0763826 3.2208411
-	// Arc  6108(steps   1). Coordinate: 0.2863018186 2.0765933 3.2218005
-	// Arc  6109(steps   1). Coordinate: 0.2864890264 2.0768039 3.2227600
-	// Arc  6110(steps   1). Coordinate: 0.2866762367 2.0770145 3.2237195
-	// Arc  6111(steps   1). Coordinate: 0.2868634497 2.0772252 3.2246790
-	// Arc  6112(steps   1). Coordinate: 0.2870506652 2.0774358 3.2256384
-	// Arc  6113(steps   1). Coordinate: 0.2872378832 2.0776464 3.2265979
-	// Arc  6114(steps   1). Coordinate: 0.2874251039 2.0778570 3.2275574
-	// Arc  6115(steps   1). Coordinate: 0.2876123271 2.0780676 3.2285169
-	// Arc  6116(steps   1). Coordinate: 0.2877995528 2.0782781 3.2294764
-	// Arc  6117(steps   1). Coordinate: 0.2879867812 2.0784887 3.2304358
-	// Arc  6118(steps   1). Coordinate: 0.2881740121 2.0786993 3.2313953
-	// Arc  6119(steps   1). Coordinate: 0.2883612455 2.0789098 3.2323548
-	// Arc  6120(steps   1). Coordinate: 0.2885484815 2.0791204 3.2333143
-	// Arc  6121(steps   1). Coordinate: 0.2887357201 2.0793309 3.2342738
-	// Arc  6122(steps   1). Coordinate: 0.2889229612 2.0795414 3.2352333
-	// Arc  6123(steps   1). Coordinate: 0.2891102048 2.0797519 3.2361928
-	// Arc  6124(steps   1). Coordinate: 0.2892974510 2.0799624 3.2371523
-	// Arc  6125(steps   1). Coordinate: 0.2894846998 2.0801729 3.2381117
-	// Arc  6126(steps   1). Coordinate: 0.2896719511 2.0803834 3.2390712
-	// Arc  6127(steps   1). Coordinate: 0.2898592049 2.0805939 3.2400307
-	// Arc  6128(steps   1). Coordinate: 0.2900464613 2.0808044 3.2409902
-	// Arc  6129(steps   1). Coordinate: 0.2902337203 2.0810149 3.2419497
-	// Arc  6130(steps   1). Coordinate: 0.2904209817 2.0812253 3.2429092
-	// Arc  6131(steps   1). Coordinate: 0.2906082457 2.0814358 3.2438687
-	// Arc  6132(steps   1). Coordinate: 0.2907955123 2.0816462 3.2448282
-	// Arc  6133(steps   1). Coordinate: 0.2909827813 2.0818566 3.2457877
-	// Arc  6134(steps   1). Coordinate: 0.2911700529 2.0820670 3.2467473
-	// Arc  6135(steps   1). Coordinate: 0.2913573271 2.0822775 3.2477068
-	// Arc  6136(steps   1). Coordinate: 0.2915446037 2.0824879 3.2486663
-	// Arc  6137(steps   1). Coordinate: 0.2917318829 2.0826982 3.2496258
-	// Arc  6138(steps   1). Coordinate: 0.2919191646 2.0829086 3.2505853
-	// Arc  6139(steps   1). Coordinate: 0.2921064489 2.0831190 3.2515448
-	// Arc  6140(steps   1). Coordinate: 0.2922937356 2.0833294 3.2525043
-	// Arc  6141(steps   1). Coordinate: 0.2924810249 2.0835397 3.2534638
-	// Arc  6142(steps   1). Coordinate: 0.2926683167 2.0837501 3.2544234
-	// Arc  6143(steps   1). Coordinate: 0.2928556110 2.0839604 3.2553829
-	// Arc  6144(steps   1). Coordinate: 0.2930429078 2.0841708 3.2563424
-	// Arc  6145(steps   1). Coordinate: 0.2932302071 2.0843811 3.2573019
-	// Arc  6146(steps   1). Coordinate: 0.2934175090 2.0845914 3.2582614
-	// Arc  6147(steps   1). Coordinate: 0.2936048133 2.0848017 3.2592210
-	// Arc  6148(steps   1). Coordinate: 0.2937921202 2.0850120 3.2601805
-	// Arc  6149(steps   1). Coordinate: 0.2939794296 2.0852223 3.2611400
-	// Arc  6150(steps   1). Coordinate: 0.2941667414 2.0854326 3.2620995
-	// Arc  6151(steps   1). Coordinate: 0.2943540558 2.0856429 3.2630591
-	// Arc  6152(steps   1). Coordinate: 0.2945413727 2.0858531 3.2640186
-	// Arc  6153(steps   1). Coordinate: 0.2947286920 2.0860634 3.2649781
-	// Arc  6154(steps   1). Coordinate: 0.2949160139 2.0862736 3.2659377
-	// Arc  6155(steps   1). Coordinate: 0.2951033383 2.0864839 3.2668972
-	// Arc  6156(steps   1). Coordinate: 0.2952906651 2.0866941 3.2678568
-	// Arc  6157(steps   1). Coordinate: 0.2954779945 2.0869043 3.2688163
-	// Arc  6158(steps   1). Coordinate: 0.2956653263 2.0871145 3.2697758
-	// Arc  6159(steps   1). Coordinate: 0.2958526606 2.0873247 3.2707354
-	// Arc  6160(steps   1). Coordinate: 0.2960399974 2.0875349 3.2716949
-	// Arc  6161(steps   1). Coordinate: 0.2962273367 2.0877451 3.2726545
-	// Arc  6162(steps   1). Coordinate: 0.2964146785 2.0879553 3.2736140
-	// Arc  6163(steps   1). Coordinate: 0.2966020227 2.0881655 3.2745736
-	// Arc  6164(steps   1). Coordinate: 0.2967893695 2.0883756 3.2755331
-	// Arc  6165(steps   1). Coordinate: 0.2969767187 2.0885858 3.2764927
-	// Arc  6166(steps   1). Coordinate: 0.2971640704 2.0887959 3.2774522
-	// Arc  6167(steps   1). Coordinate: 0.2973514245 2.0890061 3.2784118
-	// Arc  6168(steps   1). Coordinate: 0.2975387812 2.0892162 3.2793713
-	// Arc  6169(steps   1). Coordinate: 0.2977261403 2.0894263 3.2803309
-	// Arc  6170(steps   1). Coordinate: 0.2979135018 2.0896364 3.2812904
-	// Arc  6171(steps   1). Coordinate: 0.2981008659 2.0898465 3.2822500
-	// Arc  6172(steps   1). Coordinate: 0.2982882324 2.0900566 3.2832095
-	// Arc  6173(steps   1). Coordinate: 0.2984756014 2.0902667 3.2841691
-	// Arc  6174(steps   1). Coordinate: 0.2986629728 2.0904768 3.2851287
-	// Arc  6175(steps   1). Coordinate: 0.2988503467 2.0906868 3.2860882
-	// Arc  6176(steps   1). Coordinate: 0.2990377230 2.0908969 3.2870478
-	// Arc  6177(steps   1). Coordinate: 0.2992251018 2.0911070 3.2880074
-	// Arc  6178(steps   1). Coordinate: 0.2994124831 2.0913170 3.2889669
-	// Arc  6179(steps   1). Coordinate: 0.2995998668 2.0915270 3.2899265
-	// Arc  6180(steps   1). Coordinate: 0.2997872530 2.0917371 3.2908861
-	// Arc  6181(steps   1). Coordinate: 0.2999746416 2.0919471 3.2918456
-	// Arc  6182(steps   1). Coordinate: 0.3001620327 2.0921571 3.2928052
-	// Arc  6183(steps   1). Coordinate: 0.3003494262 2.0923671 3.2937648
-	// Arc  6184(steps   1). Coordinate: 0.3005368222 2.0925771 3.2947244
-	// Arc  6185(steps   1). Coordinate: 0.3007242206 2.0927871 3.2956839
-	// Arc  6186(steps   1). Coordinate: 0.3009116214 2.0929970 3.2966435
-	// Arc  6187(steps   1). Coordinate: 0.3010990247 2.0932070 3.2976031
-	// Arc  6188(steps   1). Coordinate: 0.3012864304 2.0934170 3.2985627
-	// Arc  6189(steps   1). Coordinate: 0.3014738386 2.0936269 3.2995223
-	// Arc  6190(steps   1). Coordinate: 0.3016612492 2.0938368 3.3004818
-	// Arc  6191(steps   1). Coordinate: 0.3018486622 2.0940468 3.3014414
-	// Arc  6192(steps   1). Coordinate: 0.3020360777 2.0942567 3.3024010
-	// Arc  6193(steps   1). Coordinate: 0.3022234955 2.0944666 3.3033606
-	// Arc  6194(steps   1). Coordinate: 0.3024109159 2.0946765 3.3043202
-	// Arc  6195(steps   1). Coordinate: 0.3025983386 2.0948864 3.3052798
-	// Arc  6196(steps   1). Coordinate: 0.3027857638 2.0950963 3.3062394
-	// Arc  6197(steps   1). Coordinate: 0.3029731914 2.0953062 3.3071990
-	// Arc  6198(steps   1). Coordinate: 0.3031606214 2.0955161 3.3081586
-	// Arc  6199(steps   1). Coordinate: 0.3033480538 2.0957259 3.3091182
-	// Arc  6200(steps   1). Coordinate: 0.3035354887 2.0959358 3.3100778
-	// Arc  6201(steps   1). Coordinate: 0.3037229260 2.0961457 3.3110374
-	// Arc  6202(steps   1). Coordinate: 0.3039103656 2.0963555 3.3119970
-	// Arc  6203(steps   1). Coordinate: 0.3040978077 2.0965653 3.3129566
-	// Arc  6204(steps   1). Coordinate: 0.3042852523 2.0967752 3.3139162
-	// Arc  6205(steps   1). Coordinate: 0.3044726992 2.0969850 3.3148758
-	// Arc  6206(steps   1). Coordinate: 0.3046601485 2.0971948 3.3158354
-	// Arc  6207(steps   1). Coordinate: 0.3048476002 2.0974046 3.3167950
-	// Arc  6208(steps   1). Coordinate: 0.3050350544 2.0976144 3.3177546
-	// Arc  6209(steps   1). Coordinate: 0.3052225109 2.0978242 3.3187142
-	// Arc  6210(steps   1). Coordinate: 0.3054099699 2.0980339 3.3196738
-	// Arc  6211(steps   1). Coordinate: 0.3055974312 2.0982437 3.3206334
-	// Arc  6212(steps   1). Coordinate: 0.3057848950 2.0984535 3.3215930
-	// Arc  6213(steps   1). Coordinate: 0.3059723611 2.0986632 3.3225527
-	// Arc  6214(steps   1). Coordinate: 0.3061598297 2.0988730 3.3235123
-	// Arc  6215(steps   1). Coordinate: 0.3063473006 2.0990827 3.3244719
-	// Arc  6216(steps   1). Coordinate: 0.3065347739 2.0992924 3.3254315
-	// Arc  6217(steps   1). Coordinate: 0.3067222496 2.0995021 3.3263911
-	// Arc  6218(steps   1). Coordinate: 0.3069097277 2.0997118 3.3273507
-	// Arc  6219(steps   1). Coordinate: 0.3070972082 2.0999215 3.3283104
-	// Arc  6220(steps   1). Coordinate: 0.3072846911 2.1001312 3.3292700
-	// Arc  6221(steps   1). Coordinate: 0.3074721764 2.1003409 3.3302296
-	// Arc  6222(steps   1). Coordinate: 0.3076596640 2.1005506 3.3311892
-	// Arc  6223(steps   1). Coordinate: 0.3078471540 2.1007603 3.3321489
-	// Arc  6224(steps   1). Coordinate: 0.3080346464 2.1009699 3.3331085
-	// Arc  6225(steps   1). Coordinate: 0.3082221412 2.1011796 3.3340681
-	// Arc  6226(steps   1). Coordinate: 0.3084096384 2.1013892 3.3350278
-	// Arc  6227(steps   1). Coordinate: 0.3085971379 2.1015989 3.3359874
-	// Arc  6228(steps   1). Coordinate: 0.3087846398 2.1018085 3.3369470
-	// Arc  6229(steps   1). Coordinate: 0.3089721441 2.1020181 3.3379067
-	// Arc  6230(steps   1). Coordinate: 0.3091596507 2.1022277 3.3388663
-	// Arc  6231(steps   1). Coordinate: 0.3093471597 2.1024373 3.3398260
-	// Arc  6232(steps   1). Coordinate: 0.3095346711 2.1026469 3.3407856
-	// Arc  6233(steps   1). Coordinate: 0.3097221849 2.1028565 3.3417452
-	// Arc  6234(steps   1). Coordinate: 0.3099097010 2.1030661 3.3427049
-	// Arc  6235(steps   1). Coordinate: 0.3100972194 2.1032756 3.3436645
-	// Arc  6236(steps   1). Coordinate: 0.3102847403 2.1034852 3.3446242
-	// Arc  6237(steps   1). Coordinate: 0.3104722634 2.1036948 3.3455838
-	// Arc  6238(steps   1). Coordinate: 0.3106597890 2.1039043 3.3465435
-	// Arc  6239(steps   1). Coordinate: 0.3108473169 2.1041138 3.3475031
-	// Arc  6240(steps   1). Coordinate: 0.3110348471 2.1043234 3.3484628
-	// Arc  6241(steps   1). Coordinate: 0.3112223797 2.1045329 3.3494224
-	// Arc  6242(steps   1). Coordinate: 0.3114099147 2.1047424 3.3503821
-	// Arc  6243(steps   1). Coordinate: 0.3115974520 2.1049519 3.3513417
-	// Arc  6244(steps   1). Coordinate: 0.3117849916 2.1051614 3.3523014
-	// Arc  6245(steps   1). Coordinate: 0.3119725336 2.1053709 3.3532610
-	// Arc  6246(steps   1). Coordinate: 0.3121600779 2.1055804 3.3542207
-	// Arc  6247(steps   1). Coordinate: 0.3123476246 2.1057899 3.3551804
-	// Arc  6248(steps   1). Coordinate: 0.3125351736 2.1059993 3.3561400
-	// Arc  6249(steps   1). Coordinate: 0.3127227250 2.1062088 3.3570997
-	// Arc  6250(steps   1). Coordinate: 0.3129102787 2.1064182 3.3580593
-	// Arc  6251(steps   1). Coordinate: 0.3130978347 2.1066277 3.3590190
-	// Arc  6252(steps   1). Coordinate: 0.3132853931 2.1068371 3.3599787
-	// Arc  6253(steps   1). Coordinate: 0.3134729538 2.1070465 3.3609383
-	// Arc  6254(steps   1). Coordinate: 0.3136605168 2.1072559 3.3618980
-	// Arc  6255(steps   1). Coordinate: 0.3138480821 2.1074654 3.3628577
-	// Arc  6256(steps   1). Coordinate: 0.3140356498 2.1076748 3.3638174
-	// Arc  6257(steps   1). Coordinate: 0.3142232198 2.1078841 3.3647770
-	// Arc  6258(steps   1). Coordinate: 0.3144107922 2.1080935 3.3657367
-	// Arc  6259(steps   1). Coordinate: 0.3145983668 2.1083029 3.3666964
-	// Arc  6260(steps   1). Coordinate: 0.3147859438 2.1085123 3.3676561
-	// Arc  6261(steps   1). Coordinate: 0.3149735231 2.1087216 3.3686157
-	// Arc  6262(steps   1). Coordinate: 0.3151611047 2.1089310 3.3695754
-	// Arc  6263(steps   1). Coordinate: 0.3153486886 2.1091403 3.3705351
-	// Arc  6264(steps   1). Coordinate: 0.3155362749 2.1093497 3.3714948
-	// Arc  6265(steps   1). Coordinate: 0.3157238634 2.1095590 3.3724545
-	// Arc  6266(steps   1). Coordinate: 0.3159114543 2.1097683 3.3734141
-	// Arc  6267(steps   1). Coordinate: 0.3160990475 2.1099776 3.3743738
-	// Arc  6268(steps   1). Coordinate: 0.3162866430 2.1101869 3.3753335
-	// Arc  6269(steps   1). Coordinate: 0.3164742408 2.1103962 3.3762932
-	// Arc  6270(steps   1). Coordinate: 0.3166618409 2.1106055 3.3772529
-	// Arc  6271(steps   1). Coordinate: 0.3168494433 2.1108148 3.3782126
-	// Arc  6272(steps   1). Coordinate: 0.3170370480 2.1110241 3.3791723
-	// Arc  6273(steps   1). Coordinate: 0.3172246550 2.1112333 3.3801320
-	// Arc  6274(steps   1). Coordinate: 0.3174122644 2.1114426 3.3810917
-	// Arc  6275(steps   1). Coordinate: 0.3175998760 2.1116519 3.3820514
-	// Arc  6276(steps   1). Coordinate: 0.3177874899 2.1118611 3.3830111
-	// Arc  6277(steps   1). Coordinate: 0.3179751061 2.1120703 3.3839708
-	// Arc  6278(steps   1). Coordinate: 0.3181627246 2.1122796 3.3849305
-	// Arc  6279(steps   1). Coordinate: 0.3183503454 2.1124888 3.3858902
-	// Arc  6280(steps   1). Coordinate: 0.3185379685 2.1126980 3.3868499
-	// Arc  6281(steps   1). Coordinate: 0.3187255938 2.1129072 3.3878096
-	// Arc  6282(steps   1). Coordinate: 0.3189132215 2.1131164 3.3887693
-	// Arc  6283(steps   1). Coordinate: 0.3191008514 2.1133256 3.3897290
-	// Arc  6284(steps   1). Coordinate: 0.3192884837 2.1135347 3.3906887
-	// Arc  6285(steps   1). Coordinate: 0.3194761182 2.1137439 3.3916484
-	// Arc  6286(steps   1). Coordinate: 0.3196637550 2.1139531 3.3926081
-	// Arc  6287(steps   1). Coordinate: 0.3198513940 2.1141622 3.3935678
-	// Arc  6288(steps   1). Coordinate: 0.3200390354 2.1143714 3.3945275
-	// Arc  6289(steps   1). Coordinate: 0.3202266790 2.1145805 3.3954872
-	// Arc  6290(steps   1). Coordinate: 0.3204143249 2.1147897 3.3964470
-	// Arc  6291(steps   1). Coordinate: 0.3206019731 2.1149988 3.3974067
-	// Arc  6292(steps   1). Coordinate: 0.3207896235 2.1152079 3.3983664
-	// Arc  6293(steps   1). Coordinate: 0.3209772762 2.1154170 3.3993261
-	// Arc  6294(steps   1). Coordinate: 0.3211649312 2.1156261 3.4002858
-	// Arc  6295(steps   1). Coordinate: 0.3213525885 2.1158352 3.4012455
-	// Arc  6296(steps   1). Coordinate: 0.3215402480 2.1160443 3.4022053
-	// Arc  6297(steps   1). Coordinate: 0.3217279098 2.1162534 3.4031650
-	// Arc  6298(steps   1). Coordinate: 0.3219155738 2.1164624 3.4041247
-	// Arc  6299(steps   1). Coordinate: 0.3221032401 2.1166715 3.4050844
-	// Arc  6300(steps   1). Coordinate: 0.3222909087 2.1168805 3.4060442
-	// Arc  6301(steps   1). Coordinate: 0.3224785795 2.1170896 3.4070039
-	// Arc  6302(steps   1). Coordinate: 0.3226662526 2.1172986 3.4079636
-	// Arc  6303(steps   1). Coordinate: 0.3228539279 2.1175077 3.4089234
-	// Arc  6304(steps   1). Coordinate: 0.3230416055 2.1177167 3.4098831
-	// Arc  6305(steps   1). Coordinate: 0.3232292853 2.1179257 3.4108428
-	// Arc  6306(steps   1). Coordinate: 0.3234169674 2.1181347 3.4118026
-	// Arc  6307(steps   1). Coordinate: 0.3236046518 2.1183437 3.4127623
-	// Arc  6308(steps   1). Coordinate: 0.3237923384 2.1185527 3.4137220
-	// Arc  6309(steps   1). Coordinate: 0.3239800272 2.1187617 3.4146818
-	// Arc  6310(steps   1). Coordinate: 0.3241677183 2.1189706 3.4156415
-	// Arc  6311(steps   1). Coordinate: 0.3243554116 2.1191796 3.4166013
-	// Arc  6312(steps   1). Coordinate: 0.3245431072 2.1193886 3.4175610
-	// Arc  6313(steps   1). Coordinate: 0.3247308050 2.1195975 3.4185207
-	// Arc  6314(steps   1). Coordinate: 0.3249185050 2.1198065 3.4194805
-	// Arc  6315(steps   1). Coordinate: 0.3251062073 2.1200154 3.4204402
-	// Arc  6316(steps   1). Coordinate: 0.3252939118 2.1202243 3.4214000
-	// Arc  6317(steps   1). Coordinate: 0.3254816186 2.1204333 3.4223597
-	// Arc  6318(steps   1). Coordinate: 0.3256693275 2.1206422 3.4233195
-	// Arc  6319(steps   1). Coordinate: 0.3258570388 2.1208511 3.4242792
-	// Arc  6320(steps   1). Coordinate: 0.3260447522 2.1210600 3.4252390
-	// Arc  6321(steps   1). Coordinate: 0.3262324679 2.1212689 3.4261987
-	// Arc  6322(steps   1). Coordinate: 0.3264201858 2.1214778 3.4271585
-	// Arc  6323(steps   1). Coordinate: 0.3266079059 2.1216866 3.4281183
-	// Arc  6324(steps   1). Coordinate: 0.3267956282 2.1218955 3.4290780
-	// Arc  6325(steps   1). Coordinate: 0.3269833528 2.1221044 3.4300378
-	// Arc  6326(steps   1). Coordinate: 0.3271710796 2.1223132 3.4309975
-	// Arc  6327(steps   1). Coordinate: 0.3273588086 2.1225221 3.4319573
-	// Arc  6328(steps   1). Coordinate: 0.3275465398 2.1227309 3.4329171
-	// Arc  6329(steps   1). Coordinate: 0.3277342733 2.1229397 3.4338768
-	// Arc  6330(steps   1). Coordinate: 0.3279220090 2.1231485 3.4348366
-	// Arc  6331(steps   1). Coordinate: 0.3281097468 2.1233574 3.4357963
-	// Arc  6332(steps   1). Coordinate: 0.3282974869 2.1235662 3.4367561
-	// Arc  6333(steps   1). Coordinate: 0.3284852292 2.1237750 3.4377159
-	// Arc  6334(steps   1). Coordinate: 0.3286729737 2.1239838 3.4386757
-	// Arc  6335(steps   1). Coordinate: 0.3288607204 2.1241925 3.4396354
-	// Arc  6336(steps   1). Coordinate: 0.3290484693 2.1244013 3.4405952
-	// Arc  6337(steps   1). Coordinate: 0.3292362205 2.1246101 3.4415550
-	// Arc  6338(steps   1). Coordinate: 0.3294239738 2.1248188 3.4425147
-	// Arc  6339(steps   1). Coordinate: 0.3296117293 2.1250276 3.4434745
-	// Arc  6340(steps   1). Coordinate: 0.3297994870 2.1252363 3.4444343
-	// Arc  6341(steps   1). Coordinate: 0.3299872470 2.1254451 3.4453941
-	// Arc  6342(steps   1). Coordinate: 0.3301750091 2.1256538 3.4463539
-	// Arc  6343(steps   1). Coordinate: 0.3303627734 2.1258625 3.4473136
-	// Arc  6344(steps   1). Coordinate: 0.3305505399 2.1260713 3.4482734
-	// Arc  6345(steps   1). Coordinate: 0.3307383086 2.1262800 3.4492332
-	// Arc  6346(steps   1). Coordinate: 0.3309260795 2.1264887 3.4501930
-	// Arc  6347(steps   1). Coordinate: 0.3311138526 2.1266974 3.4511528
-	// Arc  6348(steps   1). Coordinate: 0.3313016279 2.1269060 3.4521126
-	// Arc  6349(steps   1). Coordinate: 0.3314894054 2.1271147 3.4530723
-	// Arc  6350(steps   1). Coordinate: 0.3316771850 2.1273234 3.4540321
-	// Arc  6351(steps   1). Coordinate: 0.3318649668 2.1275321 3.4549919
-	// Arc  6352(steps   1). Coordinate: 0.3320527509 2.1277407 3.4559517
-	// Arc  6353(steps   1). Coordinate: 0.3322405371 2.1279494 3.4569115
-	// Arc  6354(steps   1). Coordinate: 0.3324283254 2.1281580 3.4578713
-	// Arc  6355(steps   1). Coordinate: 0.3326161160 2.1283666 3.4588311
-	// Arc  6356(steps   1). Coordinate: 0.3328039087 2.1285753 3.4597909
-	// Arc  6357(steps   1). Coordinate: 0.3329917036 2.1287839 3.4607507
-	// Arc  6358(steps   1). Coordinate: 0.3331795007 2.1289925 3.4617105
-	// Arc  6359(steps   1). Coordinate: 0.3333673000 2.1292011 3.4626703
-	// Arc  6360(steps   1). Coordinate: 0.3335551014 2.1294097 3.4636301
-	// Arc  6361(steps   1). Coordinate: 0.3337429050 2.1296183 3.4645899
-	// Arc  6362(steps   1). Coordinate: 0.3339307108 2.1298269 3.4655497
-	// Arc  6363(steps   1). Coordinate: 0.3341185187 2.1300354 3.4665095
-	// Arc  6364(steps   1). Coordinate: 0.3343063288 2.1302440 3.4674693
-	// Arc  6365(steps   1). Coordinate: 0.3344941411 2.1304526 3.4684291
-	// Arc  6366(steps   1). Coordinate: 0.3346819555 2.1306611 3.4693889
-	// Arc  6367(steps   1). Coordinate: 0.3348697721 2.1308696 3.4703487
-	// Arc  6368(steps   1). Coordinate: 0.3350575908 2.1310782 3.4713085
-	// Arc  6369(steps   1). Coordinate: 0.3352454117 2.1312867 3.4722684
-	// Arc  6370(steps   1). Coordinate: 0.3354332348 2.1314952 3.4732282
-	// Arc  6371(steps   1). Coordinate: 0.3356210600 2.1317037 3.4741880
-	// Arc  6372(steps   1). Coordinate: 0.3358088874 2.1319123 3.4751478
-	// Arc  6373(steps   1). Coordinate: 0.3359967169 2.1321208 3.4761076
-	// Arc  6374(steps   1). Coordinate: 0.3361845486 2.1323292 3.4770674
-	// Arc  6375(steps   1). Coordinate: 0.3363723824 2.1325377 3.4780273
-	// Arc  6376(steps   1). Coordinate: 0.3365602184 2.1327462 3.4789871
-	// Arc  6377(steps   1). Coordinate: 0.3367480565 2.1329547 3.4799469
-	// Arc  6378(steps   1). Coordinate: 0.3369358967 2.1331631 3.4809067
-	// Arc  6379(steps   1). Coordinate: 0.3371237391 2.1333716 3.4818665
-	// Arc  6380(steps   1). Coordinate: 0.3373115837 2.1335800 3.4828264
-	// Arc  6381(steps   1). Coordinate: 0.3374994304 2.1337885 3.4837862
-	// Arc  6382(steps   1). Coordinate: 0.3376872792 2.1339969 3.4847460
-	// Arc  6383(steps   1). Coordinate: 0.3378751302 2.1342053 3.4857059
-	// Arc  6384(steps   1). Coordinate: 0.3380629833 2.1344137 3.4866657
-	// Arc  6385(steps   1). Coordinate: 0.3382508385 2.1346222 3.4876255
-	// Arc  6386(steps   1). Coordinate: 0.3384386959 2.1348306 3.4885853
-	// Arc  6387(steps   1). Coordinate: 0.3386265554 2.1350390 3.4895452
-	// Arc  6388(steps   1). Coordinate: 0.3388144171 2.1352473 3.4905050
-	// Arc  6389(steps   1). Coordinate: 0.3390022808 2.1354557 3.4914648
-	// Arc  6390(steps   1). Coordinate: 0.3391901467 2.1356641 3.4924247
-	// Arc  6391(steps   1). Coordinate: 0.3393780148 2.1358725 3.4933845
-	// Arc  6392(steps   1). Coordinate: 0.3395658849 2.1360808 3.4943444
-	// Arc  6393(steps   1). Coordinate: 0.3397537572 2.1362892 3.4953042
-	// Arc  6394(steps   1). Coordinate: 0.3399416316 2.1364975 3.4962640
-	// Arc  6395(steps   1). Coordinate: 0.3401295081 2.1367059 3.4972239
-	// Arc  6396(steps   1). Coordinate: 0.3403173868 2.1369142 3.4981837
-	// Arc  6397(steps   1). Coordinate: 0.3405052675 2.1371225 3.4991436
-	// Arc  6398(steps   1). Coordinate: 0.3406931504 2.1373308 3.5001034
+	// 	0(  1) 0.000178959729216 0.000238637637691 0.000954476554555
+	//     1(  1) 0.000357908916470 0.000477310589780 0.001908946255658
+	//     2(  1) 0.000536847548829 0.000716018898406 0.002863409093720
+	//     3(  1) 0.000715775613337 0.000954762605786 0.003817865059136
+	//     4(  1) 0.000894693097018 0.001193541754208 0.004772314142279
+	//     5(  1) 0.001073599986868 0.001432356386031 0.005726756333504
+	//     6(  1) 0.001252496269864 0.001671206543690 0.006681191623148
+	//     7(  1) 0.001431381932958 0.001910092269691 0.007635620001525
+	//     8(  1) 0.001610256963080 0.002149013606615 0.008590041458934
+	//     9(  1) 0.001789121347134 0.002387970597116 0.009544455985650
+	//    10(  1) 0.001967975072003 0.002626963283922 0.010498863571933
+	//    11(  1) 0.002146818124547 0.002865991709833 0.011453264208020
+	//    12(  1) 0.002325650491601 0.003105055917727 0.012407657884129
+	//    13(  1) 0.002504472159977 0.003344155950553 0.013362044590461
+	//    14(  1) 0.002683283116464 0.003583291851336 0.014316424317193
+	//    15(  1) 0.002862083347827 0.003822463663175 0.015270797054485
+	//    16(  1) 0.003040872840808 0.004061671429244 0.016225162792476
+	//    17(  1) 0.003219651582124 0.004300915192792 0.017179521521287
+	//    18(  1) 0.003398419558468 0.004540194997144 0.018133873231016
+	//    19(  1) 0.003577176756511 0.004779510885698 0.019088217911743
+	//    20(  1) 0.003755923162900 0.005018862901931 0.020042555553529
+	//    21(  1) 0.003934658764255 0.005258251089392 0.020996886146412
+	//    22(  1) 0.004113383547175 0.005497675491709 0.021951209680411
+	//    23(  1) 0.004292097498235 0.005737136152584 0.022905526145526
+	//    24(  1) 0.004470800603985 0.005976633115796 0.023859835531736
+	//    25(  1) 0.004649492850949 0.006216166425201 0.024814137828998
+	//    26(  1) 0.004828174225630 0.006455736124730 0.025768433027252
+	//    27(  1) 0.005006844714506 0.006695342258392 0.026722721116414
+	//    28(  1) 0.005185504304027 0.006934984870273 0.027677002086382
+	//    29(  1) 0.005364152980624 0.007174664004534 0.028631275927032
+	//    30(  1) 0.005542790730701 0.007414379705418 0.029585542628221
+	//    31(  1) 0.005721417540636 0.007654132017240 0.030539802179783
+	//    32(  1) 0.005900033396785 0.007893920984396 0.031494054571534
+	//    33(  1) 0.006078638285477 0.008133746651360 0.032448299793268
+	//    34(  1) 0.006257232193019 0.008373609062682 0.033402537834756
+	//    35(  1) 0.006435815105690 0.008613508262992 0.034356768685752
+	//    36(  1) 0.006614387009747 0.008853444296997 0.035310992335987
+	//    37(  1) 0.006792947891422 0.009093417209484 0.036265208775170
+	//    38(  1) 0.006971497736919 0.009333427045318 0.037219417992992
+	//    39(  1) 0.007150036532419 0.009573473849442 0.038173619979120
+	//    40(  1) 0.007328564264080 0.009813557666881 0.039127814723201
+	//    41(  1) 0.007507080918031 0.010053678542737 0.040082002214861
+	//    42(  1) 0.007685586480378 0.010293836522191 0.041036182443705
+	//    43(  1) 0.007864080937202 0.010534031650507 0.041990355399314
+	//    44(  1) 0.008042564274557 0.010774263973024 0.042944521071252
+	//    45(  1) 0.008221036478473 0.011014533535166 0.043898679449058
+	//    46(  1) 0.008399497534954 0.011254840382434 0.044852830522251
+	//    47(  1) 0.008577947429980 0.011495184560410 0.045806974280329
+	//    48(  1) 0.008756386149502 0.011735566114759 0.046761110712766
+	//    49(  1) 0.008934813679448 0.011975985091224 0.047715239809017
+	//    50(  1) 0.009113230005721 0.012216441535631 0.048669361558514
+	//    51(  1) 0.009291635114195 0.012456935493885 0.049623475950667
+	//    52(  1) 0.009470028990722 0.012697467011974 0.050577582974864
+	//    53(  1) 0.009648411621126 0.012938036135969 0.051531682620473
+	//    54(  1) 0.009826782991204 0.013178642912020 0.052485774876838
+	//    55(  1) 0.010005143086730 0.013419287386361 0.053439859733280
+	//    56(  1) 0.010183491893449 0.013659969605307 0.054393937179102
+	//    57(  1) 0.010361829397081 0.013900689615256 0.055348007203580
+	//    58(  1) 0.010540155583321 0.014141447462689 0.056302069795972
+	//    59(  1) 0.010718470437835 0.014382243194169 0.057256124945510
+	//    60(  1) 0.010896773946266 0.014623076856342 0.058210172641406
+	//    61(  1) 0.011075066094228 0.014863948495939 0.059164212872850
+	//    62(  1) 0.011253346867309 0.015104858159772 0.060118245629008
+	//    63(  1) 0.011431616251071 0.015345805894738 0.061072270899023
+	//    64(  1) 0.011609874231050 0.015586791747816 0.062026288672018
+	//    65(  1) 0.011788120792754 0.015827815766073 0.062980298937091
+	//    66(  1) 0.011966355921665 0.016068877996656 0.063934301683317
+	//    67(  1) 0.012144579603239 0.016309978486798 0.064888296899752
+	//    68(  1) 0.012322791822902 0.016551117283817 0.065842284575424
+	//    69(  1) 0.012500992566057 0.016792294435116 0.066796264699342
+	//    70(  1) 0.012679181818077 0.017033509988182 0.067750237260490
+	//    71(  1) 0.012857359564310 0.017274763990588 0.068704202247830
+	//    72(  1) 0.013035525790077 0.017516056489993 0.069658159650300
+	//    73(  1) 0.013213680480669 0.017757387534139 0.070612109456816
+	//    74(  1) 0.013391823621353 0.017998757170858 0.071566051656269
+	//    75(  1) 0.013569955197366 0.018240165448064 0.072519986237529
+	//    76(  1) 0.013748075193920 0.018481612413759 0.073473913189441
+	//    77(  1) 0.013926183596198 0.018723098116033 0.074427832500827
+	//    78(  1) 0.014104280389356 0.018964622603061 0.075381744160485
+	//    79(  1) 0.014282365558522 0.019206185923104 0.076335648157192
+	//    80(  1) 0.014460439088797 0.019447788124512 0.077289544479698
+	//    81(  1) 0.014638500965252 0.019689429255721 0.078243433116731
+	//    82(  1) 0.014816551172935 0.019931109365256 0.079197314056995
+	//    83(  1) 0.014994589696861 0.020172828501729 0.080151187289171
+	//    84(  1) 0.015172616522019 0.020414586713839 0.081105052801915
+	//    85(  1) 0.015350631633371 0.020656384050374 0.082058910583858
+	//    86(  1) 0.015528635015850 0.020898220560210 0.083012760623611
+	//    87(  1) 0.015706626654361 0.021140096292314 0.083966602909757
+	//    88(  1) 0.015884606533780 0.021382011295737 0.084920437430856
+	//    89(  1) 0.016062574638955 0.021623965619624 0.085874264175445
+	//    90(  1) 0.016240530954707 0.021865959313207 0.086828083132035
+	//    91(  1) 0.016418475465827 0.022107992425806 0.087781894289113
+	//    92(  1) 0.016596408157077 0.022350065006834 0.088735697635144
+	//    93(  1) 0.016774329013193 0.022592177105791 0.089689493158565
+	//    94(  1) 0.016952238018880 0.022834328772269 0.090643280847790
+	//    95(  1) 0.017130135158815 0.023076520055950 0.091597060691209
+	//    96(  1) 0.017308020417645 0.023318751006605 0.092550832677186
+	//    97(  1) 0.017485893779991 0.023561021674098 0.093504596794062
+	//    98(  1) 0.017663755230442 0.023803332108384 0.094458353030152
+	//    99(  1) 0.017841604753560 0.024045682359506 0.095412101373745
+	//   100(  1) 0.018019442333876 0.024288072477603 0.096365841813108
+	//   101(  1) 0.018197267955895 0.024530502512902 0.097319574336481
+	//   102(  1) 0.018375081604089 0.024772972515724 0.098273298932078
+	//   103(  1) 0.018552883262902 0.025015482536482 0.099227015588091
+	//   104(  1) 0.018730672916751 0.025258032625680 0.100180724292682
+	//   105(  1) 0.018908450550019 0.025500622833917 0.101134425033993
+	//   106(  1) 0.019086216147064 0.025743253211882 0.102088117800138
+	//   107(  1) 0.019263969692211 0.025985923810359 0.103041802579204
+	//   108(  1) 0.019441711169757 0.026228634680225 0.103995479359255
+	//   109(  1) 0.019619440563970 0.026471385872450 0.104949148128328
+	//   110(  1) 0.019797157859085 0.026714177438098 0.105902808874436
+	//   111(  1) 0.019974863039309 0.026957009428327 0.106856461585565
+	//   112(  1) 0.020152556088821 0.027199881894390 0.107810106249674
+	//   113(  1) 0.020330236991767 0.027442794887632 0.108763742854698
+	//   114(  1) 0.020507905732263 0.027685748459496 0.109717371388546
+	//   115(  1) 0.020685562294396 0.027928742661518 0.110670991839101
+	//   116(  1) 0.020863206662222 0.028171777545329 0.111624604194217
+	//   117(  1) 0.021040838819768 0.028414853162655 0.112578208441726
+	//   118(  1) 0.021218458751027 0.028657969565321 0.113531804569431
+	//   119(  1) 0.021396066439967 0.028901126805244 0.114485392565110
+	//   120(  1) 0.021573661870519 0.029144324934438 0.115438972416514
+	//   121(  1) 0.021751245026588 0.029387564005014 0.116392544111367
+	//   122(  1) 0.021928815892047 0.029630844069180 0.117346107637368
+	//   123(  1) 0.022106374450737 0.029874165179240 0.118299662982188
+	//   124(  1) 0.022283920686469 0.030117527387596 0.119253210133472
+	//   125(  1) 0.022461454583023 0.030360930746745 0.120206749078838
+	//   126(  1) 0.022638976124148 0.030604375309285 0.121160279805876
+	//   127(  1) 0.022816485293561 0.030847861127910 0.122113802302152
+	//   128(  1) 0.022993982074948 0.031091388255410 0.123067316555201
+	//   129(  1) 0.023171466451964 0.031334956744678 0.124020822552535
+	//   130(  1) 0.023348938408234 0.031578566648701 0.124974320281635
+	//   131(  1) 0.023526397927348 0.031822218020568 0.125927809729958
+	//   132(  1) 0.023703844992867 0.032065910913465 0.126881290884932
+	//   133(  1) 0.023881279588320 0.032309645380678 0.127834763733957
+	//   134(  1) 0.024058701697204 0.032553421475593 0.128788228264408
+	//   135(  1) 0.024236111302983 0.032797239251696 0.129741684463629
+	//   136(  1) 0.024413508389092 0.033041098762571 0.130695132318939
+	//   137(  1) 0.024590892938931 0.033285000061905 0.131648571817629
+	//   138(  1) 0.024768264935869 0.033528943203484 0.132602002946961
+	//   139(  1) 0.024945624363244 0.033772928241194 0.133555425694169
+	//   140(  1) 0.025122971204359 0.034016955229024 0.134508840046462
+	//   141(  1) 0.025300305442488 0.034261024221064 0.135462245991016
+	//   142(  1) 0.025477627060870 0.034505135271505 0.136415643514984
+	//   143(  1) 0.025654936042712 0.034749288434638 0.137369032605487
+	//   144(  1) 0.025832232371190 0.034993483764860 0.138322413249619
+	//   145(  1) 0.026009516029445 0.035237721316668 0.139275785434446
+	//   146(  1) 0.026186787000587 0.035482001144660 0.140229149147006
+	//   147(  1) 0.026364045267692 0.035726323303541 0.141182504374308
+	//   148(  1) 0.026541290813804 0.035970687848116 0.142135851103330
+	//   149(  1) 0.026718523621933 0.036215094833294 0.143089189321026
+	//   150(  1) 0.026895743675057 0.036459544314088 0.144042519014317
+	//   151(  1) 0.027072950956120 0.036704036345615 0.144995840170097
+	//   152(  1) 0.027250145448034 0.036948570983096 0.145949152775231
+	//   153(  1) 0.027427327133675 0.037193148281857 0.146902456816555
+	//   154(  1) 0.027604495995887 0.037437768297326 0.147855752280875
+	//   155(  1) 0.027781652017482 0.037682431085041 0.148809039154970
+	//   156(  1) 0.027958795181237 0.037927136700640 0.149762317425586
+	//   157(  1) 0.028135925469893 0.038171885199870 0.150715587079443
+	//   158(  1) 0.028313042866162 0.038416676638582 0.151668848103231
+	//   159(  1) 0.028490147352718 0.038661511072735 0.152622100483608
+	//   160(  1) 0.028667238912203 0.038906388558392 0.153575344207205
+	//   161(  1) 0.028844317527225 0.039151309151724 0.154528579260623
+	//   162(  1) 0.029021383180356 0.039396272909008 0.155481805630431
+	//   163(  1) 0.029198435854135 0.039641279886629 0.156435023303171
+	//   164(  1) 0.029375475531069 0.039886330141080 0.157388232265354
+	//   165(  1) 0.029552502193625 0.040131423728959 0.158341432503460
+	//   166(  1) 0.029729515824241 0.040376560706975 0.159294624003939
+	//   167(  1) 0.029906516405317 0.040621741131944 0.160247806753211
+	//   168(  1) 0.030083503919219 0.040866965060790 0.161200980737667
+	//   169(  1) 0.030260478348280 0.041112232550547 0.162154145943666
+	//   170(  1) 0.030437439674795 0.041357543658357 0.163107302357537
+	//   171(  1) 0.030614387881027 0.041602898441471 0.164060449965578
+	//   172(  1) 0.030791322949201 0.041848296957252 0.165013588754057
+	//   173(  1) 0.030968244861510 0.042093739263171 0.165966718709210
+	//   174(  1) 0.031145153600109 0.042339225416809 0.166919839817244
+	//   175(  1) 0.031322049147118 0.042584755475859 0.167872952064333
+	//   176(  1) 0.031498931484624 0.042830329498124 0.168826055436621
+	//   177(  1) 0.031675800594676 0.043075947541517 0.169779149920221
+	//   178(  1) 0.031852656459288 0.043321609664064 0.170732235501215
+	//   179(  1) 0.032029499060437 0.043567315923902 0.171685312165652
+	//   180(  1) 0.032206328380068 0.043813066379281 0.172638379899552
+	//   181(  1) 0.032383144400085 0.044058861088560 0.173591438688901
+	//   182(  1) 0.032559947102360 0.044304700110215 0.174544488519655
+	//   183(  1) 0.032736736468726 0.044550583502832 0.175497529377737
+	//   184(  1) 0.032913512480982 0.044796511325111 0.176450561249041
+	//   185(  1) 0.033090275120890 0.045042483635864 0.177403584119425
+	//   186(  1) 0.033267024370175 0.045288500494019 0.178356597974718
+	//   187(  1) 0.033443760210525 0.045534561958616 0.179309602800716
+	//   188(  1) 0.033620482623593 0.045780668088812 0.180262598583183
+	//   189(  1) 0.033797191590994 0.046026818943874 0.181215585307851
+	//   190(  1) 0.033973887094307 0.046273014583189 0.182168562960417
+	//   191(  1) 0.034150569115073 0.046519255066256 0.183121531526550
+	//   192(  1) 0.034327237634798 0.046765540452691 0.184074490991882
+	//   193(  1) 0.034503892634948 0.047011870802224 0.185027441342017
+	//   194(  1) 0.034680534096954 0.047258246174704 0.185980382562521
+	//   195(  1) 0.034857162002209 0.047504666630093 0.186933314638931
+	//   196(  1) 0.035033776332069 0.047751132228473 0.187886237556749
+	//   197(  1) 0.035210377067851 0.047997643030041 0.188839151301446
+	//   198(  1) 0.035386964190836 0.048244199095111 0.189792055858457
+	//   199(  1) 0.035563537682267 0.048490800484117 0.190744951213186
+	//   200(  1) 0.035740097523349 0.048737447257608 0.191697837351003
+	//   201(  1) 0.035916643695248 0.048984139476254 0.192650714257244
+	//   202(  1) 0.036093176179093 0.049230877200841 0.193603581917212
+	//   203(  1) 0.036269694955975 0.049477660492277 0.194556440316176
+	//   204(  1) 0.036446200006946 0.049724489411586 0.195509289439371
+	//   205(  1) 0.036622691313022 0.049971364019913 0.196462129272000
+	//   206(  1) 0.036799168855176 0.050218284378523 0.197414959799228
+	//   207(  1) 0.036975632614347 0.050465250548801 0.198367781006191
+	//   208(  1) 0.037152082571433 0.050712262592253 0.199320592877986
+	//   209(  1) 0.037328518707294 0.050959320570504 0.200273395399679
+	//   210(  1) 0.037504941002750 0.051206424545302 0.201226188556301
+	//   211(  1) 0.037681349438583 0.051453574578516 0.202178972332847
+	//   212(  1) 0.037857743995536 0.051700770732136 0.203131746714279
+	//   213(  1) 0.038034124654312 0.051948013068275 0.204084511685523
+	//   214(  1) 0.038210491395576 0.052195301649167 0.205037267231472
+	//   215(  1) 0.038386844199953 0.052442636537171 0.205990013336982
+	//   216(  1) 0.038563183048027 0.052690017794768 0.206942749986875
+	//   217(  1) 0.038739507920344 0.052937445484561 0.207895477165939
+	//   218(  1) 0.038915818797411 0.053184919669278 0.208848194858923
+	//   219(  1) 0.039092115659693 0.053432440411772 0.209800903050546
+	//   220(  1) 0.039268398487617 0.053680007775019 0.210753601725487
+	//   221(  1) 0.039444667261568 0.053927621822119 0.211706290868392
+	//   222(  1) 0.039620921961893 0.054175282616299 0.212658970463869
+	//   223(  1) 0.039797162568896 0.054422990220910 0.213611640496494
+	//   224(  1) 0.039973389062843 0.054670744699430 0.214564300950803
+	//   225(  1) 0.040149601423959 0.054918546115462 0.215516951811298
+	//   226(  1) 0.040325799632428 0.055166394532734 0.216469593062446
+	//   227(  1) 0.040501983668392 0.055414290015105 0.217422224688675
+	//   228(  1) 0.040678153511955 0.055662232626557 0.218374846674378
+	//   229(  1) 0.040854309143178 0.055910222431201 0.219327459003913
+	//   230(  1) 0.041030450542081 0.056158259493275 0.220280061661598
+	//   231(  1) 0.041206577688643 0.056406343877147 0.221232654631719
+	//   232(  1) 0.041382690562802 0.056654475647312 0.222185237898521
+	//   233(  1) 0.041558789144455 0.056902654868392 0.223137811446213
+	//   234(  1) 0.041734873413457 0.057150881605143 0.224090375258969
+	//   235(  1) 0.041910943349620 0.057399155922445 0.225042929320925
+	//   236(  1) 0.042086998932716 0.057647477885312 0.225995473616177
+	//   237(  1) 0.042263040142476 0.057895847558886 0.226948008128788
+	//   238(  1) 0.042439066958585 0.058144265008440 0.227900532842781
+	//   239(  1) 0.042615079360691 0.058392730299379 0.228853047742142
+	//   240(  1) 0.042791077328395 0.058641243497237 0.229805552810818
+	//   241(  1) 0.042967060841260 0.058889804667682 0.230758048032721
+	//   242(  1) 0.043143029878802 0.059138413876512 0.231710533391722
+	//   243(  1) 0.043318984420499 0.059387071189659 0.232663008871655
+	//   244(  1) 0.043494924445783 0.059635776673186 0.233615474456318
+	//   245(  1) 0.043670849934044 0.059884530393290 0.234567930129467
+	//   246(  1) 0.043846760864630 0.060133332416303 0.235520375874822
+	//   247(  1) 0.044022657216844 0.060382182808687 0.236472811676065
+	//   248(  1) 0.044198538969949 0.060631081637041 0.237425237516836
+	//   249(  1) 0.044374406103160 0.060880028968098 0.238377653380740
+	//   250(  1) 0.044550258595654 0.061129024868725 0.239330059251340
+	//   251(  1) 0.044726096426559 0.061378069405926 0.240282455112163
+	//   252(  1) 0.044901919574964 0.061627162646838 0.241234840946695
+	//   253(  1) 0.045077728019912 0.061876304658736 0.242187216738383
+	//   254(  1) 0.045253521740401 0.062125495509031 0.243139582470634
+	//   255(  1) 0.045429300715386 0.062374735265271 0.244091938126816
+	//   256(  1) 0.045605064923780 0.062624023995139 0.245044283690259
+	//   257(  1) 0.045780814344448 0.062873361766459 0.245996619144250
+	//   258(  1) 0.045956548956212 0.063122748647189 0.246948944472038
+	//   259(  1) 0.046132268737851 0.063372184705429 0.247901259656833
+	//   260(  1) 0.046307973668097 0.063621670009414 0.248853564681803
+	//   261(  1) 0.046483663725639 0.063871204627521 0.249805859530076
+	//   262(  1) 0.046659338889119 0.064120788628264 0.250758144184740
+	//   263(  1) 0.046834999137136 0.064370422080300 0.251710418628843
+	//   264(  1) 0.047010644448242 0.064620105052422 0.252662682845391
+	//   265(  1) 0.047186274800946 0.064869837613566 0.253614936817351
+	//   266(  1) 0.047361890173710 0.065119619832809 0.254567180527648
+	//   267(  1) 0.047537490544949 0.065369451779368 0.255519413959165
+	//   268(  1) 0.047713075893035 0.065619333522604 0.256471637094745
+	//   269(  1) 0.047888646196294 0.065869265132017 0.257423849917191
+	//   270(  1) 0.048064201433003 0.066119246677252 0.258376052409262
+	//   271(  1) 0.048239741581395 0.066369278228096 0.259328244553677
+	//   272(  1) 0.048415266619658 0.066619359854478 0.260280426333112
+	//   273(  1) 0.048590776525932 0.066869491626474 0.261232597730203
+	//   274(  1) 0.048766271278310 0.067119673614301 0.262184758727542
+	//   275(  1) 0.048941750854840 0.067369905888321 0.263136909307682
+	//   276(  1) 0.049117215233522 0.067620188519042 0.264089049453129
+	//   277(  1) 0.049292664392309 0.067870521577117 0.265041179146352
+	//   278(  1) 0.049468098309108 0.068120905133343 0.265993298369773
+	//   279(  1) 0.049643516961777 0.068371339258666 0.266945407105774
+	//   280(  1) 0.049818920328129 0.068621824024176 0.267897505336693
+	//   281(  1) 0.049994308385929 0.068872359501111 0.268849593044827
+	//   282(  1) 0.050169681112892 0.069122945760856 0.269801670212426
+	//   283(  1) 0.050345038486689 0.069373582874945 0.270753736821701
+	//   284(  1) 0.050520380484940 0.069624270915058 0.271705792854818
+	//   285(  1) 0.050695707085218 0.069875009953025 0.272657838293898
+	//   286(  1) 0.050871018265049 0.070125800060824 0.273609873121022
+	//   287(  1) 0.051046314001910 0.070376641310585 0.274561897318223
+	//   288(  1) 0.051221594273228 0.070627533774584 0.275513910867494
+	//   289(  1) 0.051396859056383 0.070878477525249 0.276465913750782
+	//   290(  1) 0.051572108328707 0.071129472635159 0.277417905949989
+	//   291(  1) 0.051747342067482 0.071380519177045 0.278369887446974
+	//   292(  1) 0.051922560249941 0.071631617223788 0.279321858223551
+	//   293(  1) 0.052097762853268 0.071882766848420 0.280273818261491
+	//   294(  1) 0.052272949854598 0.072133968124128 0.281225767542518
+	//   295(  1) 0.052448121231016 0.072385221124249 0.282177706048313
+	//   296(  1) 0.052623276959558 0.072636525922277 0.283129633760509
+	//   297(  1) 0.052798417017211 0.072887882591855 0.284081550660697
+	//   298(  1) 0.052973541380909 0.073139291206784 0.285033456730422
+	//   299(  1) 0.053148650027541 0.073390751841018 0.285985351951182
+	//   300(  1) 0.053323742933941 0.073642264568665 0.286937236304430
+	//   301(  1) 0.053498820076896 0.073893829463990 0.287889109771575
+	//   302(  1) 0.053673881433141 0.074145446601413 0.288840972333979
+	//   303(  1) 0.053848926979361 0.074397116055511 0.289792823972955
+	//   304(  1) 0.054023956692189 0.074648837901017 0.290744664669775
+	//   305(  1) 0.054198970548210 0.074900612212822 0.291696494405661
+	//   306(  1) 0.054373968523954 0.075152439065973 0.292648313161789
+	//   307(  1) 0.054548950595903 0.075404318535678 0.293600120919289
+	//   308(  1) 0.054723916740486 0.075656250697300 0.294551917659245
+	//   309(  1) 0.054898866934082 0.075908235626363 0.295503703362691
+	//   310(  1) 0.055073801153017 0.076160273398552 0.296455478010618
+	//   311(  1) 0.055248719373565 0.076412364089707 0.297407241583967
+	//   312(  1) 0.055423621571949 0.076664507775834 0.298358994063631
+	//   313(  1) 0.055598507724340 0.076916704533097 0.299310735430457
+	//   314(  1) 0.055773377806856 0.077168954437820 0.300262465665244
+	//   315(  1) 0.055948231795563 0.077421257566492 0.301214184748743
+	//   316(  1) 0.056123069666474 0.077673613995762 0.302165892661656
+	//   317(  1) 0.056297891395549 0.077926023802441 0.303117589384638
+	//   318(  1) 0.056472696958697 0.078178487063506 0.304069274898295
+	//   319(  1) 0.056647486331773 0.078431003856095 0.305020949183185
+	//   320(  1) 0.056822259490576 0.078683574257511 0.305972612219816
+	//   321(  1) 0.056997016410857 0.078936198345222 0.306924263988649
+	//   322(  1) 0.057171757068308 0.079188876196860 0.307875904470094
+	//   323(  1) 0.057346481438572 0.079441607890224 0.308827533644513
+	//   324(  1) 0.057521189497235 0.079694393503277 0.309779151492219
+	//   325(  1) 0.057695881219831 0.079947233114150 0.310730757993473
+	//   326(  1) 0.057870556581837 0.080200126801141 0.311682353128490
+	//   327(  1) 0.058045215558680 0.080453074642713 0.312633936877433
+	//   328(  1) 0.058219858125729 0.080706076717501 0.313585509220415
+	//   329(  1) 0.058394484258298 0.080959133104305 0.314537070137499
+	//   330(  1) 0.058569093931650 0.081212243882095 0.315488619608697
+	//   331(  1) 0.058743687120990 0.081465409130012 0.316440157613973
+	//   332(  1) 0.058918263801468 0.081718628927363 0.317391684133237
+	//   333(  1) 0.059092823948180 0.081971903353629 0.318343199146350
+	//   334(  1) 0.059267367536165 0.082225232488460 0.319294702633122
+	//   335(  1) 0.059441894540408 0.082478616411679 0.320246194573311
+	//   336(  1) 0.059616404935836 0.082732055203278 0.321197674946624
+	//   337(  1) 0.059790898697323 0.082985548943425 0.322149143732716
+	//   338(  1) 0.059965375799684 0.083239097712458 0.323100600911193
+	//   339(  1) 0.060139836217679 0.083492701590889 0.324052046461604
+	//   340(  1) 0.060314279926012 0.083746360659404 0.325003480363451
+	//   341(  1) 0.060488706899329 0.084000074998865 0.325954902596180
+	//   342(  1) 0.060663117112220 0.084253844690306 0.326906313139187
+	//   343(  1) 0.060837510539219 0.084507669814939 0.327857711971814
+	//   344(  1) 0.061011887154800 0.084761550454150 0.328809099073352
+	//   345(  1) 0.061186246933383 0.085015486689503 0.329760474423036
+	//   346(  1) 0.061360589849328 0.085269478602738 0.330711838000051
+	//   347(  1) 0.061534915876939 0.085523526275771 0.331663189783528
+	//   348(  1) 0.061709224990461 0.085777629790700 0.332614529752542
+	//   349(  1) 0.061883517164080 0.086031789229798 0.333565857886118
+	//   350(  1) 0.062057792371926 0.086286004675519 0.334517174163224
+	//   351(  1) 0.062232050588070 0.086540276210494 0.335468478562776
+	//   352(  1) 0.062406291786524 0.086794603917538 0.336419771063635
+	//   353(  1) 0.062580515941241 0.087048987879643 0.337371051644609
+	//   354(  1) 0.062754723026116 0.087303428179985 0.338322320284448
+	//   355(  1) 0.062928913014983 0.087557924901919 0.339273576961851
+	//   356(  1) 0.063103085881618 0.087812478128985 0.340224821655459
+	//   357(  1) 0.063277241599739 0.088067087944904 0.341176054343861
+	//   358(  1) 0.063451380143002 0.088321754433581 0.342127275005587
+	//   359(  1) 0.063625501485003 0.088576477679103 0.343078483619115
+	//   360(  1) 0.063799605599280 0.088831257765746 0.344029680162865
+	//   361(  1) 0.063973692459309 0.089086094777965 0.344980864615203
+	//   362(  1) 0.064147762038507 0.089340988800406 0.345932036954436
+	//   363(  1) 0.064321814310230 0.089595939917897 0.346883197158817
+	//   364(  1) 0.064495849247772 0.089850948215455 0.347834345206542
+	//   365(  1) 0.064669866824367 0.090106013778283 0.348785481075750
+	//   366(  1) 0.064843867013188 0.090361136691772 0.349736604744525
+	//   367(  1) 0.065017849787347 0.090616317041503 0.350687716190890
+	//   368(  1) 0.065191815119893 0.090871554913243 0.351638815392815
+	//   369(  1) 0.065365762983815 0.091126850392949 0.352589902328210
+	//   370(  1) 0.065539693352039 0.091382203566770 0.353540976974927
+	//   371(  1) 0.065713606197429 0.091637614521045 0.354492039310763
+	//   372(  1) 0.065887501492788 0.091893083342302 0.355443089313453
+	//   373(  1) 0.066061379210854 0.092148610117262 0.356394126960678
+	//   374(  1) 0.066235239324304 0.092404194932840 0.357345152230057
+	//   375(  1) 0.066409081805753 0.092659837876141 0.358296165099152
+	//   376(  1) 0.066582906627750 0.092915539034465 0.359247165545466
+	//   377(  1) 0.066756713762784 0.093171298495307 0.360198153546442
+	//   378(  1) 0.066930503183278 0.093427116346353 0.361149129079466
+	//   379(  1) 0.067104274861593 0.093682992675489 0.362100092121862
+	//   380(  1) 0.067278028770026 0.093938927570794 0.363051042650896
+	//   381(  1) 0.067451764880808 0.094194921120542 0.364001980643773
+	//   382(  1) 0.067625483166108 0.094450973413208 0.364952906077639
+	//   383(  1) 0.067799183598030 0.094707084537461 0.365903818929579
+	//   384(  1) 0.067972866148612 0.094963254582169 0.366854719176617
+	//   385(  1) 0.068146530789829 0.095219483636402 0.367805606795717
+	//   386(  1) 0.068320177493590 0.095475771789423 0.368756481763783
+	//   387(  1) 0.068493806231738 0.095732119130702 0.369707344057656
+	//   388(  1) 0.068667416976053 0.095988525749904 0.370658193654115
+	//   389(  1) 0.068841009698246 0.096244991736898 0.371609030529882
+	//   390(  1) 0.069014584369964 0.096501517181754 0.372559854661611
+	//   391(  1) 0.069188140962788 0.096758102174745 0.373510666025899
+	//   392(  1) 0.069361679448233 0.097014746806347 0.374461464599278
+	//   393(  1) 0.069535199797745 0.097271451167240 0.375412250358219
+	//   394(  1) 0.069708701982706 0.097528215348305 0.376363023279128
+	//   395(  1) 0.069882185974430 0.097785039440634 0.377313783338352
+	//   396(  1) 0.070055651744163 0.098041923535518 0.378264530512172
+	//   397(  1) 0.070229099263087 0.098298867724459 0.379215264776806
+	//   398(  1) 0.070402528502311 0.098555872099164 0.380165986108408
+	//   399(  1) 0.070575939432881 0.098812936751548 0.381116694483071
+	//   400(  1) 0.070749332025772 0.099070061773732 0.382067389876821
+	//   401(  1) 0.070922706251893 0.099327247258047 0.383018072265621
+	//   402(  1) 0.071096062082083 0.099584493297036 0.383968741625369
+	//   403(  1) 0.071269399487113 0.099841799983448 0.384919397931899
+	//   404(  1) 0.071442718437684 0.100099167410244 0.385870041160980
+	//   405(  1) 0.071616018904429 0.100356595670598 0.386820671288315
+	//   406(  1) 0.071789300857912 0.100614084857893 0.387771288289543
+	//   407(  1) 0.071962564268627 0.100871635065727 0.388721892140236
+	//   408(  1) 0.072135809106998 0.101129246387909 0.389672482815901
+	//   409(  1) 0.072309035343378 0.101386918918465 0.390623060291978
+	//   410(  1) 0.072482242948053 0.101644652751633 0.391573624543843
+	//   411(  1) 0.072655431891234 0.101902447981867 0.392524175546803
+	//   412(  1) 0.072828602143066 0.102160304703837 0.393474713276099
+	//   413(  1) 0.073001753673619 0.102418223012430 0.394425237706906
+	//   414(  1) 0.073174886452895 0.102676203002749 0.395375748814329
+	//   415(  1) 0.073348000450823 0.102934244770116 0.396326246573409
+	//   416(  1) 0.073521095637261 0.103192348410072 0.397276730959116
+	//   417(  1) 0.073694171981995 0.103450514018375 0.398227201946355
+	//   418(  1) 0.073867229454739 0.103708741691006 0.399177659509961
+	//   419(  1) 0.074040268025134 0.103967031524165 0.400128103624700
+	//   420(  1) 0.074213287662749 0.104225383614273 0.401078534265271
+	//   421(  1) 0.074386288337082 0.104483798057975 0.402028951406302
+	//   422(  1) 0.074559270017555 0.104742274952135 0.402979355022355
+	//   423(  1) 0.074732232673519 0.105000814393845 0.403929745087919
+	//   424(  1) 0.074905176274249 0.105259416480417 0.404880121577415
+	//   425(  1) 0.075078100788951 0.105518081309391 0.405830484465194
+	//   426(  1) 0.075251006186751 0.105776808978531 0.406780833725536
+	//   427(  1) 0.075423892436706 0.106035599585827 0.407731169332652
+	//   428(  1) 0.075596759507796 0.106294453229496 0.408681491260680
+	//   429(  1) 0.075769607368926 0.106553370007984 0.409631799483690
+	//   430(  1) 0.075942435988928 0.106812350019965 0.410582093975678
+	//   431(  1) 0.076115245336558 0.107071393364339 0.411532374710570
+	//   432(  1) 0.076288035380495 0.107330500140242 0.412482641662220
+	//   433(  1) 0.076460806089344 0.107589670447034 0.413432894804409
+	//   434(  1) 0.076633557431635 0.107848904384310 0.414383134110848
+	//   435(  1) 0.076806289375819 0.108108202051896 0.415333359555173
+	//   436(  1) 0.076979001890274 0.108367563549852 0.416283571110948
+	//   437(  1) 0.077151694943299 0.108626988978470 0.417233768751665
+	//   438(  1) 0.077324368503116 0.108886478438276 0.418183952450741
+	//   439(  1) 0.077497022537872 0.109146032030032 0.419134122181520
+	//   440(  1) 0.077669657015635 0.109405649854735 0.420084277917273
+	//   441(  1) 0.077842271904394 0.109665332013619 0.421034419631196
+	//   442(  1) 0.078014867172064 0.109925078608155 0.421984547296410
+	//   443(  1) 0.078187442786478 0.110184889740052 0.422934660885962
+	//   444(  1) 0.078359998715392 0.110444765511257 0.423884760372825
+	//   445(  1) 0.078532534926484 0.110704706023959 0.424834845729895
+	//   446(  1) 0.078705051387352 0.110964711380583 0.425784916929993
+	//   447(  1) 0.078877548065517 0.111224781683799 0.426734973945865
+	//   448(  1) 0.079050024928416 0.111484917036516 0.427685016750180
+	//   449(  1) 0.079222481943411 0.111745117541888 0.428635045315531
+	//   450(  1) 0.079394919077781 0.112005383303310 0.429585059614435
+	//   451(  1) 0.079567336298727 0.112265714424423 0.430535059619330
+	//   452(  1) 0.079739733573367 0.112526111009111 0.431485045302580
+	//   453(  1) 0.079912110868741 0.112786573161506 0.432435016636468
+	//   454(  1) 0.080084468151805 0.113047100985984 0.433384973593203
+	//   455(  1) 0.080256805389435 0.113307694587171 0.434334916144911
+	//   456(  1) 0.080429122548427 0.113568354069938 0.435284844263645
+	//   457(  1) 0.080601419595492 0.113829079539407 0.436234757921375
+	//   458(  1) 0.080773696497261 0.114089871100949 0.437184657089995
+	//   459(  1) 0.080945953220283 0.114350728860187 0.438134541741318
+	//   460(  1) 0.081118189731022 0.114611652922991 0.439084411847079
+	//   461(  1) 0.081290405995861 0.114872643395488 0.440034267378931
+	//   462(  1) 0.081462601981098 0.115133700384056 0.440984108308450
+	//   463(  1) 0.081634777652951 0.115394823995325 0.441933934607128
+	//   464(  1) 0.081806932977549 0.115656014336182 0.442883746246378
+	//   465(  1) 0.081979067920941 0.115917271513769 0.443833543197533
+	//   466(  1) 0.082151182449090 0.116178595635482 0.444783325431843
+	//   467(  1) 0.082323276527875 0.116439986808978 0.445733092920476
+	//   468(  1) 0.082495350123089 0.116701445142167 0.446682845634522
+	//   469(  1) 0.082667403200440 0.116962970743222 0.447632583544982
+	//   470(  1) 0.082839435725552 0.117224563720574 0.448582306622781
+	//   471(  1) 0.083011447663961 0.117486224182913 0.449532014838758
+	//   472(  1) 0.083183438981119 0.117747952239192 0.450481708163668
+	//   473(  1) 0.083355409642389 0.118009747998626 0.451431386568184
+	//   474(  1) 0.083527359613051 0.118271611570693 0.452381050022895
+	//   475(  1) 0.083699288858294 0.118533543065133 0.453330698498307
+	//   476(  1) 0.083871197343221 0.118795542591952 0.454280331964838
+	//   477(  1) 0.084043085032850 0.119057610261423 0.455229950392825
+	//   478(  1) 0.084214951892109 0.119319746184083 0.456179553752517
+	//   479(  1) 0.084386797885836 0.119581950470738 0.457129142014081
+	//   480(  1) 0.084558622978784 0.119844223232461 0.458078715147595
+	//   481(  1) 0.084730427135615 0.120106564580595 0.459028273123053
+	//   482(  1) 0.084902210320902 0.120368974626751 0.459977815910361
+	//   483(  1) 0.085073972499131 0.120631453482815 0.460927343479339
+	//   484(  1) 0.085245713634695 0.120894001260940 0.461876855799721
+	//   485(  1) 0.085417433691899 0.121156618073554 0.462826352841152
+	//   486(  1) 0.085589132634958 0.121419304033360 0.463775834573190
+	//   487(  1) 0.085760810427993 0.121682059253331 0.464725300965305
+	//   488(  1) 0.085932467035040 0.121944883846720 0.465674751986879
+	//   489(  1) 0.086104102420038 0.122207777927053 0.466624187607204
+	//   490(  1) 0.086275716546837 0.122470741608135 0.467573607795484
+	//   491(  1) 0.086447309379196 0.122733775004049 0.468523012520834
+	//   492(  1) 0.086618880880781 0.122996878229156 0.469472401752279
+	//   493(  1) 0.086790431015164 0.123260051398097 0.470421775458752
+	//   494(  1) 0.086961959745826 0.123523294625795 0.471371133609098
+	//   495(  1) 0.087133467036154 0.123786608027455 0.472320476172070
+	//   496(  1) 0.087304952849442 0.124049991718562 0.473269803116331
+	//   497(  1) 0.087476417148891 0.124313445814888 0.474219114410451
+	//   498(  1) 0.087647859897605 0.124576970432488 0.475168410022909
+	//   499(  1) 0.087819281058597 0.124840565687703 0.476117689922092
+	//   500(  1) 0.087990680594783 0.125104231697160 0.477066954076293
+	//   501(  1) 0.088162058468985 0.125367968577774 0.478016202453715
+	//   502(  1) 0.088333414643929 0.125631776446748 0.478965435022465
+	//   503(  1) 0.088504749082245 0.125895655421576 0.479914651750558
+	//   504(  1) 0.088676061746468 0.126159605620040 0.480863852605913
+	//   505(  1) 0.088847352599036 0.126423627160215 0.481813037556358
+	//   506(  1) 0.089018621602288 0.126687720160469 0.482762206569622
+	//   507(  1) 0.089189868718471 0.126951884739461 0.483711359613343
+	//   508(  1) 0.089361093909729 0.127216121016146 0.484660496655062
+	//   509(  1) 0.089532297138112 0.127480429109775 0.485609617662223
+	//   510(  1) 0.089703478365570 0.127744809139893 0.486558722602174
+	//   511(  1) 0.089874637553956 0.128009261226344 0.487507811442169
+	//   512(  1) 0.090045774665023 0.128273785489271 0.488456884149362
+	//   513(  1) 0.090216889660424 0.128538382049115 0.489405940690811
+	//   514(  1) 0.090387982501715 0.128803051026618 0.490354981033477
+	//   515(  1) 0.090559053150350 0.129067792542822 0.491304005144221
+	//   516(  1) 0.090730101567683 0.129332606719073 0.492253012989807
+	//   517(  1) 0.090901127714970 0.129597493677021 0.493202004536900
+	//   518(  1) 0.091072131553362 0.129862453538619 0.494150979752065
+	//   519(  1) 0.091243113043911 0.130127486426125 0.495099938601768
+	//   520(  1) 0.091414072147567 0.130392592462106 0.496048881052375
+	//   521(  1) 0.091585008825179 0.130657771769435 0.496997807070150
+	//   522(  1) 0.091755923037492 0.130923024471292 0.497946716621260
+	//   523(  1) 0.091926814745149 0.131188350691171 0.498895609671766
+	//   524(  1) 0.092097683908689 0.131453750552873 0.499844486187631
+	//   525(  1) 0.092268530488550 0.131719224180512 0.500793346134713
+	//   526(  1) 0.092439354445064 0.131984771698515 0.501742189478772
+	//   527(  1) 0.092610155738459 0.132250393231622 0.502691016185460
+	//   528(  1) 0.092780934328859 0.132516088904891 0.503639826220328
+	//   529(  1) 0.092951690176283 0.132781858843693 0.504588619548825
+	//   530(  1) 0.093122423240644 0.133047703173718 0.505537396136293
+	//   531(  1) 0.093293133481750 0.133313622020972 0.506486155947972
+	//   532(  1) 0.093463820859303 0.133579615511784 0.507434898948995
+	//   533(  1) 0.093634485332898 0.133845683772800 0.508383625104390
+	//   534(  1) 0.093805126862023 0.134111826930990 0.509332334379082
+	//   535(  1) 0.093975745406060 0.134378045113645 0.510281026737887
+	//   536(  1) 0.094146340924283 0.134644338448382 0.511229702145514
+	//   537(  1) 0.094316913375857 0.134910707063141 0.512178360566568
+	//   538(  1) 0.094487462719839 0.135177151086189 0.513127001965543
+	//   539(  1) 0.094657988915177 0.135443670646119 0.514075626306828
+	//   540(  1) 0.094828491920712 0.135710265871855 0.515024233554702
+	//   541(  1) 0.094998971695172 0.135976936892648 0.515972823673335
+	//   542(  1) 0.095169428197178 0.136243683838080 0.516921396626790
+	//   543(  1) 0.095339861385239 0.136510506838065 0.517869952379019
+	//   544(  1) 0.095510271217753 0.136777406022852 0.518818490893863
+	//   545(  1) 0.095680657653008 0.137044381523021 0.519767012135054
+	//   546(  1) 0.095851020649181 0.137311433469489 0.520715516066213
+	//   547(  1) 0.096021360164335 0.137578561993508 0.521664002650847
+	//   548(  1) 0.096191676156421 0.137845767226671 0.522612471852356
+	//   549(  1) 0.096361968583279 0.138113049300906 0.523560923634023
+	//   550(  1) 0.096532237402635 0.138380408348482 0.524509357959021
+	//   551(  1) 0.096702482572099 0.138647844502011 0.525457774790409
+	//   552(  1) 0.096872704049172 0.138915357894445 0.526406174091132
+	//   553(  1) 0.097042901791235 0.139182948659082 0.527354555824021
+	//   554(  1) 0.097213075755558 0.139450616929562 0.528302919951793
+	//   555(  1) 0.097383225899294 0.139718362839874 0.529251266437049
+	//   556(  1) 0.097553352179481 0.139986186524351 0.530199595242276
+	//   557(  1) 0.097723454553041 0.140254088117678 0.531147906329843
+	//   558(  1) 0.097893532976779 0.140522067754887 0.532096199662003
+	//   559(  1) 0.098063587407383 0.140790125571361 0.533044475200894
+	//   560(  1) 0.098233617801424 0.141058261702838 0.533992732908534
+	//   561(  1) 0.098403624115355 0.141326476285406 0.534940972746825
+	//   562(  1) 0.098573606305510 0.141594769455509 0.535889194677549
+	//   563(  1) 0.098743564328105 0.141863141349948 0.536837398662370
+	//   564(  1) 0.098913498139238 0.142131592105880 0.537785584662833
+	//   565(  1) 0.099083407694885 0.142400121860820 0.538733752640362
+	//   566(  1) 0.099253292950904 0.142668730752644 0.539681902556261
+	//   567(  1) 0.099423153863032 0.142937418919588 0.540630034371715
+	//   568(  1) 0.099592990386883 0.143206186500252 0.541578148047785
+	//   569(  1) 0.099762802477954 0.143475033633596 0.542526243545411
+	//   570(  1) 0.099932590091615 0.143743960458950 0.543474320825411
+	//   571(  1) 0.100102353183119 0.144012967116006 0.544422379848480
+	//   572(  1) 0.100272091707591 0.144282053744824 0.545370420575190
+	//   573(  1) 0.100441805620038 0.144551220485836 0.546318442965988
+	//   574(  1) 0.100611494875339 0.144820467479841 0.547266446981199
+	//   575(  1) 0.100781159428252 0.145089794868011 0.548214432581019
+	//   576(  1) 0.100950799233408 0.145359202791889 0.549162399725522
+	//   577(  1) 0.101120414245315 0.145628691393395 0.550110348374656
+	//   578(  1) 0.101290004418355 0.145898260814822 0.551058278488241
+	//   579(  1) 0.101459569706782 0.146167911198841 0.552006190025969
+	//   580(  1) 0.101629110064727 0.146437642688501 0.552954082947408
+	//   581(  1) 0.101798625446191 0.146707455427232 0.553901957211995
+	//   582(  1) 0.101968115805049 0.146977349558841 0.554849812779039
+	//   583(  1) 0.102137581095049 0.147247325227523 0.555797649607720
+	//   584(  1) 0.102307021269810 0.147517382577851 0.556745467657090
+	//   585(  1) 0.102476436282820 0.147787521754788 0.557693266886068
+	//   586(  1) 0.102645826087441 0.148057742903680 0.558641047253443
+	//   587(  1) 0.102815190636903 0.148328046170262 0.559588808717874
+	//   588(  1) 0.102984529884307 0.148598431700660 0.560536551237887
+	//   589(  1) 0.103153843782622 0.148868899641388 0.561484274771875
+	//   590(  1) 0.103323132284686 0.149139450139355 0.562431979278100
+	//   591(  1) 0.103492395343207 0.149410083341860 0.563379664714688
+	//   592(  1) 0.103661632910758 0.149680799396601 0.564327331039634
+	//   593(  1) 0.103830844939781 0.149951598451669 0.565274978210794
+	//   594(  1) 0.104000031382584 0.150222480655556 0.566222606185892
+	//   595(  1) 0.104169192191341 0.150493446157152 0.567170214922516
+	//   596(  1) 0.104338327318092 0.150764495105747 0.568117804378116
+	//   597(  1) 0.104507436714743 0.151035627651034 0.569065374510006
+	//   598(  1) 0.104676520333063 0.151306843943110 0.570012925275363
+	//   599(  1) 0.104845578124687 0.151578144132478 0.570960456631224
+	//   600(  1) 0.105014610041111 0.151849528370046 0.571907968534490
+	//   601(  1) 0.105183616033697 0.152120996807132 0.572855460941919
+	//   602(  1) 0.105352596053668 0.152392549595462 0.573802933810133
+	//   603(  1) 0.105521550052108 0.152664186887176 0.574750387095610
+	//   604(  1) 0.105690477979966 0.152935908834824 0.575697820754689
+	//   605(  1) 0.105859379788049 0.153207715591371 0.576645234743567
+	//   606(  1) 0.106028255427025 0.153479607310200 0.577592629018298
+	//   607(  1) 0.106197104847421 0.153751584145108 0.578540003534793
+	//   608(  1) 0.106365927999627 0.154023646250314 0.579487358248821
+	//   609(  1) 0.106534724833887 0.154295793780456 0.580434693116004
+	//   610(  1) 0.106703495300307 0.154568026890594 0.581382008091822
+	//   611(  1) 0.106872239348849 0.154840345736211 0.582329303131608
+	//   612(  1) 0.107040956929333 0.155112750473219 0.583276578190549
+	//   613(  1) 0.107209647991434 0.155385241257951 0.584223833223686
+	//   614(  1) 0.107378312484685 0.155657818247173 0.585171068185912
+	//   615(  1) 0.107546950358473 0.155930481598080 0.586118283031972
+	//   616(  1) 0.107715561562042 0.156203231468296 0.587065477716463
+	//   617(  1) 0.107884146044488 0.156476068015882 0.588012652193832
+	//   618(  1) 0.108052703754761 0.156748991399332 0.588959806418377
+	//   619(  1) 0.108221234641667 0.157022001777576 0.589906940344245
+	//   620(  1) 0.108389738653862 0.157295099309983 0.590854053925431
+	//   621(  1) 0.108558215739855 0.157568284156361 0.591801147115780
+	//   622(  1) 0.108726665848006 0.157841556476960 0.592748219868982
+	//   623(  1) 0.108895088926525 0.158114916432474 0.593695272138576
+	//   624(  1) 0.109063484923477 0.158388364184040 0.594642303877946
+	//   625(  1) 0.109231853786770 0.158661899893243 0.595589315040322
+	//   626(  1) 0.109400195464166 0.158935523722114 0.596536305578778
+	//   627(  1) 0.109568509903274 0.159209235833136 0.597483275446233
+	//   628(  1) 0.109736797051552 0.159483036389242 0.598430224595449
+	//   629(  1) 0.109905056856303 0.159756925553820 0.599377152979030
+	//   630(  1) 0.110073289264678 0.160030903490711 0.600324060549424
+	//   631(  1) 0.110241494223676 0.160304970364214 0.601270947258919
+	//   632(  1) 0.110409671680139 0.160579126339085 0.602217813059642
+	//   633(  1) 0.110577821580756 0.160853371580541 0.603164657903564
+	//   634(  1) 0.110745943872057 0.161127706254263 0.604111481742492
+	//   635(  1) 0.110914038500420 0.161402130526392 0.605058284528072
+	//   636(  1) 0.111082105412063 0.161676644563536 0.606005066211789
+	//   637(  1) 0.111250144553048 0.161951248532770 0.606951826744963
+	//   638(  1) 0.111418155869279 0.162225942601640 0.607898566078754
+	//   639(  1) 0.111586139306499 0.162500726938159 0.608845284164154
+	//   640(  1) 0.111754094810294 0.162775601710817 0.609791980951991
+	//   641(  1) 0.111922022326089 0.163050567088574 0.610738656392928
+	//   642(  1) 0.112089921799148 0.163325623240870 0.611685310437462
+	//   643(  1) 0.112257793174575 0.163600770337619 0.612631943035919
+	//   644(  1) 0.112425636397310 0.163876008549221 0.613578554138461
+	//   645(  1) 0.112593451412133 0.164151338046550 0.614525143695080
+	//   646(  1) 0.112761238163657 0.164426759000971 0.615471711655598
+	//   647(  1) 0.112928996596334 0.164702271584329 0.616418257969667
+	//   648(  1) 0.113096726654452 0.164977875968960 0.617364782586767
+	//   649(  1) 0.113264428282130 0.165253572327687 0.618311285456207
+	//   650(  1) 0.113432101423325 0.165529360833825 0.619257766527124
+	//   651(  1) 0.113599746021825 0.165805241661182 0.620204225748481
+	//   652(  1) 0.113767362021251 0.166081214984060 0.621150663069065
+	//   653(  1) 0.113934949365058 0.166357280977261 0.622097078437492
+	//   654(  1) 0.114102507996529 0.166633439816081 0.623043471802199
+	//   655(  1) 0.114270037858781 0.166909691676321 0.623989843111447
+	//   656(  1) 0.114437538894759 0.167186036734283 0.624936192313320
+	//   657(  1) 0.114605011047238 0.167462475166773 0.625882519355725
+	//   658(  1) 0.114772454258821 0.167739007151104 0.626828824186388
+	//   659(  1) 0.114939868471940 0.168015632865099 0.627775106752857
+	//   660(  1) 0.115107253628852 0.168292352487089 0.628721367002498
+	//   661(  1) 0.115274609671644 0.168569166195921 0.629667604882497
+	//   662(  1) 0.115441936542225 0.168846074170954 0.630613820339855
+	//   663(  1) 0.115609234182333 0.169123076592063 0.631560013321394
+	//   664(  1) 0.115776502533526 0.169400173639645 0.632506183773750
+	//   665(  1) 0.115943741537189 0.169677365494615 0.633452331643373
+	//   666(  1) 0.116110951134529 0.169954652338411 0.634398456876529
+	//   667(  1) 0.116278131266575 0.170232034352997 0.635344559419298
+	//   668(  1) 0.116445281874177 0.170509511720863 0.636290639217571
+	//   669(  1) 0.116612402898006 0.170787084625028 0.637236696217052
+	//   670(  1) 0.116779494278554 0.171064753249042 0.638182730363257
+	//   671(  1) 0.116946555956130 0.171342517776989 0.639128741601509
+	//   672(  1) 0.117113587870864 0.171620378393487 0.640074729876943
+	//   673(  1) 0.117280589962702 0.171898335283693 0.641020695134502
+	//   674(  1) 0.117447562171409 0.172176388633301 0.641966637318936
+	//   675(  1) 0.117614504436563 0.172454538628550 0.642912556374801
+	//   676(  1) 0.117781416697560 0.172732785456220 0.643858452246460
+	//   677(  1) 0.117948298893610 0.173011129303638 0.644804324878079
+	//   678(  1) 0.118115150963737 0.173289570358680 0.645750174213629
+	//   679(  1) 0.118281972846779 0.173568108809771 0.646696000196885
+	//   680(  1) 0.118448764481383 0.173846744845890 0.647641802771423
+	//   681(  1) 0.118615525806013 0.174125478656569 0.648587581880619
+	//   682(  1) 0.118782256758938 0.174404310431898 0.649533337467652
+	//   683(  1) 0.118948957278242 0.174683240362528 0.650479069475497
+	//   684(  1) 0.119115627301816 0.174962268639668 0.651424777846930
+	//   685(  1) 0.119282266767358 0.175241395455092 0.652370462524523
+	//   686(  1) 0.119448875612376 0.175520621001142 0.653316123450646
+	//   687(  1) 0.119615453774184 0.175799945470726 0.654261760567462
+	//   688(  1) 0.119782001189902 0.176079369057323 0.655207373816931
+	//   689(  1) 0.119948517796455 0.176358891954986 0.656152963140805
+	//   690(  1) 0.120115003530572 0.176638514358342 0.657098528480629
+	//   691(  1) 0.120281458328786 0.176918236462596 0.658044069777740
+	//   692(  1) 0.120447882127434 0.177198058463532 0.658989586973266
+	//   693(  1) 0.120614274862652 0.177477980557518 0.659935080008124
+	//   694(  1) 0.120780636470379 0.177758002941506 0.660880548823020
+	//   695(  1) 0.120946966886354 0.178038125813033 0.661825993358447
+	//   696(  1) 0.121113266046115 0.178318349370228 0.662771413554686
+	//   697(  1) 0.121279533884998 0.178598673811810 0.663716809351802
+	//   698(  1) 0.121445770338138 0.178879099337094 0.664662180689646
+	//   699(  1) 0.121611975340466 0.179159626145988 0.665607527507852
+	//   700(  1) 0.121778148826708 0.179440254439004 0.666552849745837
+	//   701(  1) 0.121944290731387 0.179720984417251 0.667498147342800
+	//   702(  1) 0.122110400988818 0.180001816282445 0.668443420237718
+	//   703(  1) 0.122276479533111 0.180282750236906 0.669388668369352
+	//   704(  1) 0.122442526298168 0.180563786483564 0.670333891676236
+	//   705(  1) 0.122608541217681 0.180844925225962 0.671279090096687
+	//   706(  1) 0.122774524225135 0.181126166668254 0.672224263568794
+	//   707(  1) 0.122940475253803 0.181407511015212 0.673169412030422
+	//   708(  1) 0.123106394236746 0.181688958472227 0.674114535419213
+	//   709(  1) 0.123272281106817 0.181970509245311 0.675059633672578
+	//   710(  1) 0.123438135796650 0.182252163541101 0.676004706727703
+	//   711(  1) 0.123603958238671 0.182533921566860 0.676949754521543
+	//   712(  1) 0.123769748365086 0.182815783530480 0.677894776990825
+	//   713(  1) 0.123935506107889 0.183097749640486 0.678839774072042
+	//   714(  1) 0.124101231398855 0.183379820106035 0.679784745701457
+	//   715(  1) 0.124266924169543 0.183661995136925 0.680729691815098
+	//   716(  1) 0.124432584351292 0.183944274943590 0.681674612348757
+	//   717(  1) 0.124598211875221 0.184226659737109 0.682619507237994
+	//   718(  1) 0.124763806672231 0.184509149729206 0.683564376418129
+	//   719(  1) 0.124929368672998 0.184791745132251 0.684509219824245
+	//   720(  1) 0.125094897807980 0.185074446159266 0.685454037391184
+	//   721(  1) 0.125260394007406 0.185357253023926 0.686398829053550
+	//   722(  1) 0.125425857201286 0.185640165940561 0.687343594745705
+	//   723(  1) 0.125591287319401 0.185923185124162 0.688288334401766
+	//   724(  1) 0.125756684291307 0.186206310790380 0.689233047955608
+	//   725(  1) 0.125922048046333 0.186489543155530 0.690177735340860
+	//   726(  1) 0.126087378513578 0.186772882436594 0.691122396490906
+	//   727(  1) 0.126252675621914 0.187056328851226 0.692067031338881
+	//   728(  1) 0.126417939299980 0.187339882617750 0.693011639817671
+	//   729(  1) 0.126583169476187 0.187623543955167 0.693956221859913
+	//   730(  1) 0.126748366078709 0.187907313083155 0.694900777397992
+	//   731(  1) 0.126913529035491 0.188191190222076 0.695845306364041
+	//   732(  1) 0.127078658274241 0.188475175592974 0.696789808689938
+	//   733(  1) 0.127243753722432 0.188759269417580 0.697734284307309
+	//   734(  1) 0.127408815307301 0.189043471918317 0.698678733147519
+	//   735(  1) 0.127573842955846 0.189327783318298 0.699623155141681
+	//   736(  1) 0.127738836594828 0.189612203841334 0.700567550220645
+	//   737(  1) 0.127903796150767 0.189896733711934 0.701511918315003
+	//   738(  1) 0.128068721549944 0.190181373155309 0.702456259355084
+	//   739(  1) 0.128233612718395 0.190466122397376 0.703400573270956
+	//   740(  1) 0.128398469581916 0.190750981664757 0.704344859992422
+	//   741(  1) 0.128563292066058 0.191035951184787 0.705289119449020
+	//   742(  1) 0.128728080096127 0.191321031185514 0.706233351570022
+	//   743(  1) 0.128892833597182 0.191606221895704 0.707177556284431
+	//   744(  1) 0.129057552494034 0.191891523544842 0.708121733520980
+	//   745(  1) 0.129222236711249 0.192176936363137 0.709065883208134
+	//   746(  1) 0.129386886173140 0.192462460581523 0.710010005274085
+	//   747(  1) 0.129551500803771 0.192748096431664 0.710954099646749
+	//   748(  1) 0.129716080526953 0.193033844145957 0.711898166253771
+	//   749(  1) 0.129880625266246 0.193319703957535 0.712842205022517
+	//   750(  1) 0.130045134944953 0.193605676100267 0.713786215880078
+	//   751(  1) 0.130209609486124 0.193891760808769 0.714730198753264
+	//   752(  1) 0.130374048812552 0.194177958318397 0.715674153568605
+	//   753(  1) 0.130538452846773 0.194464268865259 0.716618080252351
+	//   754(  1) 0.130702821511063 0.194750692686214 0.717561978730467
+	//   755(  1) 0.130867154727439 0.195037230018876 0.718505848928633
+	//   756(  1) 0.131031452417657 0.195323881101616 0.719449690772245
+	//   757(  1) 0.131195714503210 0.195610646173569 0.720393504186410
+	//   758(  1) 0.131359940905328 0.195897525474633 0.721337289095946
+	//   759(  1) 0.131524131544977 0.196184519245475 0.722281045425382
+	//   760(  1) 0.131688286342855 0.196471627727534 0.723224773098953
+	//   761(  1) 0.131852405219395 0.196758851163023 0.724168472040602
+	//   762(  1) 0.132016488094760 0.197046189794934 0.725112142173976
+	//   763(  1) 0.132180534888846 0.197333643867042 0.726055783422427
+	//   764(  1) 0.132344545521276 0.197621213623906 0.726999395709009
+	//   765(  1) 0.132508519911400 0.197908899310873 0.727942978956474
+	//   766(  1) 0.132672457978298 0.198196701174085 0.728886533087276
+	//   767(  1) 0.132836359640772 0.198484619460476 0.729830058023565
+	//   768(  1) 0.133000224817351 0.198772654417783 0.730773553687188
+	//   769(  1) 0.133164053426285 0.199060806294542 0.731717019999684
+	//   770(  1) 0.133327845385547 0.199349075340099 0.732660456882286
+	//   771(  1) 0.133491600612828 0.199637461804608 0.733603864255920
+	//   772(  1) 0.133655319025541 0.199925965939035 0.734547242041198
+	//   773(  1) 0.133819000540814 0.200214587995167 0.735490590158424
+	//   774(  1) 0.133982645075494 0.200503328225608 0.736433908527583
+	//   775(  1) 0.134146252546141 0.200792186883788 0.737377197068350
+	//   776(  1) 0.134309822869029 0.201081164223967 0.738320455700081
+	//   777(  1) 0.134473355960145 0.201370260501232 0.739263684341812
+	//   778(  1) 0.134636851735188 0.201659475971509 0.740206882912260
+	//   779(  1) 0.134800310109564 0.201948810891563 0.741150051329820
+	//   780(  1) 0.134963730998391 0.202238265519002 0.742093189512564
+	//   781(  1) 0.135127114316490 0.202527840112279 0.743036297378238
+	//   782(  1) 0.135290459978390 0.202817534930700 0.743979374844260
+	//   783(  1) 0.135453767898324 0.203107350234423 0.744922421827720
+	//   784(  1) 0.135617037990228 0.203397286284466 0.745865438245380
+	//   785(  1) 0.135780270167739 0.203687343342709 0.746808424013665
+	//   786(  1) 0.135943464344193 0.203977521671898 0.747751379048670
+	//   787(  1) 0.136106620432626 0.204267821535647 0.748694303266152
+	//   788(  1) 0.136269738345771 0.204558243198446 0.749637196581532
+	//   789(  1) 0.136432817996057 0.204848786925663 0.750580058909890
+	//   790(  1) 0.136595859295605 0.205139452983546 0.751522890165968
+	//   791(  1) 0.136758862156233 0.205430241639230 0.752465690264161
+	//   792(  1) 0.136921826489445 0.205721153160740 0.753408459118522
+	//   793(  1) 0.137084752206441 0.206012187816994 0.754351196642757
+	//   794(  1) 0.137247639218103 0.206303345877809 0.755293902750223
+	//   795(  1) 0.137410487435006 0.206594627613904 0.756236577353927
+	//   796(  1) 0.137573296767406 0.206886033296902 0.757179220366525
+	//   797(  1) 0.137736067125244 0.207177563199340 0.758121831700318
+	//   798(  1) 0.137898798418146 0.207469217594666 0.759064411267249
+	//   799(  1) 0.138061490555415 0.207760996757249 0.760006958978908
+	//   800(  1) 0.138224143446035 0.208052900962380 0.760949474746522
+	//   801(  1) 0.138386756998669 0.208344930486277 0.761891958480955
+	//   802(  1) 0.138549331121655 0.208637085606091 0.762834410092712
+	//   803(  1) 0.138711865723006 0.208929366599905 0.763776829491928
+	//   804(  1) 0.138874360710406 0.209221773746747 0.764719216588372
+	//   805(  1) 0.139036815991215 0.209514307326585 0.765661571291446
+	//   806(  1) 0.139199231472459 0.209806967620339 0.766603893510176
+	//   807(  1) 0.139361607060835 0.210099754909879 0.767546183153217
+	//   808(  1) 0.139523942662703 0.210392669478035 0.768488440128849
+	//   809(  1) 0.139686238184093 0.210685711608600 0.769430664344974
+	//   810(  1) 0.139848493530696 0.210978881586329 0.770372855709112
+	//   811(  1) 0.140010708607863 0.211272179696952 0.771315014128405
+	//   812(  1) 0.140172883320609 0.211565606227174 0.772257139509609
+	//   813(  1) 0.140335017573604 0.211859161464678 0.773199231759094
+	//   814(  1) 0.140497111271178 0.212152845698133 0.774141290782843
+	//   815(  1) 0.140659164317313 0.212446659217198 0.775083316486448
+	//   816(  1) 0.140821176615646 0.212740602312524 0.776025308775110
+	//   817(  1) 0.140983148069468 0.213034675275763 0.776967267553634
+	//   818(  1) 0.141145078581716 0.213328878399567 0.777909192726430
+	//   819(  1) 0.141306968054977 0.213623211977600 0.778851084197508
+	//   820(  1) 0.141468816391486 0.213917676304534 0.779792941870478
+	//   821(  1) 0.141630623493121 0.214212271676063 0.780734765648546
+	//   822(  1) 0.141792389261403 0.214506998388901 0.781676555434514
+	//   823(  1) 0.141954113597497 0.214801856740787 0.782618311130773
+	//   824(  1) 0.142115796402203 0.215096847030497 0.783560032639309
+	//   825(  1) 0.142277437575963 0.215391969557840 0.784501719861693
+	//   826(  1) 0.142439037018853 0.215687224623668 0.785443372699081
+	//   827(  1) 0.142600594630584 0.215982612529879 0.786384991052213
+	//   828(  1) 0.142762110310497 0.216278133579424 0.787326574821412
+	//   829(  1) 0.142923583957566 0.216573788076311 0.788268123906576
+	//   830(  1) 0.143085015470394 0.216869576325607 0.789209638207181
+	//   831(  1) 0.143246404747208 0.217165498633448 0.790151117622278
+	//   832(  1) 0.143407751685862 0.217461555307042 0.791092562050488
+	//   833(  1) 0.143569056183832 0.217757746654674 0.792033971390001
+	//   834(  1) 0.143730318138216 0.218054072985709 0.792975345538575
+	//   835(  1) 0.143891537445732 0.218350534610603 0.793916684393531
+	//   836(  1) 0.144052714002712 0.218647131840903 0.794857987851752
+	//   837(  1) 0.144213847705107 0.218943864989253 0.795799255809680
+	//   838(  1) 0.144374938448479 0.219240734369400 0.796740488163316
+	//   839(  1) 0.144535986128003 0.219537740296202 0.797681684808213
+	//   840(  1) 0.144696990638462 0.219834883085628 0.798622845639476
+	//   841(  1) 0.144857951874248 0.220132163054769 0.799563970551760
+	//   842(  1) 0.145018869729357 0.220429580521839 0.800505059439267
+	//   843(  1) 0.145179744097390 0.220727135806181 0.801446112195742
+	//   844(  1) 0.145340574871549 0.221024829228276 0.802387128714473
+	//   845(  1) 0.145501361944636 0.221322661109744 0.803328108888286
+	//   846(  1) 0.145662105209047 0.221620631773355 0.804269052609544
+	//   847(  1) 0.145822804556779 0.221918741543027 0.805209959770142
+	//   848(  1) 0.145983459879417 0.222216990743839 0.806150830261508
+	//   849(  1) 0.146144071068141 0.222515379702033 0.807091663974597
+	//   850(  1) 0.146304638013718 0.222813908745018 0.808032460799890
+	//   851(  1) 0.146465160606503 0.223112578201382 0.808973220627392
+	//   852(  1) 0.146625638736434 0.223411388400890 0.809913943346626
+	//   853(  1) 0.146786072293035 0.223710339674496 0.810854628846635
+	//   854(  1) 0.146946461165407 0.224009432354345 0.811795277015973
+	//   855(  1) 0.147106805242232 0.224308666773781 0.812735887742710
+	//   856(  1) 0.147267104411767 0.224608043267353 0.813676460914421
+	//   857(  1) 0.147427358561843 0.224907562170817 0.814616996418190
+	//   858(  1) 0.147587567579863 0.225207223821150 0.815557494140604
+	//   859(  1) 0.147747731352800 0.225507028556546 0.816497953967748
+	//   860(  1) 0.147907849767194 0.225806976716431 0.817438375785208
+	//   861(  1) 0.148067922709149 0.226107068641464 0.818378759478061
+	//   862(  1) 0.148227950064333 0.226407304673544 0.819319104930878
+	//   863(  1) 0.148387931717975 0.226707685155817 0.820259412027718
+	//   864(  1) 0.148547867554861 0.227008210432682 0.821199680652125
+	//   865(  1) 0.148707757459333 0.227308880849797 0.822139910687127
+	//   866(  1) 0.148867601315286 0.227609696754085 0.823080102015231
+	//   867(  1) 0.149027399006169 0.227910658493742 0.824020254518419
+	//   868(  1) 0.149187150414977 0.228211766418240 0.824960368078149
+	//   869(  1) 0.149346855424253 0.228513020878337 0.825900442575348
+	//   870(  1) 0.149506513916082 0.228814422226083 0.826840477890410
+	//   871(  1) 0.149666125772093 0.229115970814823 0.827780473903194
+	//   872(  1) 0.149825690873453 0.229417666999207 0.828720430493019
+	//   873(  1) 0.149985209100867 0.229719511135197 0.829660347538663
+	//   874(  1) 0.150144680334572 0.230021503580070 0.830600224918357
+	//   875(  1) 0.150304104454339 0.230323644692428 0.831540062509784
+	//   876(  1) 0.150463481339468 0.230625934832203 0.832479860190075
+	//   877(  1) 0.150622810868785 0.230928374360666 0.833419617835807
+	//   878(  1) 0.150782092920641 0.231230963640431 0.834359335322996
+	//   879(  1) 0.150941327372909 0.231533703035462 0.835299012527097
+	//   880(  1) 0.151100514102979 0.231836592911083 0.836238649323000
+	//   881(  1) 0.151259652987762 0.232139633633980 0.837178245585028
+	//   882(  1) 0.151418743903678 0.232442825572214 0.838117801186928
+	//   883(  1) 0.151577786726663 0.232746169095223 0.839057316001876
+	//   884(  1) 0.151736781332159 0.233049664573830 0.839996789902465
+	//   885(  1) 0.151895727595114 0.233353312380253 0.840936222760708
+	//   886(  1) 0.152054625389980 0.233657112888110 0.841875614448031
+	//   887(  1) 0.152213474590712 0.233961066472424 0.842814964835272
+	//   888(  1) 0.152372275070760 0.234265173509634 0.843754273792674
+	//   889(  1) 0.152531026703071 0.234569434377602 0.844693541189885
+	//   890(  1) 0.152689729360083 0.234873849455618 0.845632766895950
+	//   891(  1) 0.152848382913726 0.235178419124408 0.846571950779313
+	//   892(  1) 0.153006987235416 0.235483143766144 0.847511092707810
+	//   893(  1) 0.153165542196054 0.235788023764447 0.848450192548664
+	//   894(  1) 0.153324047666021 0.236093059504400 0.849389250168484
+	//   895(  1) 0.153482503515177 0.236398251372551 0.850328265433260
+	//   896(  1) 0.153640909612860 0.236703599756921 0.851267238208360
+	//   897(  1) 0.153799265827877 0.237009105047016 0.852206168358525
+	//   898(  1) 0.153957572028509 0.237314767633830 0.853145055747866
+	//   899(  1) 0.154115828082501 0.237620587909855 0.854083900239860
+	//   900(  1) 0.154274033857064 0.237926566269088 0.855022701697345
+	//   901(  1) 0.154432189218870 0.238232703107039 0.855961459982518
+	//   902(  1) 0.154590294034047 0.238538998820741 0.856900174956931
+	//   903(  1) 0.154748348168182 0.238845453808754 0.857838846481483
+	//   904(  1) 0.154906351486311 0.239152068471176 0.858777474416422
+	//   905(  1) 0.155064303852921 0.239458843209652 0.859716058621336
+	//   906(  1) 0.155222205131944 0.239765778427379 0.860654598955154
+	//   907(  1) 0.155380055186755 0.240072874529116 0.861593095276134
+	//   908(  1) 0.155537853880169 0.240380131921192 0.862531547441869
+	//   909(  1) 0.155695601074440 0.240687551011514 0.863469955309272
+	//   910(  1) 0.155853296631251 0.240995132209578 0.864408318734582
+	//   911(  1) 0.156010940411720 0.241302875926473 0.865346637573353
+	//   912(  1) 0.156168532276390 0.241610782574891 0.866284911680450
+	//   913(  1) 0.156326072085227 0.241918852569140 0.867223140910050
+	//   914(  1) 0.156483559697621 0.242227086325146 0.868161325115630
+	//   915(  1) 0.156640994972377 0.242535484260464 0.869099464149971
+	//   916(  1) 0.156798377767714 0.242844046794290 0.870037557865146
+	//   917(  1) 0.156955707941264 0.243152774347464 0.870975606112520
+	//   918(  1) 0.157112985350065 0.243461667342485 0.871913608742745
+	//   919(  1) 0.157270209850559 0.243770726203516 0.872851565605752
+	//   920(  1) 0.157427381298590 0.244079951356391 0.873789476550753
+	//   921(  1) 0.157584499549400 0.244389343228632 0.874727341426231
+	//   922(  1) 0.157741564457622 0.244698902249448 0.875665160079935
+	//   923(  1) 0.157898575877282 0.245008628849753 0.876602932358882
+	//   924(  1) 0.158055533661794 0.245318523462168 0.877540658109342
+	//   925(  1) 0.158212437663952 0.245628586521037 0.878478337176844
+	//   926(  1) 0.158369287735933 0.245938818462431 0.879415969406164
+	//   927(  1) 0.158526083729290 0.246249219724160 0.880353554641321
+	//   928(  1) 0.158682825494949 0.246559790745781 0.881291092725575
+	//   929(  1) 0.158839512883203 0.246870531968609 0.882228583501422
+	//   930(  1) 0.158996145743714 0.247181443835728 0.883166026810584
+	//   931(  1) 0.159152723925504 0.247492526791996 0.884103422494010
+	//   932(  1) 0.159309247276953 0.247803781284058 0.885040770391870
+	//   933(  1) 0.159465715645798 0.248115207760356 0.885978070343546
+	//   934(  1) 0.159622128879123 0.248426806671139 0.886915322187631
+	//   935(  1) 0.159778486823363 0.248738578468469 0.887852525761921
+	//   936(  1) 0.159934789324294 0.249050523606239 0.888789680903413
+	//   937(  1) 0.160091036227031 0.249362642540173 0.889726787448297
+	//   938(  1) 0.160247227376027 0.249674935727845 0.890663845231952
+	//   939(  1) 0.160403362615064 0.249987403628684 0.891600854088941
+	//   940(  1) 0.160559441787254 0.250300046703988 0.892537813853004
+	//   941(  1) 0.160715464735031 0.250612865416930 0.893474724357055
+	//   942(  1) 0.160871431300151 0.250925860232570 0.894411585433174
+	//   943(  1) 0.161027341323683 0.251239031617870 0.895348396912604
+	//   944(  1) 0.161183194646011 0.251552380041699 0.896285158625743
+	//   945(  1) 0.161338991106825 0.251865905974843 0.897221870402142
+	//   946(  1) 0.161494730545118 0.252179609890023 0.898158532070494
+	//   947(  1) 0.161650412799184 0.252493492261897 0.899095143458635
+	//   948(  1) 0.161806037706613 0.252807553567079 0.900031704393532
+	//   949(  1) 0.161961605104285 0.253121794284142 0.900968214701282
+	//   950(  1) 0.162117114828367 0.253436214893636 0.901904674207102
+	//   951(  1) 0.162272566714309 0.253750815878094 0.902841082735328
+	//   952(  1) 0.162427960596839 0.254065597722049 0.903777440109406
+	//   953(  1) 0.162583296309962 0.254380560912037 0.904713746151884
+	//   954(  1) 0.162738573686948 0.254695705936617 0.905650000684411
+	//   955(  1) 0.162893792560338 0.255011033286378 0.906586203527729
+	//   956(  1) 0.163048952761930 0.255326543453948 0.907522354501666
+	//   957(  1) 0.163204054122779 0.255642236934012 0.908458453425128
+	//   958(  1) 0.163359096473195 0.255958114223320 0.909394500116099
+	//   959(  1) 0.163514079642732 0.256274175820698 0.910330494391628
+	//   960(  1) 0.163669003460191 0.256590422227063 0.911266436067826
+	//   961(  1) 0.163823867753607 0.256906853945432 0.912202324959862
+	//   962(  1) 0.163978672350254 0.257223471480934 0.913138160881949
+	//   963(  1) 0.164133417076630 0.257540275340826 0.914073943647347
+	//   964(  1) 0.164288101758463 0.257857266034500 0.915009673068350
+	//   965(  1) 0.164442726220695 0.258174444073500 0.915945348956281
+	//   966(  1) 0.164597290287489 0.258491809971530 0.916880971121486
+	//   967(  1) 0.164751793782214 0.258809364244472 0.917816539373328
+	//   968(  1) 0.164906236527447 0.259127107410392 0.918752053520178
+	//   969(  1) 0.165060618344963 0.259445039989558 0.919687513369410
+	//   970(  1) 0.165214939055736 0.259763162504450 0.920622918727394
+	//   971(  1) 0.165369198479929 0.260081475479774 0.921558269399489
+	//   972(  1) 0.165523396436890 0.260399979442475 0.922493565190035
+	//   973(  1) 0.165677532745149 0.260718674921750 0.923428805902347
+	//   974(  1) 0.165831607222412 0.261037562449061 0.924363991338708
+	//   975(  1) 0.165985619685554 0.261356642558145 0.925299121300362
+	//   976(  1) 0.166139569950618 0.261675915785036 0.926234195587506
+	//   977(  1) 0.166293457832804 0.261995382668068 0.927169213999283
+	//   978(  1) 0.166447283146469 0.262315043747897 0.928104176333775
+	//   979(  1) 0.166601045705121 0.262634899567510 0.929039082387994
+	//   980(  1) 0.166754745321410 0.262954950672239 0.929973931957880
+	//   981(  1) 0.166908381807127 0.263275197609776 0.930908724838284
+	//   982(  1) 0.167061954973195 0.263595640930189 0.931843460822970
+	//   983(  1) 0.167215464629667 0.263916281185932 0.932778139704601
+	//   984(  1) 0.167368910585719 0.264237118931860 0.933712761274734
+	//   985(  1) 0.167522292649642 0.264558154725247 0.934647325323813
+	//   986(  1) 0.167675610628841 0.264879389125796 0.935581831641159
+	//   987(  1) 0.167828864329826 0.265200822695656 0.936516280014961
+	//   988(  1) 0.167982053558210 0.265522455999434 0.937450670232273
+	//   989(  1) 0.168135178118697 0.265844289604214 0.938385002079000
+	//   990(  1) 0.168288237815082 0.266166324079569 0.939319275339897
+	//   991(  1) 0.168441232450244 0.266488559997574 0.940253489798551
+	//   992(  1) 0.168594161826139 0.266810997932826 0.941187645237383
+	//   993(  1) 0.168747025743794 0.267133638462456 0.942121741437632
+	//   994(  1) 0.168899824003302 0.267456482166143 0.943055778179350
+	//   995(  1) 0.169052556403815 0.267779529626134 0.943989755241396
+	//   996(  1) 0.169205222743541 0.268102781427256 0.944923672401419
+	//   997(  1) 0.169357822819733 0.268426238156930 0.945857529435860
+	//   998(  1) 0.169510356428686 0.268749900405191 0.946791326119935
+	//   999(  1) 0.169662823365732 0.269073768764704 0.947725062227631
+	//  1000(  1) 0.169815223425229 0.269397843830776 0.948658737531693
+	//  1001(  1) 0.169967556400562 0.269722126201373 0.949592351803620
+	//  1002(  1) 0.170119822084128 0.270046616477140 0.950525904813653
+	//  1003(  1) 0.170272020267338 0.270371315261413 0.951459396330765
+	//  1004(  1) 0.170424150740604 0.270696223160238 0.952392826122653
+	//  1005(  1) 0.170576213293335 0.271021340782389 0.953326193955730
+	//  1006(  1) 0.170728207713934 0.271346668739379 0.954259499595115
+	//  1007(  1) 0.170880133789785 0.271672207645482 0.955192742804622
+	//  1008(  1) 0.171031991307249 0.271997958117751 0.956125923346749
+	//  1009(  1) 0.171183780051661 0.272323920776030 0.957059040982676
+	//  1010(  1) 0.171335499807317 0.272650096242976 0.957992095472246
+	//  1011(  1) 0.171487150357472 0.272976485144074 0.958925086573960
+	//  1012(  1) 0.171638731484329 0.273303088107653 0.959858014044969
+	//  1013(  1) 0.171790242969037 0.273629905764910 0.960790877641057
+	//  1014(  1) 0.171941684591680 0.273956938749920 0.961723677116639
+	//  1015(  1) 0.172093056131271 0.274284187699661 0.962656412224746
+	//  1016(  1) 0.172244357365748 0.274611653254025 0.963589082717016
+	//  1017(  1) 0.172395588071960 0.274939336055844 0.964521688343683
+	//  1018(  1) 0.172546748025667 0.275267236750901 0.965454228853568
+	//  1019(  1) 0.172697837001528 0.275595355987955 0.966386703994066
+	//  1020(  1) 0.172848854773096 0.275923694418756 0.967319113511140
+	//  1021(  1) 0.172999801112810 0.276252252698064 0.968251457149304
+	//  1022(  1) 0.173150675791987 0.276581031483668 0.969183734651618
+	//  1023(  1) 0.173301478580816 0.276910031436408 0.970115945759672
+	//  1024(  1) 0.173452209248347 0.277239253220190 0.971048090213578
+	//  1025(  1) 0.173602867562488 0.277568697502009 0.971980167751960
+	//  1026(  1) 0.173753453289993 0.277898364951968 0.972912178111940
+	//  1027(  1) 0.173903966196458 0.278228256243295 0.973844121029127
+	//  1028(  1) 0.174054406046310 0.278558372052366 0.974775996237606
+	//  1029(  1) 0.174204772602801 0.278888713058724 0.975707803469927
+	//  1030(  1) 0.174355065627999 0.279219279945101 0.976639542457095
+	//  1031(  1) 0.174505284882780 0.279550073397434 0.977571212928553
+	//  1032(  1) 0.174655430126821 0.279881094104891 0.978502814612175
+	//  1033(  1) 0.174805501118591 0.280212342759887 0.979434347234251
+	//  1034(  1) 0.174955497615342 0.280543820058109 0.980365810519478
+	//  1035(  1) 0.175105419373103 0.280875526698534 0.981297204190945
+	//  1036(  1) 0.175255266146667 0.281207463383453 0.982228527970120
+	//  1037(  1) 0.175405037689588 0.281539630818489 0.983159781576842
+	//  1038(  1) 0.175554733754170 0.281872029712622 0.984090964729303
+	//  1039(  1) 0.175704354091457 0.282204660778211 0.985022077144039
+	//  1040(  1) 0.175853898451226 0.282537524731010 0.985953118535916
+	//  1041(  1) 0.176003366581979 0.282870622290199 0.986884088618116
+	//  1042(  1) 0.176152758230931 0.283203954178401 0.987814987102126
+	//  1043(  1) 0.176302073144005 0.283537521121703 0.988745813697722
+	//  1044(  1) 0.176451311065819 0.283871323849685 0.989676568112960
+	//  1045(  1) 0.176600471739681 0.284205363095435 0.990607250054158
+	//  1046(  1) 0.176749554907576 0.284539639595581 0.991537859225884
+	//  1047(  1) 0.176898560310159 0.284874154090306 0.992468395330944
+	//  1048(  1) 0.177047487686747 0.285208907323376 0.993398858070365
+	//  1049(  1) 0.177196336775305 0.285543900042164 0.994329247143385
+	//  1050(  1) 0.177345107312441 0.285879132997671 0.995259562247434
+	//  1051(  1) 0.177493799033393 0.286214606944552 0.996189803078125
+	//  1052(  1) 0.177642411672023 0.286550322641142 0.997119969329234
+	//  1053(  1) 0.177790944960804 0.286886280849476 0.998050060692691
+	//  1054(  1) 0.177939398630811 0.287222482335317 0.998980076858561
+	//  1055(  1) 0.178087772411712 0.287558927868182 0.999910017515031
+	//  1056(  1) 0.178236066031759 0.287895618221362 1.000839882348396
+	//  1057(  1) 0.178384279217772 0.288232554171954 1.001769671043042
+	//  1058(  1) 0.178532411695138 0.288569736500880 1.002699383281430
+	//  1059(  1) 0.178680463187792 0.288907165992918 1.003629018744085
+	//  1060(  1) 0.178828433418213 0.289244843436726 1.004558577109576
+	//  1061(  1) 0.178976322107408 0.289582769624866 1.005488058054499
+	//  1062(  1) 0.179124128974908 0.289920945353836 1.006417461253469
+	//  1063(  1) 0.179271853738751 0.290259371424090 1.007346786379095
+	//  1064(  1) 0.179419496115475 0.290598048640070 1.008276033101969
+	//  1065(  1) 0.179567055820104 0.290936977810230 1.009205201090647
+	//  1066(  1) 0.179714532566142 0.291276159747066 1.010134290011635
+	//  1067(  1) 0.179861926065557 0.291615595267142 1.011063299529369
+	//  1068(  1) 0.180009236028772 0.291955285191116 1.011992229306203
+	//  1069(  1) 0.180156462164653 0.292295230343772 1.012921079002385
+	//  1070(  1) 0.180303604180500 0.292635431554047 1.013849848276048
+	//  1071(  1) 0.180450661782033 0.292975889655056 1.014778536783186
+	//  1072(  1) 0.180597634673378 0.293316605484126 1.015707144177637
+	//  1073(  1) 0.180744522557062 0.293657579882824 1.016635670111071
+	//  1074(  1) 0.180891325133996 0.293998813696981 1.017564114232966
+	//  1075(  1) 0.181038042103465 0.294340307776730 1.018492476190592
+	//  1076(  1) 0.181184673163115 0.294682062976529 1.019420755628992
+	//  1077(  1) 0.181331218008942 0.295024080155195 1.020348952190965
+	//  1078(  1) 0.181477676335279 0.295366360175931 1.021277065517047
+	//  1079(  1) 0.181624047834783 0.295708903906361 1.022205095245492
+	//  1080(  1) 0.181770332198423 0.296051712218556 1.023133041012250
+	//  1081(  1) 0.181916529115471 0.296394785989070 1.024060902450952
+	//  1082(  1) 0.182062638273481 0.296738126098967 1.024988679192891
+	//  1083(  1) 0.182208659358285 0.297081733433855 1.025916370866995
+	//  1084(  1) 0.182354592053974 0.297425608883921 1.026843977099818
+	//  1085(  1) 0.182500436042889 0.297769753343955 1.027771497515510
+	//  1086(  1) 0.182646191005603 0.298114167713391 1.028698931735803
+	//  1087(  1) 0.182791856620913 0.298458852896336 1.029626279379987
+	//  1088(  1) 0.182937432565823 0.298803809801603 1.030553540064893
+	//  1089(  1) 0.183082918515531 0.299149039342745 1.031480713404868
+	//  1090(  1) 0.183228314143417 0.299494542438089 1.032407799011756
+	//  1091(  1) 0.183373619121027 0.299840320010771 1.033334796494877
+	//  1092(  1) 0.183518833118059 0.300186372988768 1.034261705461003
+	//  1093(  1) 0.183663955802352 0.300532702304934 1.035188525514340
+	//  1094(  1) 0.183808986839867 0.300879308897036 1.036115256256503
+	//  1095(  1) 0.183953925894676 0.301226193707787 1.037041897286493
+	//  1096(  1) 0.184098772628948 0.301573357684884 1.037968448200678
+	//  1097(  1) 0.184243526702931 0.301920801781042 1.038894908592767
+	//  1098(  1) 0.184388187774940 0.302268526954031 1.039821278053790
+	//  1099(  1) 0.184532755501339 0.302616534166714 1.040747556172070
+	//  1100(  1) 0.184677229536531 0.302964824387081 1.041673742533204
+	//  1101(  1) 0.184821609532937 0.303313398588290 1.042599836720039
+	//  1102(  1) 0.184965895140986 0.303662257748700 1.043525838312645
+	//  1103(  1) 0.185110086009094 0.304011402851914 1.044451746888291
+	//  1104(  1) 0.185254181783653 0.304360834886813 1.045377562021426
+	//  1105(  1) 0.185398182109012 0.304710554847598 1.046303283283645
+	//  1106(  1) 0.185542086627461 0.305060563733827 1.047228910243673
+	//  1107(  1) 0.185685894979219 0.305410862550455 1.048154442467333
+	//  1108(  1) 0.185829606802413 0.305761452307874 1.049079879517525
+	//  1109(  1) 0.185973221733061 0.306112334021952 1.050005220954196
+	//  1110(  1) 0.186116739405060 0.306463508714076 1.050930466334317
+	//  1111(  1) 0.186260159450167 0.306814977411189 1.051855615211856
+	//  1112(  1) 0.186403481497978 0.307166741145837 1.052780667137749
+	//  1113(  1) 0.186546705175918 0.307518800956203 1.053705621659875
+	//  1114(  1) 0.186689830109218 0.307871157886158 1.054630478323030
+	//  1115(  1) 0.186832855920900 0.308223812985293 1.055555236668894
+	//  1116(  1) 0.186975782231759 0.308576767308974 1.056479896236010
+	//  1117(  1) 0.187118608660345 0.308930021918373 1.057404456559751
+	//  1118(  1) 0.187261334822943 0.309283577880521 1.058328917172292
+	//  1119(  1) 0.187403960333559 0.309637436268347 1.059253277602582
+	//  1120(  1) 0.187546484803898 0.309991598160725 1.060177537376316
+	//  1121(  1) 0.187688907843346 0.310346064642518 1.061101696015901
+	//  1122(  1) 0.187831229058953 0.310700836804621 1.062025753040432
+	//  1123(  1) 0.187973448055411 0.311055915744013 1.062949707965656
+	//  1124(  1) 0.188115564435038 0.311411302563794 1.063873560303948
+	//  1125(  1) 0.188257577797757 0.311766998373243 1.064797309564273
+	//  1126(  1) 0.188399487741076 0.312123004287854 1.065720955252158
+	//  1127(  1) 0.188541293860068 0.312479321429391 1.066644496869663
+	//  1128(  1) 0.188682995747353 0.312835950925933 1.067567933915344
+	//  1129(  1) 0.188824592993075 0.313192893911923 1.068491265884224
+	//  1130(  1) 0.188966085184886 0.313550151528218 1.069414492267760
+	//  1131(  1) 0.189107471907918 0.313907724922135 1.070337612553807
+	//  1132(  1) 0.189248752744771 0.314265615247506 1.071260626226590
+	//  1133(  1) 0.189389927275485 0.314623823664724 1.072183532766664
+	//  1134(  1) 0.189530995077522 0.314982351340797 1.073106331650884
+	//  1135(  1) 0.189671955725743 0.315341199449397 1.074029022352370
+	//  1136(  1) 0.189812808792389 0.315700369170912 1.074951604340468
+	//  1137(  1) 0.189953553847054 0.316059861692502 1.075874077080720
+	//  1138(  1) 0.190094190456670 0.316419678208147 1.076796440034825
+	//  1139(  1) 0.190234718185475 0.316779819918702 1.077718692660603
+	//  1140(  1) 0.190375136595001 0.317140288031954 1.078640834411960
+	//  1141(  1) 0.190515445244044 0.317501083762672 1.079562864738847
+	//  1142(  1) 0.190655643688640 0.317862208332666 1.080484783087227
+	//  1143(  1) 0.190795731482049 0.318223662970837 1.081406588899035
+	//  1144(  1) 0.190935708174724 0.318585448913241 1.082328281612137
+	//  1145(  1) 0.191075573314289 0.318947567403140 1.083249860660297
+	//  1146(  1) 0.191215326445519 0.319310019691059 1.084171325473133
+	//  1147(  1) 0.191354967110307 0.319672807034847 1.085092675476076
+	//  1148(  1) 0.191494494847650 0.320035930699735 1.086013910090336
+	//  1149(  1) 0.191633909193616 0.320399391958392 1.086935028732854
+	//  1150(  1) 0.191773209681320 0.320763192090987 1.087856030816266
+	//  1151(  1) 0.191912395840902 0.321127332385250 1.088776915748858
+	//  1152(  1) 0.192051467199499 0.321491814136530 1.089697682934526
+	//  1153(  1) 0.192190423281218 0.321856638647858 1.090618331772730
+	//  1154(  1) 0.192329263607112 0.322221807230010 1.091538861658456
+	//  1155(  1) 0.192467987695150 0.322587321201567 1.092459271982168
+	//  1156(  1) 0.192606595060195 0.322953181888982 1.093379562129762
+	//  1157(  1) 0.192745085213971 0.323319390626642 1.094299731482528
+	//  1158(  1) 0.192883457665042 0.323685948756929 1.095219779417097
+	//  1159(  1) 0.193021711918777 0.324052857630292 1.096139705305401
+	//  1160(  1) 0.193159847477328 0.324420118605309 1.097059508514622
+	//  1161(  1) 0.193297863839598 0.324787733048754 1.097979188407147
+	//  1162(  1) 0.193435760501214 0.325155702335665 1.098898744340522
+	//  1163(  1) 0.193573536954497 0.325524027849411 1.099818175667400
+	//  1164(  1) 0.193711192688433 0.325892710981761 1.100737481735494
+	//  1165(  1) 0.193848727188643 0.326261753132956 1.101656661887529
+	//  1166(  1) 0.193986139937354 0.326631155711773 1.102575715461187
+	//  1167(  1) 0.194123430413365 0.327000920135604 1.103494641789065
+	//  1168(  1) 0.194260598092023 0.327371047830521 1.104413440198612
+	//  1169(  1) 0.194397642445185 0.327741540231350 1.105332110012090
+	//  1170(  1) 0.194534562941191 0.328112398781746 1.106250650546509
+	//  1171(  1) 0.194671359044829 0.328483624934266 1.107169061113584
+	//  1172(  1) 0.194808030217308 0.328855220150443 1.108087341019673
+	//  1173(  1) 0.194944575916217 0.329227185900861 1.109005489565729
+	//  1174(  1) 0.195080995595502 0.329599523665234 1.109923506047241
+	//  1175(  1) 0.195217288705424 0.329972234932478 1.110841389754176
+	//  1176(  1) 0.195353454692533 0.330345321200795 1.111759139970927
+	//  1177(  1) 0.195489492999627 0.330718783977747 1.112676755976256
+	//  1178(  1) 0.195625403065723 0.331092624780337 1.113594237043228
+	//  1179(  1) 0.195761184326017 0.331466845135092 1.114511582439161
+	//  1180(  1) 0.195896836211856 0.331841446578139 1.115428791425563
+	//  1181(  1) 0.196032358150695 0.332216430655290 1.116345863258069
+	//  1182(  1) 0.196167749566064 0.332591798922128 1.117262797186384
+	//  1183(  1) 0.196303009877534 0.332967552944083 1.118179592454219
+	//  1184(  1) 0.196438138500675 0.333343694296527 1.119096248299228
+	//  1185(  1) 0.196573134847024 0.333720224564851 1.120012763952946
+	//  1186(  1) 0.196707998324042 0.334097145344554 1.120929138640721
+	//  1187(  1) 0.196842728335079 0.334474458241335 1.121845371581652
+	//  1188(  1) 0.196977324279337 0.334852164871176 1.122761461988525
+	//  1189(  1) 0.197111785551826 0.335230266860434 1.123677409067738
+	//  1190(  1) 0.197246111543329 0.335608765845929 1.124593212019244
+	//  1191(  1) 0.197380301640357 0.335987663475042 1.125508870036471
+	//  1192(  1) 0.197514355225116 0.336366961405799 1.126424382306261
+	//  1193(  1) 0.197648271675457 0.336746661306970 1.127339748008797
+	//  1194(  1) 0.197782050364842 0.337126764858162 1.128254966317529
+	//  1195(  1) 0.197915690662297 0.337507273749915 1.129170036399103
+	//  1196(  1) 0.198049191932374 0.337888189683797 1.130084957413291
+	//  1197(  1) 0.198182553535102 0.338269514372503 1.130999728512912
+	//  1198(  1) 0.198315774825951 0.338651249539955 1.131914348843757
+	//  1199(  1) 0.198448855155780 0.339033396921398 1.132828817544516
+	//  1200(  1) 0.198581793870798 0.339415958263506 1.133743133746699
+	//  1201(  1) 0.198714590312519 0.339798935324480 1.134657296574555
+	//  1202(  1) 0.198847243817711 0.340182329874154 1.135571305144996
+	//  1203(  1) 0.198979753718355 0.340566143694097 1.136485158567517
+	//  1204(  1) 0.199112119341597 0.340950378577721 1.137398855944109
+	//  1205(  1) 0.199244340009699 0.341335036330385 1.138312396369181
+	//  1206(  1) 0.199376415039993 0.341720118769506 1.139225778929478
+	//  1207(  1) 0.199508343744831 0.342105627724666 1.140139002703988
+	//  1208(  1) 0.199640125431535 0.342491565037723 1.141052066763865
+	//  1209(  1) 0.199771759402352 0.342877932562926 1.141964970172335
+	//  1210(  1) 0.199903244954398 0.343264732167019 1.142877711984611
+	//  1211(  1) 0.200034581379609 0.343651965729367 1.143790291247801
+	//  1212(  1) 0.200165767964689 0.344039635142062 1.144702707000819
+	//  1213(  1) 0.200296803991061 0.344427742310046 1.145614958274291
+	//  1214(  1) 0.200427688734810 0.344816289151224 1.146527044090464
+	//  1215(  1) 0.200558421466629 0.345205277596590 1.147438963463108
+	//  1216(  1) 0.200689001451770 0.345594709590342 1.148350715397421
+	//  1217(  1) 0.200819427949981 0.345984587090007 1.149262298889932
+	//  1218(  1) 0.200949700215459 0.346374912066566 1.150173712928403
+	//  1219(  1) 0.201079817496787 0.346765686504577 1.151084956491726
+	//  1220(  1) 0.201209779036881 0.347156912402301 1.151996028549824
+	//  1221(  1) 0.201339584072928 0.347548591771835 1.152906928063545
+	//  1222(  1) 0.201469231836332 0.347940726639236 1.153817653984563
+	//  1223(  1) 0.201598721552652 0.348333319044655 1.154728205255263
+	//  1224(  1) 0.201728052441543 0.348726371042470 1.155638580808644
+	//  1225(  1) 0.201857223716695 0.349119884701418 1.156548779568199
+	//  1226(  1) 0.201986234585770 0.349513862104735 1.157458800447815
+	//  1227(  1) 0.202115084250341 0.349908305350288 1.158368642351652
+	//  1228(  1) 0.202243771905829 0.350303216550719 1.159278304174034
+	//  1229(  1) 0.202372296741437 0.350698597833584 1.160187784799331
+	//  1230(  1) 0.202500657940088 0.351094451341495 1.161097083101846
+	//  1231(  1) 0.202628854678357 0.351490779232262 1.162006197945689
+	//  1232(  1) 0.202756886126405 0.351887583679044 1.162915128184665
+	//  1233(  1) 0.202884751447913 0.352284866870494 1.163823872662144
+	//  1234(  1) 0.203012449800009 0.352682631010905 1.164732430210940
+	//  1235(  1) 0.203139980333205 0.353080878320368 1.165640799653187
+	//  1236(  1) 0.203267342191322 0.353479611034919 1.166548979800208
+	//  1237(  1) 0.203394534511422 0.353878831406698 1.167456969452387
+	//  1238(  1) 0.203521556423734 0.354278541704101 1.168364767399037
+	//  1239(  1) 0.203648407051580 0.354678744211945 1.169272372418267
+	//  1240(  1) 0.203775085511305 0.355079441231622 1.170179783276844
+	//  1241(  1) 0.203901590912198 0.355480635081266 1.171086998730059
+	//  1242(  1) 0.204027922356418 0.355882328095916 1.171994017521586
+	//  1243(  1) 0.204154078938914 0.356284522627681 1.172900838383339
+	//  1244(  1) 0.204280059747354 0.356687221045913 1.173807460035330
+	//  1245(  1) 0.204405863862038 0.357090425737371 1.174713881185522
+	//  1246(  1) 0.204531490355820 0.357494139106400 1.175620100529680
+	//  1247(  1) 0.204656938294031 0.357898363575101 1.176526116751225
+	//  1248(  1) 0.204782206734391 0.358303101583512 1.177431928521074
+	//  1249(  1) 0.204907294726927 0.358708355589783 1.178337534497492
+	//  1250(  1) 0.205032201313892 0.359114128070364 1.179242933325930
+	//  1251(  1) 0.205156925529672 0.359520421520179 1.180148123638867
+	//  1252(  1) 0.205281466400707 0.359927238452820 1.181053104055649
+	//  1253(  1) 0.205405822945397 0.360334581400734 1.181957873182320
+	//  1254(  1) 0.205529994174013 0.360742452915409 1.182862429611461
+	//  1255(  1) 0.205653979088610 0.361150855567573 1.183766771922015
+	//  1256(  1) 0.205777776682932 0.361559791947387 1.184670898679116
+	//  1257(  1) 0.205901385942319 0.361969264664640 1.185574808433914
+	//  1258(  1) 0.206024805843611 0.362379276348954 1.186478499723399
+	//  1259(  1) 0.206148035355058 0.362789829649986 1.187381971070217
+	//  1260(  1) 0.206271073436214 0.363200927237630 1.188285220982488
+	//  1261(  1) 0.206393919037847 0.363612571802233 1.189188247953621
+	//  1262(  1) 0.206516571101832 0.364024766054795 1.190091050462121
+	//  1263(  1) 0.206639028561053 0.364437512727190 1.190993626971403
+	//  1264(  1) 0.206761290339301 0.364850814572384 1.191895975929589
+	//  1265(  1) 0.206883355351167 0.365264674364647 1.192798095769314
+	//  1266(  1) 0.207005222501937 0.365679094899779 1.193699984907526
+	//  1267(  1) 0.207126890687485 0.366094078995334 1.194601641745276
+	//  1268(  1) 0.207248358794166 0.366509629490850 1.195503064667514
+	//  1269(  1) 0.207369625698700 0.366925749248076 1.196404252042875
+	//  1270(  1) 0.207490690268066 0.367342441151205 1.197305202223469
+	//  1271(  1) 0.207611551359384 0.367759708107116 1.198205913544653
+	//  1272(  1) 0.207732207819804 0.368177553045607 1.199106384324821
+	//  1273(  1) 0.207852658486381 0.368595978919645 1.200006612865169
+	//  1274(  1) 0.207972902185966 0.369014988705605 1.200906597449471
+	//  1275(  1) 0.208092937735080 0.369434585403522 1.201806336343843
+	//  1276(  1) 0.208212763939791 0.369854772037347 1.202705827796509
+	//  1277(  1) 0.208332379595591 0.370275551655196 1.203605070037560
+	//  1278(  1) 0.208451783487273 0.370696927329615 1.204504061278707
+	//  1279(  1) 0.208570974388798 0.371118902157842 1.205402799713034
+	//  1280(  1) 0.208689951063170 0.371541479262068 1.206301283514746
+	//  1281(  1) 0.208808712262300 0.371964661789712 1.207199510838912
+	//  1282(  1) 0.208927256726877 0.372388452913693 1.208097479821201
+	//  1283(  1) 0.209045583186228 0.372812855832707 1.208995188577619
+	//  1284(  1) 0.209163690358183 0.373237873771507 1.209892635204239
+	//  1285(  1) 0.209281576948935 0.373663509981185 1.210789817776925
+	//  1286(  1) 0.209399241652897 0.374089767739467 1.211686734351053
+	//  1287(  1) 0.209516683152558 0.374516650350996 1.212583382961230
+	//  1288(  1) 0.209633900118340 0.374944161147638 1.213479761620998
+	//  1289(  1) 0.209750891208444 0.375372303488772 1.214375868322549
+	//  1290(  1) 0.209867655068704 0.375801080761603 1.215271701036419
+	//  1291(  1) 0.209984190332432 0.376230496381463 1.216167257711191
+	//  1292(  1) 0.210100495620263 0.376660553792128 1.217062536273179
+	//  1293(  1) 0.210216569539996 0.377091256466134 1.217957534626117
+	//  1294(  1) 0.210332410686436 0.377522607905096 1.218852250650840
+	//  1295(  1) 0.210448017641230 0.377954611640036 1.219746682204957
+	//  1296(  1) 0.210563388972703 0.378387271231710 1.220640827122522
+	//  1297(  1) 0.210678523235687 0.378820590270945 1.221534683213693
+	//  1298(  1) 0.210793418971354 0.379254572378977 1.222428248264394
+	//  1299(  1) 0.210908074707042 0.379689221207794 1.223321520035963
+	//  1300(  1) 0.211022488956078 0.380124540440487 1.224214496264799
+	//  1301(  1) 0.211136660217600 0.380560533791598 1.225107174661999
+	//  1302(  1) 0.211250586976377 0.380997205007486 1.225999552912995
+	//  1303(  1) 0.211364267702623 0.381434557866682 1.226891628677173
+	//  1304(  1) 0.211477700851808 0.381872596180263 1.227783399587497
+	//  1305(  1) 0.211590884864474 0.382311323792224 1.228674863250121
+	//  1306(  1) 0.211703818166035 0.382750744579855 1.229566017243995
+	//  1307(  1) 0.211816499166583 0.383190862454127 1.230456859120459
+	//  1308(  1) 0.211928926260690 0.383631681360079 1.231347386402840
+	//  1309(  1) 0.212041097827205 0.384073205277216 1.232237596586034
+	//  1310(  1) 0.212153012229043 0.384515438219906 1.233127487136080
+	//  1311(  1) 0.212264667812985 0.384958384237789 1.234017055489730
+	//  1312(  1) 0.212376062909455 0.385402047416189 1.234906299054011
+	//  1313(  1) 0.212487195832312 0.385846431876527 1.235795215205775
+	//  1314(  1) 0.212598064878624 0.386291541776749 1.236683801291247
+	//  1315(  1) 0.212708668328449 0.386737381311758 1.237572054625555
+	//  1316(  1) 0.212819004444606 0.387183954713841 1.238459972492266
+	//  1317(  1) 0.212929071472443 0.387631266253121 1.239347552142894
+	//  1318(  1) 0.213038867639606 0.388079320237998 1.240234790796421
+	//  1319(  1) 0.213148391155795 0.388528121015609 1.241121685638788
+	//  1320(  1) 0.213257640212527 0.388977672972285 1.242008233822392
+	//  1321(  1) 0.213366612982885 0.389427980534024 1.242894432465565
+	//  1322(  1) 0.213475307621272 0.389879048166959 1.243780278652047
+	//  1323(  1) 0.213583722263150 0.390330880377847 1.244665769430446
+	//  1324(  1) 0.213691855024785 0.390783481714554 1.245550901813693
+	//  1325(  1) 0.213799704002983 0.391236856766548 1.246435672778481
+	//  1326(  1) 0.213907267274821 0.391691010165409 1.247320079264693
+	//  1327(  1) 0.214014542897374 0.392145946585334 1.248204118174828
+	//  1328(  1) 0.214121528907437 0.392601670743654 1.249087786373404
+	//  1329(  1) 0.214228223321248 0.393058187401364 1.249971080686356
+	//  1330(  1) 0.214334624134193 0.393515501363653 1.250853997900426
+	//  1331(  1) 0.214440729320521 0.393973617480444 1.251736534762529
+	//  1332(  1) 0.214546536833044 0.394432540646946 1.252618687979120
+	//  1333(  1) 0.214652044602834 0.394892275804206 1.253500454215541
+	//  1334(  1) 0.214757250538919 0.395352827939682 1.254381830095357
+	//  1335(  1) 0.214862152527968 0.395814202087806 1.255262812199679
+	//  1336(  1) 0.214966748433975 0.396276403330575 1.256143397066475
+	//  1337(  1) 0.215071036097931 0.396739436798137 1.257023581189863
+	//  1338(  1) 0.215175013337501 0.397203307669391 1.257903361019396
+	//  1339(  1) 0.215278677946684 0.397668021172594 1.258782732959330
+	//  1340(  1) 0.215382027695473 0.398133582585984 1.259661693367874
+	//  1341(  1) 0.215485060329509 0.398599997238397 1.260540238556432
+	//  1342(  1) 0.215587773569727 0.399067270509912 1.261418364788822
+	//  1343(  1) 0.215690165111999 0.399535407832490 1.262296068280487
+	//  1344(  1) 0.215792232626763 0.400004414690633 1.263173345197683
+	//  1345(  1) 0.215893973758653 0.400474296622044 1.264050191656657
+	//  1346(  1) 0.215995386126123 0.400945059218308 1.264926603722801
+	//  1347(  1) 0.216096467321056 0.401416708125571 1.265802577409796
+	//  1348(  1) 0.216197214908373 0.401889249045241 1.266678108678734
+	//  1349(  1) 0.216297626425634 0.402362687734686 1.267553193437222
+	//  1350(  1) 0.216397699382628 0.402837030007959 1.268427827538469
+	//  1351(  1) 0.216497431260960 0.403312281736517 1.269302006780357
+	//  1352(  1) 0.216596819513630 0.403788448849964 1.270175726904483
+	//  1353(  1) 0.216695861564597 0.404265537336801 1.271048983595191
+	//  1354(  1) 0.216794554808351 0.404743553245181 1.271921772478584
+	//  1355(  1) 0.216892896609454 0.405222502683687 1.272794089121501
+	//  1356(  1) 0.216990884302096 0.405702391822112 1.273665929030494
+	//  1357(  1) 0.217088515189628 0.406183226892254 1.274537287650765
+	//  1358(  1) 0.217185786544090 0.406665014188730 1.275408160365090
+	//  1359(  1) 0.217282695605733 0.407147760069787 1.276278542492718
+	//  1360(  1) 0.217379239582527 0.407631470958140 1.277148429288246
+	//  1361(  1) 0.217475415649663 0.408116153341817 1.278017815940469
+	//  1362(  1) 0.217571220949049 0.408601813775014 1.278886697571208
+	//  1363(  1) 0.217666652588786 0.409088458878968 1.279755069234112
+	//  1364(  1) 0.217761707642647 0.409576095342841 1.280622925913430
+	//  1365(  1) 0.217856383149536 0.410064729924618 1.281490262522762
+	//  1366(  1) 0.217950676112941 0.410554369452015 1.282357073903780
+	//  1367(  1) 0.218044583500378 0.411045020823410 1.283223354824921
+	//  1368(  1) 0.218138102242819 0.411536691008777 1.284089099980052
+	//  1369(  1) 0.218231229234116 0.412029387050641 1.284954303987107
+	//  1370(  1) 0.218323961330410 0.412523116065049 1.285818961386687
+	//  1371(  1) 0.218416295349524 0.413017885242547 1.286683066640642
+	//  1372(  1) 0.218508228070355 0.413513701849184 1.287546614130606
+	//  1373(  1) 0.218599756232248 0.414010573227520 1.288409598156513
+	//  1374(  1) 0.218690876534354 0.414508506797657 1.289272012935071
+	//  1375(  1) 0.218781585634981 0.415007510058281 1.290133852598205
+	//  1376(  1) 0.218871880150935 0.415507590587722 1.290995111191463
+	//  1377(  1) 0.218961756656840 0.416008756045033 1.291855782672393
+	//  1378(  1) 0.219051211684448 0.416511014171076 1.292715860908868
+	//  1379(  1) 0.219140241721939 0.417014372789637 1.293575339677393
+	//  1380(  1) 0.219228843213202 0.417518839808546 1.294434212661355
+	//  1381(  1) 0.219317012557106 0.418024423220821 1.295292473449244
+	//  1382(  1) 0.219404746106750 0.418531131105830 1.296150115532829
+	//  1383(  1) 0.219492040168708 0.419038971630463 1.297007132305295
+	//  1384(  1) 0.219578891002250 0.419547953050331 1.297863517059329
+	//  1385(  1) 0.219665294818549 0.420058083710975 1.298719262985173
+	//  1386(  1) 0.219751247779881 0.420569372049100 1.299574363168623
+	//  1387(  1) 0.219836745998791 0.421081826593820 1.300428810588983
+	//  1388(  1) 0.219921785537261 0.421595455967927 1.301282598116972
+	//  1389(  1) 0.220006362405852 0.422110268889178 1.302135718512586
+	//  1390(  1) 0.220090472562825 0.422626274171599 1.302988164422898
+	//  1391(  1) 0.220174111913252 0.423143480726810 1.303839928379818
+	//  1392(  1) 0.220257276308106 0.423661897565368 1.304691002797791
+	//  1393(  1) 0.220339961543329 0.424181533798131 1.305541379971447
+	//  1394(  1) 0.220422163358887 0.424702398637641 1.306391052073191
+	//  1395(  1) 0.220503877437801 0.425224501399527 1.307240011150731
+	//  1396(  1) 0.220585099405156 0.425747851503931 1.308088249124556
+	//  1397(  1) 0.220665824827100 0.426272458476947 1.308935757785347
+	//  1398(  1) 0.220746049209808 0.426798331952089 1.309782528791322
+	//  1399(  1) 0.220825767998437 0.427325481671778 1.310628553665526
+	//  1400(  1) 0.220904976576050 0.427853917488844 1.311473823793044
+	//  1401(  1) 0.220983670262525 0.428383649368055 1.312318330418156
+	//  1402(  1) 0.221061844313435 0.428914687387668 1.313162064641409
+	//  1403(  1) 0.221139493918910 0.429447041740996 1.314005017416636
+	//  1404(  1) 0.221216614202470 0.429980722738000 1.314847179547879
+	//  1405(  1) 0.221293200219836 0.430515740806907 1.315688541686252
+	//  1406(  1) 0.221369246957720 0.431052106495838 1.316529094326718
+	//  1407(  1) 0.221444749332581 0.431589830474468 1.317368827804791
+	//  1408(  1) 0.221519702189361 0.432128923535706 1.318207732293148
+	//  1409(  1) 0.221594100300192 0.432669396597394 1.319045797798162
+	//  1410(  1) 0.221667938363078 0.433211260704031 1.319883014156344
+	//  1411(  1) 0.221741211000546 0.433754527028515 1.320719371030699
+	//  1412(  1) 0.221813912758267 0.434299206873914 1.321554857906981
+	//  1413(  1) 0.221886038103654 0.434845311675251 1.322389464089866
+	//  1414(  1) 0.221957581424424 0.435392853001316 1.323223178699013
+	//  1415(  1) 0.222028537027134 0.435941842556496 1.324055990665033
+	//  1416(  1) 0.222098899135679 0.436492292182636 1.324887888725353
+	//  1417(  1) 0.222168661889767 0.437044213860903 1.325718861419971
+	//  1418(  1) 0.222237819343352 0.437597619713695 1.326548897087102
+	//  1419(  1) 0.222306365463040 0.438152522006551 1.327377983858712
+	//  1420(  1) 0.222374294126462 0.438708933150091 1.328206109655938
+	//  1421(  1) 0.222441599120600 0.439266865701978 1.329033262184380
+	//  1422(  1) 0.222508274140096 0.439826332368898 1.329859428929281
+	//  1423(  1) 0.222574312785505 0.440387346008554 1.330684597150575
+	//  1424(  1) 0.222639708561528 0.440949919631689 1.331508753877800
+	//  1425(  1) 0.222704454875191 0.441514066404124 1.332331885904888
+	//  1426(  1) 0.222768545033998 0.442079799648813 1.333153979784806
+	//  1427(  1) 0.222831972244037 0.442647132847914 1.333975021824061
+	//  1428(  1) 0.222894729608044 0.443216079644882 1.334794998077060
+	//  1429(  1) 0.222956810123434 0.443786653846576 1.335613894340313
+	//  1430(  1) 0.223018206680278 0.444358869425378 1.336431696146489
+	//  1431(  1) 0.223078912059243 0.444932740521332 1.337248388758304
+	//  1432(  1) 0.223138918929491 0.445508281444291 1.338063957162255
+	//  1433(  1) 0.223198219846523 0.446085506676081 1.338878386062174
+	//  1434(  1) 0.223256807249986 0.446664430872674 1.339691659872619
+	//  1435(  1) 0.223314673461428 0.447245068866366 1.340503762712076
+	//  1436(  2) 0.223371810681190 0.447827435669901 1.341314678394659
+	//  1437(  2) 0.223428210989305 0.448411546470995 1.342124390428217
+	//  1438(  2) 0.223483866338279 0.448997416645984 1.342932881999100
+	//  1439(  2) 0.223538768553845 0.449585061754437 1.343740135969817
+	//  1440(  2) 0.223592909331678 0.450174497543253 1.344546134869964
+	//  1441(  2) 0.223646280234844 0.450765739948868 1.345350860888244
+	//  1442(  2) 0.223698872691203 0.451358805099453 1.346154295864266
+	//  1443(  2) 0.223750677990750 0.451953709317114 1.346956421280114
+	//  1444(  2) 0.223801687282902 0.452550469120079 1.347757218251686
+	//  1445(  2) 0.223851891573732 0.453149101224874 1.348556667519802
+	//  1446(  2) 0.223901281723142 0.453749622548486 1.349354749441053
+	//  1447(  2) 0.223949848441973 0.454352050210514 1.350151443978405
+	//  1448(  2) 0.223997582289066 0.454956401535281 1.350946730691543
+	//  1449(  2) 0.224044473668251 0.455562694053942 1.351740588726946
+	//  1450(  2) 0.224090512825282 0.456170945506555 1.352532996807681
+	//  1451(  2) 0.224135689844705 0.456781173844108 1.353323933222928
+	//  1452(  2) 0.224179994646667 0.457393397230527 1.354113375817196
+	//  1453(  2) 0.224223416983656 0.458007634044629 1.354901301979252
+	//  1454(  2) 0.224265946437177 0.458623902882028 1.355687688630737
+	//  1455(  2) 0.224307572414370 0.459242222556988 1.356472512214468
+	//  1456(  2) 0.224348284144547 0.459862612104219 1.357255748682408
+	//  1457(  2) 0.224388070675677 0.460485090780604 1.358037373483311
+	//  1458(  2) 0.224426920870792 0.461109678066849 1.358817361550015
+	//  1459(  2) 0.224464823404331 0.461736393669062 1.359595687286385
+	//  1460(  2) 0.224501766758415 0.462365257520232 1.360372324553891
+	//  1461(  2) 0.224537739219050 0.462996289781622 1.361147246657822
+	//  1462(  2) 0.224572728872265 0.463629510844046 1.361920426333105
+	//  1463(  2) 0.224606723600173 0.464264941329043 1.362691835729736
+	//  1464(  2) 0.224639711076976 0.464902602089911 1.363461446397817
+	//  1465(  2) 0.224671678764886 0.465542514212621 1.364229229272163
+	//  1466(  2) 0.224702613909984 0.466184699016568 1.364995154656503
+	//  1467(  2) 0.224732503538013 0.466829178055181 1.365759192207233
+	//  1468(  2) 0.224761334450098 0.467475973116340 1.366521310916732
+	//  1469(  2) 0.224789093218399 0.468125106222624 1.367281479096222
+	//  1470(  2) 0.224815766181701 0.468776599631351 1.368039664358155
+	//  1471(  2) 0.224841339440931 0.469430475834409 1.368795833598132
+	//  1472(  2) 0.224865798854622 0.470086757557840 1.369549952976329
+	//  1473(  2) 0.224889130034307 0.470745467761195 1.370301987898424
+	//  1474(  2) 0.224911318339852 0.471406629636609 1.371051902996016
+	//  1475(  2) 0.224932348874734 0.472070266607589 1.371799662106526
+	//  1476(  2) 0.224952206481265 0.472736402327502 1.372545228252564
+	//  1477(  2) 0.224970875735758 0.473405060677728 1.373288563620760
+	//  1478(  2) 0.224988340943645 0.474076265765458 1.374029629540039
+	//  1479(  2) 0.225004586134554 0.474750041921130 1.374768386459345
+	//  1480(  2) 0.225019595057336 0.475426413695439 1.375504793924784
+	//  1481(  2) 0.225033351175066 0.476105405855942 1.376238810556204
+	//  1482(  2) 0.225045837659998 0.476787043383184 1.376970394023177
+	//  1483(  2) 0.225057037388510 0.477471351466353 1.377699501020395
+	//  1484(  2) 0.225066932936017 0.478158355498394 1.378426087242462
+	//  1485(  2) 0.225075506571874 0.478848081070591 1.379150107358085
+	//  1486(  2) 0.225082740254279 0.479540553966534 1.379871514983649
+	//  1487(  2) 0.225088615625177 0.480235800155478 1.380590262656185
+	//  1488(  2) 0.225093114005172 0.480933845785022 1.381306301805709
+	//  1489(  2) 0.225096216388468 0.481634717173083 1.382019582726957
+	//  1490(  2) 0.225097903437846 0.482338440799109 1.382730054550491
+	//  1491(  2) 0.225098155479674 0.483045043294504 1.383437665213199
+	//  1492(  2) 0.225096952498994 0.483754551432192 1.384142361428168
+	//  1493(  2) 0.225094274134671 0.484466992115287 1.384844088653972
+	//  1494(  2) 0.225090099674633 0.485182392364812 1.385542791063345
+	//  1495(  2) 0.225084408051220 0.485900779306398 1.386238411511278
+	//  1496(  2) 0.225077177836651 0.486622180155930 1.386930891502535
+	//  1497(  2) 0.225068387238644 0.487346622204050 1.387620171158627
+	//  1498(  2) 0.225058014096191 0.488074132799474 1.388306189184237
+	//  1499(  2) 0.225046035875525 0.488804739331043 1.388988882833144
+	//  1500(  2) 0.225032429666302 0.489538469208452 1.389668187873658
+	//  1501(  2) 0.225017172178013 0.490275349841562 1.390344038553616
+	//  1502(  2) 0.225000239736676 0.491015408618246 1.391016367564951
+	//  1503(  2) 0.224981608281810 0.491758672880671 1.391685106007910
+	//  1504(  2) 0.224961253363748 0.492505169899944 1.392350183354936
+	//  1505(  2) 0.224939150141317 0.493254926849030 1.393011527414299
+	//  1506(  2) 0.224915273379912 0.494007970773868 1.393669064293515
+	//  1507(  2) 0.224889597450014 0.494764328562580 1.394322718362637
+	//  1508(  2) 0.224862096326197 0.495524026912695 1.394972412217481
+	//  1509(  2) 0.224832743586654 0.496287092296279 1.395618066642895
+	//  1510(  2) 0.224801512413311 0.497053550922893 1.396259600576137
+	//  1511(  2) 0.224768375592557 0.497823428700259 1.396896931070487
+	//  1512(  2) 0.224733305516664 0.498596751192549 1.397529973259203
+	//  1513(  2) 0.224696274185936 0.499373543576196 1.398158640319938
+	//  1514(  2) 0.224657253211664 0.500153830593110 1.398782843439766
+	//  1515(  2) 0.224616213819938 0.500937636501212 1.399402491780964
+	//  1516(  2) 0.224573126856383 0.501724985022181 1.400017492447711
+	//  1517(  2) 0.224527962791896 0.502515899286298 1.400627750453882
+	//  1518(  2) 0.224480691729455 0.503310401774308 1.401233168692128
+	//  1519(  2) 0.224431283412068 0.504108514256188 1.401833647904458
+	//  1520(  2) 0.224379707231951 0.504910257726729 1.402429086654532
+	//  1521(  2) 0.224325932241018 0.505715652337847 1.403019381301918
+	//  1522(  2) 0.224269927162761 0.506524717327529 1.403604425978572
+	//  1523(  2) 0.224211660405615 0.507337470945345 1.404184112567806
+	//  1524(  2) 0.224151100077899 0.508153930374456 1.404758330686053
+	//  1525(  2) 0.224088214004425 0.508974111650041 1.405326967667740
+	//  1526(  2) 0.224022969744868 0.509798029574124 1.405889908553597
+	//  1527(  2) 0.223955334614009 0.510625697626734 1.406447036082771
+	//  1528(  2) 0.223885275703928 0.511457127873395 1.406998230689108
+	//  1529(  2) 0.223812759908264 0.512292330868945 1.407543370502003
+	//  1530(  2) 0.223737753948638 0.513131315557684 1.408082331352235
+	//  1531(  2) 0.223660224403330 0.513974089169899 1.408614986783221
+	//  1532(  2) 0.223580137738327 0.514820657114832 1.409141208068138
+	//  1533(  2) 0.223497460340806 0.515671022870170 1.409660864233394
+	//  1534(  2) 0.223412158555186 0.516525187868178 1.410173822088922
+	//  1535(  2) 0.223324198721795 0.517383151378635 1.410679946265813
+	//  1536(  2) 0.223233547218262 0.518244910388747 1.411179099261796
+	//  1537(  2) 0.223140170503705 0.519110459480269 1.411671141495088
+	//  1538(  2) 0.223044035165760 0.519979790704109 1.412155931367151
+	//  1539(  2) 0.222945107970546 0.520852893452709 1.412633325334891
+	//  1540(  2) 0.222843355915562 0.521729754330578 1.413103177992827
+	//  1541(  2) 0.222738746285597 0.522610357023379 1.413565342165767
+	//  1542(  2) 0.222631246711622 0.523494682166027 1.414019669012515
+	//  1543(  2) 0.222520825232693 0.524382707210321 1.414466008141091
+	//  1544(  2) 0.222407450360825 0.525274406292675 1.414904207735976
+	//  1545(  2) 0.222291091148801 0.526169750102592 1.415334114697797
+	//  1546(  2) 0.222171717260838 0.527068705752544 1.415755574795898
+	//  1547(  2) 0.222049299046025 0.527971236650042 1.416168432834143
+	//  1548(  2) 0.221923807614401 0.528877302372668 1.416572532830272
+	//  1549(  2) 0.221795214915525 0.529786858546959 1.416967718209057
+	//  1550(  2) 0.221663493819346 0.530699856732050 1.417353832009433
+	//  1551(  2) 0.221528618199165 0.531616244309052 1.417730717105712
+	//  1552(  2) 0.221390563016415 0.532535964377183 1.418098216442845
+	//  1553(  2) 0.221249304406990 0.533458955657714 1.418456173285672
+	//  1554(  2) 0.221104819768770 0.534385152406829 1.418804431481910
+	//  1555(  2) 0.220957087850009 0.535314484338521 1.419142835738558
+	//  1556(  2) 0.220806088838144 0.536246876558664 1.419471231911240
+	//  1557(  2) 0.220651804448618 0.537182249511417 1.419789467305888
+	//  1558(  2) 0.220494218013224 0.538120518939095 1.420097390991993
+	//  1559(  2) 0.220333314567475 0.539061595856638 1.420394854126538
+	//  1560(  2) 0.220169080936441 0.540005386541768 1.420681710287531
+	//  1561(  2) 0.220001505818513 0.540951792541876 1.420957815815928
+	//  1562(  2) 0.219830579866488 0.541900710698620 1.421223030164571
+	//  1563(  2) 0.219656295765368 0.542852033191127 1.421477216252598
+	//  1564(  2) 0.219478648306264 0.543805647598599 1.421720240823653
+	//  1565(  2) 0.219297634455766 0.544761436982996 1.421951974806060
+	//  1566(  2) 0.219113253420166 0.545719279992352 1.422172293673017
+	//  1567(  2) 0.218925506703903 0.546679050985115 1.422381077800726
+	//  1568(  2) 0.218734398161638 0.547640620175735 1.422578212822285
+	//  1569(  2) 0.218539934043383 0.548603853801564 1.422763589975094
+	//  1570(  1) 0.218342123033130 0.549568614310491 1.422937106443009
+	//  1571(  1) 0.218140976274301 0.550534760571652 1.423098665668856
+	//  1572(  1) 0.217936507397488 0.551502148101773 1.423248177691724
+	//  1573(  1) 0.217728732528216 0.552470629315859 1.423385559428723
+	//  1574(  1) 0.217517670291294 0.553440053793955 1.423510734959130
+	//  1575(  1) 0.217303341804528 0.554410268565809 1.423623635783922
+	//  1576(  1) 0.217085770662828 0.555381118411548 1.423724201062859
+	//  1577(  1) 0.216864982912584 0.556352446176816 1.423812377827151
+	//  1578(  1) 0.216641007016325 0.557324093100615 1.423888121165916
+	//  1579(  1) 0.216413873807726 0.558295899153958 1.423951394384864
+	//  1580(  1) 0.216183616437128 0.559267703387305 1.424002169135818
+	//  1581(  1) 0.215950270307835 0.560239344284614 1.424040425515953
+	//  1582(  1) 0.215713873003528 0.561210660121787 1.424066152135898
+	//  1583(  1) 0.215474464207225 0.562181489327200 1.424079346156101
+	//  1584(  1) 0.215232085612292 0.563151670841995 1.424080013291165
+	//  1585(  1) 0.214986780826086 0.564121044477793 1.424068167782135
+	//  1586(  1) 0.214738595266866 0.565089451269541 1.424043832337006
+	//  1587(  1) 0.214487576054694 0.566056733821245 1.424007038040022
+	//  1588(  1) 0.214233771897043 0.567022736642421 1.423957824230591
+	//  1589(  1) 0.213977232969918 0.567987306473248 1.423896238352921
+	//  1590(  2) 0.213718010794361 0.568950292595906 1.423822335773348
+	//  1591(  2) 0.213456158114612 0.569911547133768 1.423736179592217
+	//  1592(  2) 0.213191728765554 0.570870925328661 1.423637840390876
+	//  1593(  2) 0.212924777547319 0.571828285805406 1.423527395994684
+	//  1594(  2) 0.212655360095501 0.572783490814779 1.423404931196782
+	//  1595(  2) 0.212383532752524 0.573736406456903 1.423270537467000
+	//  1596(  2) 0.212109352440183 0.574686902883847 1.423124312644580
+	//  1597(  2) 0.211832876534042 0.575634854480883 1.422966360617050
+	//  1598(  2) 0.211554162740369 0.576580140026087 1.422796790987565
+	//  1599(  2) 0.211273268976226 0.577522642828160 1.422615718733064
+	//  1600(  2) 0.210990253253251 0.578462250842528 1.422423263855533
+	//  1601(  2) 0.210705173565656 0.579398856765994 1.422219551028620
+	//  1602(  2) 0.210418087782852 0.580332358110360 1.422004709241767
+	//  1603(  2) 0.210129053547081 0.581262657255589 1.421778871443915
+	//  1604(  2) 0.209838128176376 0.582189661483235 1.421542174188740
+	//  1605(  2) 0.209545368573069 0.583113282990966 1.421294757283240
+	//  1606(  2) 0.209250831138054 0.584033438889126 1.421036763441343
+	//  1607(  2) 0.208954571690935 0.584950051180345 1.420768337944085
+	//  1608(  2) 0.208656645396108 0.585863046723300 1.420489628307732
+	//  1609(  2) 0.208357106694831 0.586772357181746 1.420200783961071
+	//  1610(  2) 0.208056009243234 0.587677918960005 1.419901955932939
+	//  1611(  2) 0.207753405856210 0.588579673126095 1.419593296550934
+	//  1612(  2) 0.207449348457084 0.589477565323684 1.419274959152022
+	//  1613(  2) 0.207143888032915 0.590371545674070 1.418947097805731
+	//  1614(  2) 0.206837074595258 0.591261568669342 1.418609867050374
+	//  1615(  2) 0.206528957146199 0.592147593057867 1.418263421642663
+	//  1616(  2) 0.206219583649446 0.593029581723191 1.417907916320976
+	//  1617(  2) 0.205909001006238 0.593907501557417 1.417543505582370
+	//  1618(  2) 0.205597255035831 0.594781323330066 1.417170343473389
+	//  1619(  2) 0.205284390460303 0.595651021553361 1.416788583394574
+	//  1620(  2) 0.204970450893426 0.596516574344828 1.416398377918532
+	//  1621(  2) 0.204655478833326 0.597377963288048 1.415999878621351
+	//  1622(  2) 0.204339515658679 0.598235173292323 1.415593235927038
+	//  1623(  2) 0.204022601628177 0.599088192451960 1.415178598964669
+	//  1624(  2) 0.203704775883003 0.599937011905826 1.414756115437837
+	//  1625(  2) 0.203386076452061 0.600781625697741 1.414325931505985
+	//  1626(  2) 0.203066540259723 0.601622030638250 1.413888191677144
+	//  1627(  2) 0.202746203135848 0.602458226168226 1.413443038711619
+	//  1628(  2) 0.202425099827846 0.603290214224720 1.412990613536102
+	//  1629(  2) 0.202103264014572 0.604117999109415 1.412531055167704
+	//  1630(  2) 0.201780728321850 0.604941587360002 1.412064500647401
+	//  1631(  2) 0.201457524339408 0.605760987624722 1.411591084982355
+	//  1632(  2) 0.201133682639074 0.606576210540314 1.411110941096609
+	//  1633(  2) 0.200809232794025 0.607387268613529 1.410624199789630
+	//  1634(  2) 0.200484203398959 0.608194176106379 1.410130989702216
+	//  1635(  2) 0.200158622091016 0.608996948925192 1.409631437289258
+	//  1636(  2) 0.199832515571323 0.609795604513592 1.409125666798885
+	//  1637(  2) 0.199505909627031 0.610590161749422 1.408613800257546
+	//  1638(  2) 0.199178829153724 0.611380640845655 1.408095957460551
+	//  1639(  2) 0.198851298178098 0.612167063255283 1.407572255967675
+	//  1640(  2) 0.198523339880806 0.612949451580177 1.407042811103400
+	//  1641(  2) 0.198194976619383 0.613727829483878 1.406507735961408
+	//  1642(  2) 0.197866229951171 0.614502221608273 1.405967141412957
+	//  1643(  2) 0.197537120656173 0.615272653494083 1.405421136118777
+	//  1644(  2) 0.197207668759767 0.616039151505112 1.404869826544179
+	//  1645(  2) 0.196877893555224 0.616801742756142 1.404313316977037
+	//  1646(  2) 0.196547813625987 0.617560455044413 1.403751709548363
+	//  1647(  2) 0.196217446867658 0.618315316784569 1.403185104255200
+	//  1648(  2) 0.195886810509649 0.619066356946974 1.402613598985569
+	//  1649(  2) 0.195555921136483 0.619813604999302 1.402037289545235
+	//  1650(  2) 0.195224794708699 0.620557090851267 1.401456269686064
+	//  1651(  2) 0.194893446583340 0.621296844802404 1.400870631135764
+	//  1652(  2) 0.194561891534010 0.622032897492781 1.400280463628820
+	//  1653(  2) 0.194230143770479 0.622765279856519 1.399685854938437
+	//  1654(  2) 0.193898216957829 0.623494023078025 1.399086890909340
+	//  1655(  2) 0.193566124235112 0.624219158550811 1.398483655491260
+	//  1656(  2) 0.193233878233548 0.624940717838794 1.397876230772986
+	//  1657(  2) 0.192901491094219 0.625658732639973 1.397264697016848
+	//  1658(  2) 0.192568974485285 0.626373234752360 1.396649132693501
+	//  1659(  2) 0.192236339618712 0.627084256042086 1.396029614516935
+	//  1660(  2) 0.191903597266506 0.627791828413553 1.395406217479577
+	//  1661(  2) 0.191570757776471 0.628495983781549 1.394779014887431
+	//  1662(  2) 0.191237831087479 0.629196754045232 1.394148078395148
+	//  1663(  2) 0.190904826744275 0.629894171063875 1.393513478040976
+	//  1664(  2) 0.190571753911805 0.630588266634298 1.392875282281518
+	//  1665(  2) 0.190238621389086 0.631279072469888 1.392233558026233
+	//  1666(  2) 0.189905437622626 0.631966620181134 1.391588370671639
+	//  1667(  2) 0.189572210719396 0.632650941257587 1.390939784135172
+	//  1668(  2) 0.189238948459370 0.633332067051177 1.390287860888656
+	//  1669(  2) 0.188905658307635 0.634010028760804 1.389632661991346
+	//  1670(  2) 0.188572347426096 0.634684857418140 1.388974247122524
+	//  1671(  2) 0.188239022684761 0.635356583874567 1.388312674613611
+	//  1672(  2) 0.187905690672645 0.636025238789200 1.387648001479780
+	//  1673(  2) 0.187572357708283 0.636690852617913 1.386980283451047
+	//  1674(  2) 0.187239029849872 0.637353455603326 1.386309575002815
+	//  1675(  2) 0.186905712905048 0.638013077765691 1.385635929385884
+	//  1676(  2) 0.186572412440315 0.638669748894622 1.384959398655882
+	//  1677(  2) 0.186239133790129 0.639323498541625 1.384280033702139
+	//  1678(  2) 0.185905882065653 0.639974356013366 1.383597884275978
+	//  1679(  2) 0.185572662163194 0.640622350365652 1.382912999018427
+	//  1680(  2) 0.185239478772324 0.641267510398063 1.382225425487357
+	//  1681(  2) 0.184906336383706 0.641909864649201 1.381535210184027
+	//  1682(  2) 0.184573239296633 0.642549441392520 1.380842398579051
+	//  1683(  2) 0.184240191626274 0.643186268632698 1.380147035137795
+	//  1684(  2) 0.183907197310667 0.643820374102514 1.379449163345184
+	//  1685(  2) 0.183574260117437 0.644451785260196 1.378748825729945
+	//  1686(  2) 0.183241383650268 0.645080529287214 1.378046063888284
+	//  1687(  2) 0.182908571355129 0.645706633086487 1.377340918507004
+	//  1688(  2) 0.182575826526273 0.646330123280976 1.376633429386066
+	//  1689(  2) 0.182243152311995 0.646951026212626 1.375923635460604
+	//  1690(  2) 0.181910551720188 0.647569367941655 1.375211574822407
+	//  1691(  2) 0.181578027623679 0.648185174246148 1.374497284740866
+	//  1692(  2) 0.181245582765367 0.648798470621935 1.373780801683405
+	//  1693(  2) 0.180913219763163 0.649409282282745 1.373062161335397
+	//  1694(  2) 0.180580941114744 0.650017634160599 1.372341398619577
+	//  1695(  2) 0.180248749202130 0.650623550906445 1.371618547714966
+	//  1696(  2) 0.179916646296079 0.651227056890993 1.370893642075308
+	//  1697(  2) 0.179584634560321 0.651828176205753 1.370166714447038
+	//  1698(  2) 0.179252716055632 0.652426932664251 1.369437796886781
+	//  1699(  2) 0.178920892743747 0.653023349803415 1.368706920778402
+	//  1700(  2) 0.178589166491125 0.653617450885111 1.367974116849612
+	//  1701(  2) 0.178257539072581 0.654209258897817 1.367239415188142
+	//  1702(  2) 0.177926012174764 0.654798796558431 1.366502845257488
+	//  1703(  2) 0.177594587399516 0.655386086314192 1.365764435912254
+	//  1704(  2) 0.177263266267092 0.655971150344708 1.365024215413074
+	//  1705(  2) 0.176932050219270 0.656554010564082 1.364282211441160
+	//  1706(  2) 0.176600940622332 0.657134688623126 1.363538451112452
+	//  1707(  2) 0.176269938769937 0.657713205911647 1.362792960991395
+	//  1708(  2) 0.175939045885886 0.658289583560819 1.362045767104362
+	//  1709(  2) 0.175608263126776 0.658863842445600 1.361296894952706
+	//  1710(  2) 0.175277591584564 0.659436003187217 1.360546369525473
+	//  1711(  2) 0.174947032289020 0.660006086155698 1.359794215311779
+	//  1712(  2) 0.174616586210102 0.660574111472447 1.359040456312854
+	//  1713(  2) 0.174286254260229 0.661140099012853 1.358285116053767
+	//  1714(  2) 0.173956037296475 0.661704068408941 1.357528217594840
+	//  1715(  2) 0.173625936122680 0.662266039052036 1.356769783542758
+	//  1716(  2) 0.173295951491479 0.662826030095463 1.356009836061380
+	//  1717(  2) 0.172966084106254 0.663384060457259 1.355248396882274
+	//  1718(  2) 0.172636334623015 0.663940148822896 1.354485487314955
+	//  1719(  2) 0.172306703652211 0.664494313648023 1.353721128256868
+	//  1720(  2) 0.171977191760472 0.665046573161205 1.352955340203094
+	//  1721(  2) 0.171647799472283 0.665596945366677 1.352188143255808
+	//  1722(  2) 0.171318527271598 0.666145448047087 1.351419557133477
+	//  1723(  2) 0.170989375603395 0.666692098766243 1.350649601179824
+	//  1724(  2) 0.170660344875173 0.667236914871859 1.349878294372550
+	//  1725(  2) 0.170331435458386 0.667779913498284 1.349105655331827
+	//  1726(  2) 0.170002647689834 0.668321111569230 1.348331702328568
+	//  1727(  2) 0.169673981872997 0.668860525800488 1.347556453292477
+	//  1728(  2) 0.169345438279318 0.669398172702624 1.346779925819894
+	//  1729(  2) 0.169017017149440 0.669934068583669 1.346002137181427
+	//  1730(  2) 0.168688718694400 0.670468229551789 1.345223104329388
+	//  1731(  2) 0.168360543096775 0.671000671517933 1.344442843905035
+	//  1732(  2) 0.168032490511788 0.671531410198472 1.343661372245623
+	//  1733(  2) 0.167704561068368 0.672060461117804 1.342878705391277
+	//  1734(  2) 0.167376754870181 0.672587839610953 1.342094859091679
+	//  1735(  2) 0.167049071996614 0.673113560826132 1.341309848812586
+	//  1736(  2) 0.166721512503723 0.673637639727290 1.340523689742182
+	//  1737(  2) 0.166394076425156 0.674160091096636 1.339736396797262
+	//  1738(  2) 0.166066763773031 0.674680929537131 1.338947984629255
+	//  1739(  2) 0.165739574538784 0.675200169474967 1.338158467630103
+	//  1740(  2) 0.165412508693993 0.675717825162003 1.337367859937977
+	//  1741(  1) 0.165085566191023 0.676233910679988 1.336576175444079
+	//  1742(  1) 0.164758746964353 0.676748439935731 1.335783427793143
+	//  1743(  1) 0.164432050930456 0.677261426674350 1.334989630396173
+	//  1744(  1) 0.164105477989074 0.677772884474318 1.334194796430613
+	//  1745(  1) 0.163779028023757 0.678282826751604 1.333398938846631
+	//  1746(  1) 0.163452700902518 0.678791266761957 1.332602070372028
+	//  1747(  1) 0.163126496478464 0.679298217603158 1.331804203517012
+	//  1748(  1) 0.162800414590404 0.679803692217247 1.331005350578862
+	//  1749(  1) 0.162474455063438 0.680307703392720 1.330205523646471
+	//  1750(  1) 0.162148617709519 0.680810263766701 1.329404734604778
+	//  1751(  1) 0.161822902328002 0.681311385827078 1.328602995139087
+	//  1752(  1) 0.161497308706165 0.681811081914621 1.327800316739282
+	//  1753(  1) 0.161171836619719 0.682309364225060 1.326996710703934
+	//  1754(  1) 0.160846485833291 0.682806244811148 1.326192188144313
+	//  1755(  1) 0.160521256100902 0.683301735584684 1.325386759988292
+	//  1756(  1) 0.160196147166413 0.683795848318514 1.324580436984166
+	//  1757(  1) 0.159871158763966 0.684288594648505 1.323773229704371
+	//  1758(  1) 0.159546290618405 0.684779986075488 1.322965148549110
+	//  1759(  1) 0.159221542445682 0.685270033967173 1.322156203749901
+	//  1760(  1) 0.158896913953246 0.685758749560044 1.321346405373029
+	//  1761(  1) 0.158572404840426 0.686246143961214 1.320535763322920
+	//  1762(  1) 0.158248014798791 0.686732228150267 1.319724287345431
+	//  1763(  1) 0.157923743512501 0.687217012981063 1.318911987031067
+	//  1764(  1) 0.157599590658646 0.687700509183524 1.318098871818108
+	//  1765(  1) 0.157275555907574 0.688182727365384 1.317284950995681
+	//  1766(  1) 0.156951638923203 0.688663678013926 1.316470233706738
+	//  1767(  1) 0.156627839363324 0.689143371497684 1.315654728950981
+	//  1768(  1) 0.156304156879896 0.689621818068120 1.314838445587705
+	//  1769(  1) 0.155980591119326 0.690099027861281 1.314021392338585
+	//  1770(  1) 0.155657141722740 0.690575010899426 1.313203577790386
+	//  1771(  1) 0.155333808326247 0.691049777092634 1.312385010397620
+	//  1772(  1) 0.155010590561189 0.691523336240382 1.311565698485138
+	//  1773(  1) 0.154687488054389 0.691995698033099 1.310745650250654
+	//  1774(  1) 0.154364500428380 0.692466872053704 1.309924873767224
+	//  1775(  1) 0.154041627301636 0.692936867779114 1.309103376985658
+	//  1776(  1) 0.153718868288788 0.693405694581727 1.308281167736879
+	//  1777(  1) 0.153396223000835 0.693873361730888 1.307458253734229
+	//  1778(  1) 0.153073691045347 0.694339878394333 1.306634642575722
+	//  1779(  1) 0.152751272026660 0.694805253639602 1.305810341746243
+	//  1780(  1) 0.152428965546065 0.695269496435441 1.304985358619702
+	//  1781(  1) 0.152106771201989 0.695732615653177 1.304159700461134
+	//  1782(  1) 0.151784688590172 0.696194620068068 1.303333374428756
+	//  1783(  1) 0.151462717303833 0.696655518360643 1.302506387575974
+	//  1784(  1) 0.151140856933834 0.697115319118012 1.301678746853349
+	//  1785(  1) 0.150819107068840 0.697574030835155 1.300850459110513
+	//  1786(  1) 0.150497467295463 0.698031661916201 1.300021531098052
+	//  1787(  1) 0.150175937198415 0.698488220675675 1.299191969469335
+	//  1788(  1) 0.149854516360645 0.698943715339735 1.298361780782313
+	//  1789(  1) 0.149533204363472 0.699398154047384 1.297530971501272
+	//  1790(  1) 0.149212000786721 0.699851544851668 1.296699547998553
+	//  1791(  1) 0.148890905208845 0.700303895720848 1.295867516556227
+	//  1792(  1) 0.148569917207044 0.700755214539563 1.295034883367738
+	//  1793(  1) 0.148249036357386 0.701205509109969 1.294201654539512
+	//  1794(  1) 0.147928262234917 0.701654787152860 1.293367836092528
+	//  1795(  1) 0.147607594413770 0.702103056308775 1.292533433963854
+	//  1796(  1) 0.147287032467267 0.702550324139086 1.291698454008153
+	//  1797(  1) 0.146966575968021 0.702996598127069 1.290862901999154
+	//  1798(  1) 0.146646224488035 0.703441885678958 1.290026783631097
+	//  1799(  1) 0.146325977598788 0.703886194124985 1.289190104520137
+	//  1800(  1) 0.146005834871332 0.704329530720398 1.288352870205727
+	//  1801(  1) 0.145685795876375 0.704771902646471 1.287515086151971
+	//  1802(  1) 0.145365860184361 0.705213317011497 1.286676757748942
+	//  1803(  1) 0.145046027365556 0.705653780851755 1.285837890313980
+	//  1804(  1) 0.144726296990119 0.706093301132477 1.284998489092956
+	//  1805(  1) 0.144406668628181 0.706531884748793 1.284158559261515
+	//  1806(  1) 0.144087141849909 0.706969538526657 1.283318105926291
+	//  1807(  1) 0.143767716225582 0.707406269223770 1.282477134126097
+	//  1808(  1) 0.143448391325652 0.707842083530478 1.281635648833086
+	//  1809(  1) 0.143129166720809 0.708276988070660 1.280793654953897
+	//  1810(  1) 0.142810041982041 0.708710989402604 1.279951157330768
+	//  1811(  1) 0.142491016680692 0.709144094019871 1.279108160742637
+	//  1812(  1) 0.142172090388517 0.709576308352137 1.278264669906205
+	//  1813(  1) 0.141853262677741 0.710007638766033 1.277420689476996
+	//  1814(  1) 0.141534533121102 0.710438091565968 1.276576224050378
+	//  1815(  1) 0.141215901291911 0.710867672994930 1.275731278162574
+	//  1816(  1) 0.140897366764089 0.711296389235297 1.274885856291653
+	//  1817(  1) 0.140578929112221 0.711724246409608 1.274039962858493
+	//  1818(  1) 0.140260587911596 0.712151250581348 1.273193602227732
+	//  1819(  1) 0.139942342738249 0.712577407755701 1.272346778708699
+	//  1820(  1) 0.139624193169003 0.713002723880306 1.271499496556320
+	//  1821(  1) 0.139306138781507 0.713427204845989 1.270651759972016
+	//  1822(  1) 0.138988179154270 0.713850856487498 1.269803573104578
+	//  1823(  1) 0.138670313866702 0.714273684584212 1.268954940051021
+	//  1824(  1) 0.138352542499145 0.714695694860851 1.268105864857430
+	//  1825(  1) 0.138034864632903 0.715116892988169 1.267256351519781
+	//  1826(  1) 0.137717279850278 0.715537284583639 1.266406403984752
+	//  1827(  1) 0.137399787734596 0.715956875212128 1.265556026150513
+	//  1828(  1) 0.137082387870238 0.716375670386558 1.264705221867508
+	//  1829(  1) 0.136765079842663 0.716793675568563 1.263853994939214
+	//  1830(  1) 0.136447863238439 0.717210896169132 1.263002349122888
+	//  1831(  1) 0.136130737645265 0.717627337549244 1.262150288130303
+	//  1832(  1) 0.135813702651994 0.718043005020493 1.261297815628467
+	//  1833(  1) 0.135496757848656 0.718457903845704 1.260444935240326
+	//  1834(  1) 0.135179902826480 0.718872039239539 1.259591650545458
+	//  1835(  1) 0.134863137177915 0.719285416369095 1.258737965080754
+	//  1836(  1) 0.134546460496645 0.719698040354496 1.257883882341078
+	//  1837(  1) 0.134229872377615 0.720109916269467 1.257029405779927
+	//  1838(  1) 0.133913372417040 0.720521049141911 1.256174538810070
+	//  1839(  1) 0.133596960212427 0.720931443954471 1.255319284804178
+	//  1840(  1) 0.133280635362588 0.721341105645083 1.254463647095436
+	//  1841(  1) 0.132964397467659 0.721750039107524 1.253607628978160
+	//  1842(  1) 0.132648246129107 0.722158249191953 1.252751233708379
+	//  1843(  1) 0.132332180949748 0.722565740705439 1.251894464504431
+	//  1844(  1) 0.132016201533760 0.722972518412485 1.251037324547527
+	//  1845(  1) 0.131700307486693 0.723378587035545 1.250179816982316
+	//  1846(  1) 0.131384498415478 0.723783951255530 1.249321944917440
+	//  1847(  1) 0.131068773928441 0.724188615712311 1.248463711426073
+	//  1848(  1) 0.130753133635311 0.724592585005210 1.247605119546455
+	//  1849(  1) 0.130437577147230 0.724995863693492 1.246746172282411
+	//  1850(  1) 0.130122104076759 0.725398456296835 1.245886872603870
+	//  1851(  1) 0.129806714037888 0.725800367295812 1.245027223447364
+	//  1852(  1) 0.129491406646043 0.726201601132352 1.244167227716524
+	//  1853(  1) 0.129176181518092 0.726602162210200 1.243306888282567
+	//  1854(  1) 0.128861038272351 0.727002054895369 1.242446207984772
+	//  1855(  1) 0.128545976528591 0.727401283516587 1.241585189630949
+	//  1856(  1) 0.128230995908041 0.727799852365736 1.240723835997901
+	//  1857(  1) 0.127916096033396 0.728197765698289 1.239862149831872
+	//  1858(  1) 0.127601276528816 0.728595027733731 1.239000133848996
+	//  1859(  1) 0.127286537019937 0.728991642655985 1.238137790735732
+	//  1860(  1) 0.126971877133865 0.729387614613828 1.237275123149288
+	//  1861(  1) 0.126657296499189 0.729782947721297 1.236412133718052
+	//  1862(  1) 0.126342794745975 0.730177646058096 1.235548825041996
+	//  1863(  1) 0.126028371505774 0.730571713669993 1.234685199693089
+	//  1864(  1) 0.125714026411620 0.730965154569213 1.233821260215694
+	//  1865(  1) 0.125399759098034 0.731357972734825 1.232957009126960
+	//  1866(  1) 0.125085569201023 0.731750172113122 1.232092448917212
+	//  1867(  1) 0.124771456358081 0.732141756618002 1.231227582050326
+	//  1868(  1) 0.124457420208192 0.732532730131335 1.230362410964104
+	//  1869(  1) 0.124143460391827 0.732923096503331 1.229496938070639
+	//  1870(  1) 0.123829576550944 0.733312859552901 1.228631165756677
+	//  1871(  1) 0.123515768328990 0.733702023068012 1.227765096383971
+	//  1872(  1) 0.123202035370896 0.734090590806042 1.226898732289627
+	//  1873(  1) 0.122888377323082 0.734478566494121 1.226032075786449
+	//  1874(  1) 0.122574793833449 0.734865953829476 1.225165129163273
+	//  1875(  1) 0.122261284551383 0.735252756479768 1.224297894685300
+	//  1876(  1) 0.121947849127749 0.735638978083424 1.223430374594420
+	//  1877(  1) 0.121634487214892 0.736024622249964 1.222562571109532
+	//  1878(  1) 0.121321198466633 0.736409692560327 1.221694486426859
+	//  1879(  1) 0.121007982538267 0.736794192567187 1.220826122720257
+	//  1880(  1) 0.120694839086562 0.737178125795271 1.219957482141521
+	//  1881(  1) 0.120381767769753 0.737561495741667 1.219088566820680
+	//  1882(  1) 0.120068768247541 0.737944305876132 1.218219378866296
+	//  1883(  1) 0.119755840181089 0.738326559641393 1.217349920365751
+	//  1884(  1) 0.119442983233021 0.738708260453449 1.216480193385531
+	//  1885(  1) 0.119130197067413 0.739089411701858 1.215610199971510
+	//  1886(  1) 0.118817481349796 0.739470016750036 1.214739942149220
+	//  1887(  1) 0.118504835747147 0.739850078935538 1.213869421924128
+	//  1888(  1) 0.118192259927888 0.740229601570343 1.212998641281896
+	//  1889(  1) 0.117879753561880 0.740608587941131 1.212127602188651
+	//  1890(  1) 0.117567316320419 0.740987041309561 1.211256306591237
+	//  1891(  1) 0.117254947876233 0.741364964912542 1.210384756417474
+	//  1892(  1) 0.116942647903476 0.741742361962499 1.209512953576403
+	//  1893(  1) 0.116630416077724 0.742119235647641 1.208640899958536
+	//  1894(  1) 0.116318252075969 0.742495589132220 1.207768597436097
+	//  1895(  1) 0.116006155576617 0.742871425556790 1.206896047863259
+	//  1896(  1) 0.115694126259481 0.743246748038459 1.206023253076381
+	//  1897(  1) 0.115382163805773 0.743621559671145 1.205150214894238
+	//  1898(  1) 0.115070267898106 0.743995863525821 1.204276935118247
+	//  1899(  1) 0.114758438220483 0.744369662650756 1.203403415532690
+	//  1900(  1) 0.114446674458293 0.744742960071766 1.202529657904940
+	//  1901(  1) 0.114134976298306 0.745115758792443 1.201655663985669
+	//  1902(  1) 0.113823343428668 0.745488061794395 1.200781435509068
+	//  1903(  1) 0.113511775538895 0.745859872037479 1.199906974193057
+	//  1904(  1) 0.113200272319865 0.746231192460028 1.199032281739488
+	//  1905(  1) 0.112888833463817 0.746602025979081 1.198157359834350
+	//  1906(  1) 0.112577458664342 0.746972375490601 1.197282210147971
+	//  1907(  1) 0.112266147616378 0.747342243869703 1.196406834335216
+	//  1908(  1) 0.111954900016203 0.747711633970866 1.195531234035680
+	//  1909(  1) 0.111643715561432 0.748080548628152 1.194655410873878
+	//  1910(  1) 0.111332593951006 0.748448990655415 1.193779366459438
+	//  1911(  1) 0.111021534885191 0.748816962846517 1.192903102387282
+	//  1912(  1) 0.110710538065571 0.749184467975529 1.192026620237814
+	//  1913(  1) 0.110399603195039 0.749551508796938 1.191149921577095
+	//  1914(  1) 0.110088729977793 0.749918088045851 1.190273007957025
+	//  1915(  1) 0.109777918119330 0.750284208438192 1.189395880915513
+	//  1916(  1) 0.109467167326439 0.750649872670901 1.188518541976656
+	//  1917(  1) 0.109156477307194 0.751015083422128 1.187640992650903
+	//  1918(  1) 0.108845847770950 0.751379843351424 1.186763234435224
+	//  1919(  1) 0.108535278428335 0.751744155099935 1.185885268813274
+	//  1920(  1) 0.108224768991244 0.752108021290584 1.185007097255559
+	//  1921(  1) 0.107914319172832 0.752471444528261 1.184128721219590
+	//  1922(  1) 0.107603928687510 0.752834427400005 1.183250142150045
+	//  1923(  1) 0.107293597250935 0.753196972475183 1.182371361478923
+	//  1924(  1) 0.106983324580007 0.753559082305671 1.181492380625697
+	//  1925(  1) 0.106673110392859 0.753920759426028 1.180613200997463
+	//  1926(  1) 0.106362954408854 0.754282006353674 1.179733823989091
+	//  1927(  1) 0.106052856348578 0.754642825589058 1.178854250983371
+	//  1928(  1) 0.105742815933832 0.755003219615831 1.177974483351158
+	//  1929(  1) 0.105432832887624 0.755363190901013 1.177094522451511
+	//  1930(  1) 0.105122906934169 0.755722741895161 1.176214369631836
+	//  1931(  1) 0.104813037798874 0.756081875032529 1.175334026228024
+	//  1932(  1) 0.104503225208338 0.756440592731235 1.174453493564586
+	//  1933(  1) 0.104193468890343 0.756798897393418 1.173572772954790
+	//  1934(  1) 0.103883768573848 0.757156791405396 1.172691865700788
+	//  1935(  1) 0.103574123988981 0.757514277137827 1.171810773093753
+	//  1936(  1) 0.103264534867036 0.757871356945858 1.170929496414004
+	//  1937(  1) 0.102955000940463 0.758228033169280 1.170048036931131
+	//  1938(  1) 0.102645521942862 0.758584308132679 1.169166395904126
+	//  1939(  1) 0.102336097608978 0.758940184145588 1.168284574581501
+	//  1940(  1) 0.102026727674695 0.759295663502630 1.167402574201411
+	//  1941(  1) 0.101717411877028 0.759650748483663 1.166520395991774
+	//  1942(  1) 0.101408149954115 0.760005441353932 1.165638041170392
+	//  1943(  1) 0.101098941645215 0.760359744364202 1.164755510945062
+	//  1944(  1) 0.100789786690698 0.760713659750904 1.163872806513696
+	//  1945(  1) 0.100480684832040 0.761067189736272 1.162989929064431
+	//  1946(  1) 0.100171635811815 0.761420336528484 1.162106879775745
+	//  1947(  1) 0.099862639373693 0.761773102321791 1.161223659816562
+	//  1948(  1) 0.099553695262426 0.762125489296660 1.160340270346364
+	//  1949(  1) 0.099244803223850 0.762477499619898 1.159456712515298
+	//  1950(  1) 0.098935963004872 0.762829135444792 1.158572987464282
+	//  1951(  1) 0.098627174353469 0.763180398911232 1.157689096325109
+	//  1952(  1) 0.098318437018677 0.763531292145842 1.156805040220548
+	//  1953(  1) 0.098009750750586 0.763881817262106 1.155920820264451
+	//  1954(  1) 0.097701115300338 0.764231976360496 1.155036437561848
+	//  1955(  1) 0.097392530420113 0.764581771528594 1.154151893209046
+	//  1956(  1) 0.097083995863130 0.764931204841212 1.153267188293733
+	//  1957(  1) 0.096775511383637 0.765280278360518 1.152382323895065
+	//  1958(  1) 0.096467076736903 0.765628994136155 1.151497301083767
+	//  1959(  1) 0.096158691679218 0.765977354205355 1.150612120922228
+	//  1960(  1) 0.095850355967881 0.766325360593064 1.149726784464587
+	//  1961(  1) 0.095542069361195 0.766673015312049 1.148841292756830
+	//  1962(  1) 0.095233831618465 0.767020320363020 1.147955646836879
+	//  1963(  1) 0.094925642499985 0.767367277734739 1.147069847734678
+	//  1964(  1) 0.094617501767037 0.767713889404135 1.146183896472284
+	//  1965(  1) 0.094309409181885 0.768060157336411 1.145297794063953
+	//  1966(  1) 0.094001364507766 0.768406083485160 1.144411541516222
+	//  1967(  1) 0.093693367508884 0.768751669792466 1.143525139828000
+	//  1968(  1) 0.093385417950407 0.769096918189016 1.142638589990645
+	//  1969(  1) 0.093077515598461 0.769441830594205 1.141751892988049
+	//  1970(  1) 0.092769660220120 0.769786408916240 1.140865049796719
+	//  1971(  1) 0.092461851583402 0.770130655052246 1.139978061385855
+	//  1972(  1) 0.092154089457267 0.770474570888366 1.139090928717432
+	//  1973(  1) 0.091846373611603 0.770818158299864 1.138203652746278
+	//  1974(  1) 0.091538703817230 0.771161419151227 1.137316234420148
+	//  1975(  1) 0.091231079845885 0.771504355296259 1.136428674679801
+	//  1976(  1) 0.090923501470223 0.771846968578187 1.135540974459078
+	//  1977(  1) 0.090615968463805 0.772189260829751 1.134653134684973
+	//  1978(  1) 0.090308480601100 0.772531233873306 1.133765156277707
+	//  1979(  1) 0.090001037657472 0.772872889520913 1.132877040150800
+	//  1980(  1) 0.089693639409177 0.773214229574435 1.131988787211144
+	//  1981(  1) 0.089386285633360 0.773555255825631 1.131100398359072
+	//  1982(  1) 0.089078976108045 0.773895970056245 1.130211874488426
+	//  1983(  1) 0.088771710612132 0.774236374038102 1.129323216486630
+	//  1984(  1) 0.088464488925389 0.774576469533195 1.128434425234753
+	//  1985(  1) 0.088157310828451 0.774916258293775 1.127545501607580
+	//  1986(  1) 0.087850176102810 0.775255742062438 1.126656446473677
+	//  1987(  1) 0.087543084530810 0.775594922572215 1.125767260695455
+	//  1988(  1) 0.087236035895644 0.775933801546659 1.124877945129234
+	//  1989(  1) 0.086929029981346 0.776272380699927 1.123988500625311
+	//  1990(  1) 0.086622066572788 0.776610661736866 1.123098928028018
+	//  1991(  1) 0.086315145455672 0.776948646353102 1.122209228175789
+	//  1992(  1) 0.086008266416526 0.777286336235114 1.121319401901217
+	//  1993(  1) 0.085701429242698 0.777623733060324 1.120429450031116
+	//  1994(  1) 0.085394633722353 0.777960838497173 1.119539373386583
+	//  1995(  1) 0.085087879644462 0.778297654205207 1.118649172783057
+	//  1996(  1) 0.084781166798806 0.778634181835150 1.117758849030372
+	//  1997(  1) 0.084474494975959 0.778970423028988 1.116868402932825
+	//  1998(  1) 0.084167863967294 0.779306379420046 1.115977835289222
+	//  1999(  1) 0.083861273564970 0.779642052633064 1.115087146892943
+	//  2000(  1) 0.083554723561931 0.779977444284272 1.114196338531994
+	//  2001(  1) 0.083248213751898 0.780312555981472 1.113305410989063
+	//  2002(  1) 0.082941743929367 0.780647389324106 1.112414365041573
+	//  2003(  1) 0.082635313889601 0.780981945903333 1.111523201461738
+	//  2004(  1) 0.082328923428627 0.781316227302104 1.110631921016614
+	//  2005(  1) 0.082022572343231 0.781650235095231 1.109740524468154
+	//  2006(  1) 0.081716260430949 0.781983970849463 1.108849012573258
+	//  2007(  1) 0.081409987490067 0.782317436123556 1.107957386083825
+	//  2008(  1) 0.081103753319616 0.782650632468341 1.107065645746804
+	//  2009(  1) 0.080797557719362 0.782983561426797 1.106173792304244
+	//  2010(  1) 0.080491400489806 0.783316224534119 1.105281826493342
+	//  2011(  1) 0.080185281432177 0.783648623317788 1.104389749046496
+	//  2012(  1) 0.079879200348428 0.783980759297634 1.103497560691347
+	//  2013(  1) 0.079573157041231 0.784312633985911 1.102605262150835
+	//  2014(  1) 0.079267151313970 0.784644248887356 1.101712854143238
+	//  2015(  1) 0.078961182970741 0.784975605499260 1.100820337382225
+	//  2016(  1) 0.078655251816342 0.785306705311530 1.099927712576899
+	//  2017(  1) 0.078349357656272 0.785637549806756 1.099034980431844
+	//  2018(  1) 0.078043500296724 0.785968140460273 1.098142141647171
+	//  2019(  1) 0.077737679544583 0.786298478740226 1.097249196918558
+	//  2020(  1) 0.077431895207417 0.786628566107633 1.096356146937301
+	//  2021(  1) 0.077126147093478 0.786958404016443 1.095462992390353
+	//  2022(  1) 0.076820435011691 0.787287993913604 1.094569733960368
+	//  2023(  1) 0.076514758771656 0.787617337239119 1.093676372325745
+	//  2024(  1) 0.076209118183640 0.787946435426110 1.092782908160668
+	//  2025(  1) 0.075903513058569 0.788275289900873 1.091889342135151
+	//  2026(  1) 0.075597943208033 0.788603902082943 1.090995674915075
+	//  2027(  1) 0.075292408444271 0.788932273385150 1.090101907162233
+	//  2028(  1) 0.074986908580173 0.789260405213675 1.089208039534368
+	//  2029(  1) 0.074681443429275 0.789588298968110 1.088314072685212
+	//  2030(  1) 0.074376012805753 0.789915956041518 1.087420007264529
+	//  2031(  1) 0.074070616524417 0.790243377820482 1.086525843918151
+	//  2032(  1) 0.073765254400712 0.790570565685169 1.085631583288017
+	//  2033(  1) 0.073459926250708 0.790897521009378 1.084737226012211
+	//  2034(  1) 0.073154631891100 0.791224245160604 1.083842772725003
+	//  2035(  1) 0.072849371139200 0.791550739500082 1.082948224056882
+	//  2036(  1) 0.072544143812936 0.791877005382851 1.082053580634594
+	//  2037(  1) 0.072238949730846 0.792203044157798 1.081158843081180
+	//  2038(  1) 0.071933788712074 0.792528857167719 1.080264012016014
+	//  2039(  1) 0.071628660576366 0.792854445749369 1.079369088054831
+	//  2040(  1) 0.071323565144066 0.793179811233510 1.078474071809772
+	//  2041(  1) 0.071018502236111 0.793504954944969 1.077578963889413
+	//  2042(  1) 0.070713471674029 0.793829878202684 1.076683764898801
+	//  2043(  1) 0.070408473279933 0.794154582319757 1.075788475439490
+	//  2044(  1) 0.070103506876517 0.794479068603504 1.074893096109570
+	//  2045(  1) 0.069798572287051 0.794803338355505 1.073997627503708
+	//  2046(  1) 0.069493669335381 0.795127392871652 1.073102070213175
+	//  2047(  1) 0.069188797845920 0.795451233442199 1.072206424825880
+	//  2048(  1) 0.068883957643649 0.795774861351809 1.071310691926406
+	//  2049(  1) 0.068579148554108 0.796098277879606 1.070414872096038
+	//  2050(  1) 0.068274370403395 0.796421484299216 1.069518965912796
+	//  2051(  1) 0.067969623018162 0.796744481878820 1.068622973951469
+	//  2052(  1) 0.067664906225611 0.797067271881197 1.067726896783640
+	//  2053(  1) 0.067360219853488 0.797389855563773 1.066830734977727
+	//  2054(  1) 0.067055563730084 0.797712234178664 1.065934489099001
+	//  2055(  1) 0.066750937684225 0.798034408972727 1.065038159709627
+	//  2056(  1) 0.066446341545273 0.798356381187596 1.064141747368688
+	//  2057(  1) 0.066141775143120 0.798678152059736 1.063245252632216
+	//  2058(  1) 0.065837238308185 0.798999722820482 1.062348676053222
+	//  2059(  1) 0.065532730871410 0.799321094696084 1.061452018181723
+	//  2060(  1) 0.065228252664256 0.799642268907752 1.060555279564774
+	//  2061(  1) 0.064923803518699 0.799963246671697 1.059658460746493
+	//  2062(  1) 0.064619383267229 0.800284029199175 1.058761562268091
+	//  2063(  1) 0.064314991742842 0.800604617696532 1.057864584667901
+	//  2064(  1) 0.064010628779040 0.800925013365240 1.056967528481400
+	//  2065(  1) 0.063706294209825 0.801245217401944 1.056070394241245
+	//  2066(  1) 0.063401987869697 0.801565230998502 1.055173182477292
+	//  2067(  1) 0.063097709593650 0.801885055342026 1.054275893716627
+	//  2068(  1) 0.062793459217168 0.802204691614922 1.053378528483592
+	//  2069(  1) 0.062489236576220 0.802524140994930 1.052481087299811
+	//  2070(  1) 0.062185041507261 0.802843404655168 1.051583570684214
+	//  2071(  1) 0.061880873847225 0.803162483764166 1.050685979153065
+	//  2072(  1) 0.061576733433520 0.803481379485908 1.049788313219989
+	//  2073(  1) 0.061272620104030 0.803800092979873 1.048890573395992
+	//  2074(  1) 0.060968533697105 0.804118625401072 1.047992760189490
+	//  2075(  1) 0.060664474051563 0.804436977900084 1.047094874106334
+	//  2076(  1) 0.060360441006683 0.804755151623098 1.046196915649831
+	//  2077(  1) 0.060056434402206 0.805073147711950 1.045298885320772
+	//  2078(  1) 0.059752454078324 0.805390967304158 1.044400783617455
+	//  2079(  1) 0.059448499875686 0.805708611532964 1.043502611035706
+	//  2080(  1) 0.059144571635386 0.806026081527364 1.042604368068907
+	//  2081(  1) 0.058840669198966 0.806343378412151 1.041706055208016
+	//  2082(  1) 0.058536792408411 0.806660503307947 1.040807672941590
+	//  2083(  1) 0.058232941106142 0.806977457331244 1.039909221755813
+	//  2084(  1) 0.057929115135019 0.807294241594434 1.039010702134510
+	//  2085(  1) 0.057625314338332 0.807610857205847 1.038112114559177
+	//  2086(  1) 0.057321538559803 0.807927305269788 1.037213459509001
+	//  2087(  1) 0.057017787643578 0.808243586886568 1.036314737460880
+	//  2088(  1) 0.056714061434226 0.808559703152542 1.035415948889446
+	//  2089(  1) 0.056410359776737 0.808875655160141 1.034517094267089
+	//  2090(  1) 0.056106682516516 0.809191443997910 1.033618174063976
+	//  2091(  1) 0.055803029499384 0.809507070750536 1.032719188748071
+	//  2092(  1) 0.055499400571568 0.809822536498885 1.031820138785159
+	//  2093(  1) 0.055195795579707 0.810137842320037 1.030921024638865
+	//  2094(  1) 0.054892214370841 0.810452989287315 1.030021846770678
+	//  2095(  1) 0.054588656792411 0.810767978470321 1.029122605639964
+	//  2096(  1) 0.054285122692257 0.811082810934965 1.028223301703995
+	//  2097(  1) 0.053981611918615 0.811397487743503 1.027323935417962
+	//  2098(  1) 0.053678124320110 0.811712009954564 1.026424507235002
+	//  2099(  1) 0.053374659745757 0.812026378623184 1.025525017606211
+	//  2100(  1) 0.053071218044958 0.812340594800835 1.024625466980666
+	//  2101(  1) 0.052767799067496 0.812654659535463 1.023725855805447
+	//  2102(  1) 0.052464402663535 0.812968573871510 1.022826184525652
+	//  2103(  1) 0.052161028683617 0.813282338849952 1.021926453584419
+	//  2104(  1) 0.051857676978654 0.813595955508328 1.021026663422945
+	//  2105(  1) 0.051554347399934 0.813909424880767 1.020126814480502
+	//  2106(  1) 0.051251039799109 0.814222747998023 1.019226907194458
+	//  2107(  1) 0.050947754028198 0.814535925887501 1.018326942000295
+	//  2108(  1) 0.050644489939584 0.814848959573291 1.017426919331626
+	//  2109(  1) 0.050341247386005 0.815161850076194 1.016526839620216
+	//  2110(  1) 0.050038026220561 0.815474598413752 1.015626703295995
+	//  2111(  1) 0.049734826296701 0.815787205600278 1.014726510787082
+	//  2112(  1) 0.049431647468228 0.816099672646886 1.013826262519797
+	//  2113(  1) 0.049128489589291 0.816412000561516 1.012925958918682
+	//  2114(  1) 0.048825352514387 0.816724190348968 1.012025600406516
+	//  2115(  1) 0.048522236098353 0.817036243010924 1.011125187404335
+	//  2116(  1) 0.048219140196366 0.817348159545982 1.010224720331447
+	//  2117(  1) 0.047916064663942 0.817659940949681 1.009324199605448
+	//  2118(  1) 0.047613009356929 0.817971588214527 1.008423625642242
+	//  2119(  1) 0.047309974131507 0.818283102330025 1.007522998856054
+	//  2120(  1) 0.047006958844187 0.818594484282702 1.006622319659449
+	//  2121(  1) 0.046703963351802 0.818905735056140 1.005721588463348
+	//  2122(  1) 0.046400987511512 0.819216855630994 1.004820805677043
+	//  2123(  1) 0.046098031180797 0.819527846985027 1.003919971708215
+	//  2124(  1) 0.045795094217453 0.819838710093135 1.003019086962946
+	//  2125(  1) 0.045492176479593 0.820149445927368 1.002118151845741
+	//  2126(  1) 0.045189277825644 0.820460055456964 1.001217166759538
+	//  2127(  1) 0.044886398114339 0.820770539648371 1.000316132105728
+	//  2128(  1) 0.044583537204724 0.821080899465271 0.999415048284166
+	//  2129(  1) 0.044280694956145 0.821391135868610 0.998513915693190
+	//  2130(  1) 0.043977871228253 0.821701249816623 0.997612734729635
+	//  2131(  1) 0.043675065880998 0.822011242264855 0.996711505788848
+	//  2132(  1) 0.043372278774627 0.822321114166192 0.995810229264702
+	//  2133(  1) 0.043069509769682 0.822630866470883 0.994908905549612
+	//  2134(  1) 0.042766758726996 0.822940500126565 0.994007535034551
+	//  2135(  1) 0.042464025507693 0.823250016078288 0.993106118109061
+	//  2136(  1) 0.042161309973183 0.823559415268540 0.992204655161271
+	//  2137(  1) 0.041858611985160 0.823868698637273 0.991303146577911
+	//  2138(  1) 0.041555931405600 0.824177867121924 0.990401592744324
+	//  2139(  1) 0.041253268096760 0.824486921657440 0.989499994044481
+	//  2140(  1) 0.040950621921173 0.824795863176306 0.988598350860997
+	//  2141(  1) 0.040647992741645 0.825104692608562 0.987696663575142
+	//  2142(  1) 0.040345380421257 0.825413410881832 0.986794932566860
+	//  2143(  1) 0.040042784823357 0.825722018921347 0.985893158214775
+	//  2144(  1) 0.039740205811561 0.826030517649967 0.984991340896212
+	//  2145(  1) 0.039437643249751 0.826338907988202 0.984089480987205
+	//  2146(  1) 0.039135097002068 0.826647190854242 0.983187578862515
+	//  2147(  1) 0.038832566932917 0.826955367163973 0.982285634895642
+	//  2148(  1) 0.038530052906958 0.827263437831003 0.981383649458834
+	//  2149(  1) 0.038227554789105 0.827571403766686 0.980481622923108
+	//  2150(  1) 0.037925072444528 0.827879265880142 0.979579555658255
+	//  2151(  1) 0.037622605738645 0.828187025078280 0.978677448032861
+	//  2152(  1) 0.037320154537123 0.828494682265821 0.977775300414313
+	//  2153(  1) 0.037017718705873 0.828802238345322 0.976873113168816
+	//  2154(  1) 0.036715298111052 0.829109694217193 0.975970886661402
+	//  2155(  1) 0.036412892619056 0.829417050779725 0.975068621255948
+	//  2156(  1) 0.036110502096519 0.829724308929108 0.974166317315184
+	//  2157(  1) 0.035808126410314 0.830031469559452 0.973263975200708
+	//  2158(  1) 0.035505765427545 0.830338533562813 0.972361595272995
+	//  2159(  1) 0.035203419015551 0.830645501829210 0.971459177891414
+	//  2160(  1) 0.034901087041897 0.830952375246649 0.970556723414237
+	//  2161(  1) 0.034598769374378 0.831259154701143 0.969654232198653
+	//  2162(  1) 0.034296465881011 0.831565841076732 0.968751704600778
+	//  2163(  1) 0.033994176430040 0.831872435255509 0.967849140975669
+	//  2164(  1) 0.033691900889924 0.832178938117635 0.966946541677332
+	//  2165(  1) 0.033389639129345 0.832485350541361 0.966043907058742
+	//  2166(  1) 0.033087391017198 0.832791673403052 0.965141237471845
+	//  2167(  1) 0.032785156422593 0.833097907577206 0.964238533267576
+	//  2168(  1) 0.032482935214850 0.833404053936471 0.963335794795870
+	//  2169(  1) 0.032180727263500 0.833710113351671 0.962433022405669
+	//  2170(  1) 0.031878532438280 0.834016086691822 0.961530216444941
+	//  2171(  1) 0.031576350609132 0.834321974824153 0.960627377260683
+	//  2172(  1) 0.031274181646202 0.834627778614130 0.959724505198939
+	//  2173(  1) 0.030972025419835 0.834933498925469 0.958821600604808
+	//  2174(  1) 0.030669881800574 0.835239136620161 0.957918663822457
+	//  2175(  1) 0.030367750659159 0.835544692558491 0.957015695195128
+	//  2176(  1) 0.030065631866525 0.835850167599055 0.956112695065156
+	//  2177(  1) 0.029763525293798 0.836155562598783 0.955209663773973
+	//  2178(  1) 0.029461430812292 0.836460878412956 0.954306601662123
+	//  2179(  1) 0.029159348293511 0.836766115895228 0.953403509069272
+	//  2180(  1) 0.028857277609144 0.837071275897642 0.952500386334217
+	//  2181(  1) 0.028555218631062 0.837376359270651 0.951597233794900
+	//  2182(  1) 0.028253171231320 0.837681366863138 0.950694051788417
+	//  2183(  1) 0.027951135282149 0.837986299522432 0.949790840651028
+	//  2184(  1) 0.027649110655959 0.838291158094330 0.948887600718167
+	//  2185(  1) 0.027347097225335 0.838595943423115 0.947984332324454
+	//  2186(  1) 0.027045094863033 0.838900656351575 0.947081035803707
+	//  2187(  1) 0.026743103441982 0.839205297721019 0.946177711488948
+	//  2188(  1) 0.026441122835279 0.839509868371299 0.945274359712416
+	//  2189(  1) 0.026139152916188 0.839814369140828 0.944370980805578
+	//  2190(  1) 0.025837193558135 0.840118800866597 0.943467575099137
+	//  2191(  1) 0.025535244634713 0.840423164384193 0.942564142923044
+	//  2192(  1) 0.025233306019672 0.840727460527820 0.941660684606507
+	//  2193(  1) 0.024931377586921 0.841031690130316 0.940757200478001
+	//  2194(  1) 0.024629459210528 0.841335854023167 0.939853690865278
+	//  2195(  1) 0.024327550764712 0.841639953036534 0.938950156095381
+	//  2196(  1) 0.024025652123846 0.841943987999261 0.938046596494644
+	//  2197(  1) 0.023723763162453 0.842247959738900 0.937143012388714
+	//  2198(  1) 0.023421883755206 0.842551869081726 0.936239404102551
+	//  2199(  1) 0.023120013776922 0.842855716852756 0.935335771960443
+	//  2200(  1) 0.022818153102562 0.843159503875765 0.934432116286014
+	//  2201(  1) 0.022516301607233 0.843463230973304 0.933528437402235
+	//  2202(  1) 0.022214459166178 0.843766898966719 0.932624735631431
+	//  2203(  1) 0.021912625654782 0.844070508676168 0.931721011295294
+	//  2204(  1) 0.021610800948563 0.844374060920636 0.930817264714889
+	//  2205(  1) 0.021308984923177 0.844677556517959 0.929913496210666
+	//  2206(  1) 0.021007177454409 0.844980996284830 0.929009706102468
+	//  2207(  1) 0.020705378418178 0.845284381036830 0.928105894709541
+	//  2208(  1) 0.020403587690528 0.845587711588432 0.927202062350544
+	//  2209(  1) 0.020101805147632 0.845890988753030 0.926298209343559
+	//  2210(  1) 0.019800030665787 0.846194213342945 0.925394336006095
+	//  2211(  1) 0.019498264121413 0.846497386169452 0.924490442655104
+	//  2212(  1) 0.019196505391050 0.846800508042789 0.923586529606989
+	//  2213(  1) 0.018894754351357 0.847103579772178 0.922682597177606
+	//  2214(  1) 0.018593010879110 0.847406602165844 0.921778645682285
+	//  2215(  1) 0.018291274851201 0.847709576031024 0.920874675435828
+	//  2216(  1) 0.017989546144633 0.848012502173992 0.919970686752525
+	//  2217(  1) 0.017687824636522 0.848315381400072 0.919066679946161
+	//  2218(  1) 0.017386110204093 0.848618214513654 0.918162655330024
+	//  2219(  1) 0.017084402724676 0.848921002318212 0.917258613216915
+	//  2220(  1) 0.016782702075709 0.849223745616320 0.916354553919157
+	//  2221(  1) 0.016481008134733 0.849526445209669 0.915450477748602
+	//  2222(  1) 0.016179320779390 0.849829101899082 0.914546385016643
+	//  2223(  1) 0.015877639887423 0.850131716484531 0.913642276034222
+	//  2224(  1) 0.015575965336670 0.850434289765157 0.912738151111836
+	//  2225(  1) 0.015274297005067 0.850736822539280 0.911834010559549
+	//  2226(  1) 0.014972634770645 0.851039315604418 0.910929854686999
+	//  2227(  1) 0.014670978511526 0.851341769757305 0.910025683803407
+	//  2228(  1) 0.014369328105920 0.851644185793906 0.909121498217587
+	//  2229(  1) 0.014067683432130 0.851946564509433 0.908217298237953
+	//  2230(  1) 0.013766044368542 0.852248906698358 0.907313084172527
+	//  2231(  1) 0.013464410793629 0.852551213154436 0.906408856328951
+	//  2232(  1) 0.013162782585944 0.852853484670715 0.905504615014492
+	//  2233(  1) 0.012861159624124 0.853155722039554 0.904600360536051
+	//  2234(  1) 0.012559541786884 0.853457926052640 0.903696093200174
+	//  2235(  1) 0.012257928953015 0.853760097501000 0.902791813313059
+	//  2236(  1) 0.011956321001385 0.854062237175024 0.901887521180563
+	//  2237(  1) 0.011654717810935 0.854364345864474 0.900983217108212
+	//  2238(  1) 0.011353119260677 0.854666424358502 0.900078901401212
+	//  2239(  1) 0.011051525229695 0.854968473445669 0.899174574364450
+	//  2240(  1) 0.010749935597139 0.855270493913954 0.898270236302511
+	//  2241(  1) 0.010448350242226 0.855572486550776 0.897365887519681
+	//  2242(  1) 0.010146769044237 0.855874452143009 0.896461528319956
+	//  2243(  1) 0.009845191882515 0.856176391476992 0.895557159007052
+	//  2244(  1) 0.009543618636466 0.856478305338551 0.894652779884413
+	//  2245(  1) 0.009242049185551 0.856780194513012 0.893748391255218
+	//  2246(  1) 0.008940483409293 0.857082059785218 0.892843993422388
+	//  2247(  1) 0.008638921187265 0.857383901939540 0.891939586688601
+	//  2248(  1) 0.008337362399098 0.857685721759899 0.891035171356291
+	//  2249(  1) 0.008035806924471 0.857987520029777 0.890130747727663
+	//  2250(  1) 0.007734254643116 0.858289297532235 0.889226316104698
+	//  2251(  1) 0.007432705434809 0.858591055049926 0.888321876789162
+	//  2252(  1) 0.007131159179376 0.858892793365112 0.887417430082615
+	//  2253(  1) 0.006829615756685 0.859194513259680 0.886512976286419
+	//  2254(  1) 0.006528075046647 0.859496215515156 0.885608515701744
+	//  2255(  1) 0.006226536929214 0.859797900912721 0.884704048629579
+	//  2256(  1) 0.005925001284378 0.860099570233226 0.883799575370738
+	//  2257(  1) 0.005623467992165 0.860401224257209 0.882895096225869
+	//  2258(  1) 0.005321936932639 0.860702863764907 0.881990611495463
+	//  2259(  1) 0.005020407985897 0.861004489536274 0.881086121479861
+	//  2260(  1) 0.004718881032066 0.861306102350997 0.880181626479262
+	//  2261(  1) 0.004417355951306 0.861607702988509 0.879277126793732
+	//  2262(  1) 0.004115832623801 0.861909292228003 0.878372622723209
+	//  2263(  1) 0.003814310929766 0.862210870848453 0.877468114567517
+	//  2264(  1) 0.003512790749436 0.862512439628624 0.876563602626369
+	//  2265(  1) 0.003211271963072 0.862813999347088 0.875659087199375
+	//  2266(  1) 0.002909754450953 0.863115550782241 0.874754568586055
+	//  2267(  1) 0.002608238093381 0.863417094712319 0.873850047085841
+	//  2268(  1) 0.002306722770670 0.863718631915407 0.872945522998088
+	//  2269(  1) 0.002005208363155 0.864020163169464 0.872040996622084
+	//  2270(  1) 0.001703694751181 0.864321689252328 0.871136468257052
+	//  2271(  1) 0.001402181815106 0.864623210941741 0.870231938202165
+	//  2272(  1) 0.001100669435299 0.864924729015356 0.869327406756550
+	//  2273(  1) 0.000799157492135 0.865226244250755 0.868422874219296
+	//  2274(  1) 0.000497645865999 0.865527757425468 0.867518340889463
+	//  2275(  1) 0.000196134437277 0.865829269316982 0.866613807066089
+	//  2276(  1) -0.000105376913639 0.866130780702758 0.865709273048202
+	//  2277(  1) -0.000406888306358 0.866432292360251 0.864804739134821
+	//  2278(  1) -0.000708399860487 0.866733805066919 0.863900205624969
+	//  2279(  1) -0.001009911695639 0.867035319600239 0.862995672817682
+	//  2280(  1) -0.001311423931429 0.867336836737727 0.862091141012010
+	//  2281(  1) -0.001612936687478 0.867638357256946 0.861186610507036
+	//  2282(  1) -0.001914450083414 0.867939881935529 0.860282081601872
+	//  2283(  1) -0.002215964238878 0.868241411551188 0.859377554595677
+	//  2284(  1) -0.002517479273518 0.868542946881730 0.858473029787659
+	//  2285(  1) -0.002818995306998 0.868844488705075 0.857568507477084
+	//  2286(  1) -0.003120512458996 0.869146037799272 0.856663987963287
+	//  2287(  1) -0.003422030849208 0.869447594942507 0.855759471545676
+	//  2288(  1) -0.003723550597346 0.869749160913128 0.854854958523743
+	//  2289(  1) -0.004025071823145 0.870050736489651 0.853950449197070
+	//  2290(  1) -0.004326594646361 0.870352322450782 0.853045943865340
+	//  2291(  1) -0.004628119186772 0.870653919575430 0.852141442828340
+	//  2292(  1) -0.004929645564187 0.870955528642721 0.851236946385975
+	//  2293(  1) -0.005231173898436 0.871257150432015 0.850332454838271
+	//  2294(  1) -0.005532704309383 0.871558785722919 0.849427968485386
+	//  2295(  1) -0.005834236916922 0.871860435295306 0.848523487627617
+	//  2296(  1) -0.006135771840979 0.872162099929326 0.847619012565410
+	//  2297(  1) -0.006437309201515 0.872463780405425 0.846714543599363
+	//  2298(  1) -0.006738849118529 0.872765477504358 0.845810081030241
+	//  2299(  1) -0.007040391712057 0.873067192007206 0.844905625158979
+	//  2300(  1) -0.007341937102174 0.873368924695388 0.844001176286692
+	//  2301(  1) -0.007643485409000 0.873670676350682 0.843096734714683
+	//  2302(  1) -0.007945036752696 0.873972447755234 0.842192300744451
+	//  2303(  1) -0.008246591253470 0.874274239691579 0.841287874677700
+	//  2304(  1) -0.008548149031577 0.874576052942654 0.840383456816344
+	//  2305(  1) -0.008849710207322 0.874877888291811 0.839479047462522
+	//  2306(  1) -0.009151274901060 0.875179746522838 0.838574646918596
+	//  2307(  1) -0.009452843233200 0.875481628419969 0.837670255487171
+	//  2308(  1) -0.009754415324203 0.875783534767904 0.836765873471094
+	//  2309(  1) -0.010055991294589 0.876085466351821 0.835861501173464
+	//  2310(  1) -0.010357571264937 0.876387423957393 0.834957138897647
+	//  2311(  1) -0.010659155355883 0.876689408370805 0.834052786947273
+	//  2312(  1) -0.010960743688128 0.876991420378767 0.833148445626255
+	//  2313(  1) -0.011262336382435 0.877293460768533 0.832244115238791
+	//  2314(  1) -0.011563933559634 0.877595530327911 0.831339796089374
+	//  2315(  1) -0.011865535340621 0.877897629845286 0.830435488482800
+	//  2316(  1) -0.012167141846363 0.878199760109629 0.829531192724178
+	//  2317(  1) -0.012468753197896 0.878501921910519 0.828626909118936
+	//  2318(  1) -0.012770369516330 0.878804116038153 0.827722637972831
+	//  2319(  1) -0.013071990922852 0.879106343283366 0.826818379591958
+	//  2320(  1) -0.013373617538722 0.879408604437644 0.825914134282757
+	//  2321(  1) -0.013675249485281 0.879710900293143 0.825009902352020
+	//  2322(  1) -0.013976886883949 0.880013231642702 0.824105684106906
+	//  2323(  1) -0.014278529856230 0.880315599279859 0.823201479854940
+	//  2324(  1) -0.014580178523710 0.880618003998872 0.822297289904030
+	//  2325(  1) -0.014881833008064 0.880920446594726 0.821393114562471
+	//  2326(  1) -0.015183493431051 0.881222927863159 0.820488954138956
+	//  2327(  1) -0.015485159914522 0.881525448600670 0.819584808942582
+	//  2328(  1) -0.015786832580420 0.881828009604541 0.818680679282862
+	//  2329(  1) -0.016088511550780 0.882130611672849 0.817776565469729
+	//  2330(  1) -0.016390196947734 0.882433255604485 0.816872467813550
+	//  2331(  1) -0.016691888893510 0.882735942199170 0.815968386625131
+	//  2332(  1) -0.016993587510435 0.883038672257469 0.815064322215729
+	//  2333(  1) -0.017295292920938 0.883341446580810 0.814160274897057
+	//  2334(  1) -0.017597005247551 0.883644265971500 0.813256244981295
+	//  2335(  1) -0.017898724612910 0.883947131232739 0.812352232781100
+	//  2336(  1) -0.018200451139757 0.884250043168641 0.811448238609611
+	//  2337(  1) -0.018502184950945 0.884553002584246 0.810544262780464
+	//  2338(  1) -0.018803926169436 0.884856010285540 0.809640305607795
+	//  2339(  1) -0.019105674918304 0.885159067079469 0.808736367406251
+	//  2340(  1) -0.019407431320739 0.885462173773960 0.807832448491003
+	//  2341(  1) -0.019709195500046 0.885765331177930 0.806928549177746
+	//  2342(  1) -0.020010967579648 0.886068540101313 0.806024669782720
+	//  2343(  1) -0.020312747683090 0.886371801355068 0.805120810622708
+	//  2344(  1) -0.020614535934037 0.886675115751200 0.804216972015052
+	//  2345(  1) -0.020916332456279 0.886978484102778 0.803313154277660
+	//  2346(  1) -0.021218137373733 0.887281907223949 0.802409357729017
+	//  2347(  1) -0.021519950810442 0.887585385929957 0.801505582688190
+	//  2348(  1) -0.021821772890580 0.887888921037161 0.800601829474842
+	//  2349(  1) -0.022123603738452 0.888192513363049 0.799698098409240
+	//  2350(  1) -0.022425443478499 0.888496163726259 0.798794389812263
+	//  2351(  1) -0.022727292235295 0.888799872946594 0.797890704005412
+	//  2352(  1) -0.023029150133555 0.889103641845040 0.796987041310821
+	//  2353(  1) -0.023331017298130 0.889407471243785 0.796083402051266
+	//  2354(  1) -0.023632893854015 0.889711361966233 0.795179786550172
+	//  2355(  1) -0.023934779926350 0.890015314837025 0.794276195131627
+	//  2356(  1) -0.024236675640417 0.890319330682056 0.793372628120389
+	//  2357(  1) -0.024538581121649 0.890623410328490 0.792469085841895
+	//  2358(  1) -0.024840496495628 0.890927554604783 0.791565568622273
+	//  2359(  1) -0.025142421888086 0.891231764340696 0.790662076788350
+	//  2360(  1) -0.025444357424912 0.891536040367314 0.789758610667665
+	//  2361(  1) -0.025746303232149 0.891840383517067 0.788855170588472
+	//  2362(  1) -0.026048259435996 0.892144794623746 0.787951756879760
+	//  2363(  1) -0.026350226162816 0.892449274522518 0.787048369871254
+	//  2364(  1) -0.026652203539130 0.892753824049952 0.786145009893431
+	//  2365(  1) -0.026954191691626 0.893058444044030 0.785241677277524
+	//  2366(  1) -0.027256190747157 0.893363135344167 0.784338372355541
+	//  2367(  1) -0.027558200832742 0.893667898791235 0.783435095460267
+	//  2368(  1) -0.027860222075574 0.893972735227572 0.782531846925278
+	//  2369(  1) -0.028162254603015 0.894277645497011 0.781628627084952
+	//  2370(  1) -0.028464298542603 0.894582630444889 0.780725436274477
+	//  2371(  1) -0.028766354022052 0.894887690918074 0.779822274829865
+	//  2372(  1) -0.029068421169256 0.895192827764979 0.778919143087957
+	//  2373(  1) -0.029370500112286 0.895498041835581 0.778016041386439
+	//  2374(  1) -0.029672590979398 0.895803333981444 0.777112970063851
+	//  2375(  1) -0.029974693899035 0.896108705055734 0.776209929459595
+	//  2376(  1) -0.030276808999822 0.896414155913241 0.775306919913951
+	//  2377(  1) -0.030578936410578 0.896719687410395 0.774403941768082
+	//  2378(  1) -0.030881076260310 0.897025300405290 0.773500995364050
+	//  2379(  1) -0.031183228678220 0.897330995757701 0.772598081044822
+	//  2380(  1) -0.031485393793704 0.897636774329101 0.771695199154287
+	//  2381(  1) -0.031787571736357 0.897942636982688 0.770792350037261
+	//  2382(  1) -0.032089762635974 0.898248584583397 0.769889534039502
+	//  2383(  1) -0.032391966622551 0.898554617997924 0.768986751507720
+	//  2384(  1) -0.032694183826289 0.898860738094745 0.768084002789590
+	//  2385(  1) -0.032996414377595 0.899166945744139 0.767181288233758
+	//  2386(  1) -0.033298658407085 0.899473241818202 0.766278608189861
+	//  2387(  1) -0.033600916045586 0.899779627190873 0.765375963008529
+	//  2388(  1) -0.033903187424137 0.900086102737953 0.764473353041405
+	//  2389(  1) -0.034205472673993 0.900392669337122 0.763570778641151
+	//  2390(  1) -0.034507771926626 0.900699327867966 0.762668240161463
+	//  2391(  1) -0.034810085313728 0.901006079211993 0.761765737957080
+	//  2392(  1) -0.035112412967214 0.901312924252654 0.760863272383798
+	//  2393(  1) -0.035414755019222 0.901619863875368 0.759960843798482
+	//  2394(  1) -0.035717111602115 0.901926898967537 0.759058452559075
+	//  2395(  1) -0.036019482848489 0.902234030418573 0.758156099024616
+	//  2396(  1) -0.036321868891167 0.902541259119915 0.757253783555246
+	//  2397(  1) -0.036624269863208 0.902848585965054 0.756351506512223
+	//  2398(  1) -0.036926685897904 0.903156011849552 0.755449268257935
+	//  2399(  1) -0.037229117128787 0.903463537671063 0.754547069155913
+	//  2400(  1) -0.037531563689630 0.903771164329359 0.753644909570839
+	//  2401(  1) -0.037834025714446 0.904078892726348 0.752742789868565
+	//  2402(  1) -0.038136503337494 0.904386723766096 0.751840710416121
+	//  2403(  1) -0.038438996693281 0.904694658354853 0.750938671581728
+	//  2404(  1) -0.038741505916563 0.905002697401070 0.750036673734816
+	//  2405(  1) -0.039044031142349 0.905310841815426 0.749134717246029
+	//  2406(  1) -0.039346572505901 0.905619092510848 0.748232802487246
+	//  2407(  1) -0.039649130142737 0.905927450402536 0.747330929831586
+	//  2408(  1) -0.039951704188638 0.906235916407981 0.746429099653431
+	//  2409(  1) -0.040254294779641 0.906544491446994 0.745527312328429
+	//  2410(  1) -0.040556902052053 0.906853176441725 0.744625568233515
+	//  2411(  1) -0.040859526142442 0.907161972316689 0.743723867746922
+	//  2412(  1) -0.041162167187648 0.907470879998786 0.742822211248194
+	//  2413(  1) -0.041464825324782 0.907779900417328 0.741920599118201
+	//  2414(  1) -0.041767500691227 0.908089034504060 0.741019031739151
+	//  2415(  1) -0.042070193424645 0.908398283193186 0.740117509494606
+	//  2416(  1) -0.042372903662974 0.908707647421392 0.739216032769495
+	//  2417(  1) -0.042675631544435 0.909017128127869 0.738314601950128
+	//  2418(  1) -0.042978377207532 0.909326726254340 0.737413217424211
+	//  2419(  1) -0.043281140791055 0.909636442745080 0.736511879580861
+	//  2420(  1) -0.043583922434082 0.909946278546946 0.735610588810616
+	//  2421(  1) -0.043886722275985 0.910256234609397 0.734709345505458
+	//  2422(  1) -0.044189540456427 0.910566311884524 0.733808150058818
+	//  2423(  1) -0.044492377115367 0.910876511327068 0.732907002865599
+	//  2424(  1) -0.044795232393067 0.911186833894452 0.732005904322185
+	//  2425(  1) -0.045098106430085 0.911497280546802 0.731104854826461
+	//  2426(  1) -0.045400999367288 0.911807852246976 0.730203854777824
+	//  2427(  1) -0.045703911345846 0.912118549960586 0.729302904577200
+	//  2428(  1) -0.046006842507241 0.912429374656026 0.728402004627061
+	//  2429(  1) -0.046309792993265 0.912740327304498 0.727501155331437
+	//  2430(  1) -0.046612762946026 0.913051408880038 0.726600357095936
+	//  2431(  1) -0.046915752507948 0.913362620359544 0.725699610327753
+	//  2432(  1) -0.047218761821775 0.913673962722797 0.724798915435696
+	//  2433(  1) -0.047521791030576 0.913985436952496 0.723898272830193
+	//  2434(  1) -0.047824840277741 0.914297044034277 0.722997682923312
+	//  2435(  1) -0.048127909706992 0.914608784956747 0.722097146128777
+	//  2436(  1) -0.048430999462380 0.914920660711505 0.721196662861985
+	//  2437(  1) -0.048734109688289 0.915232672293176 0.720296233540021
+	//  2438(  1) -0.049037240529439 0.915544820699432 0.719395858581676
+	//  2439(  1) -0.049340392130891 0.915857106931025 0.718495538407463
+	//  2440(  1) -0.049643564638045 0.916169531991814 0.717595273439635
+	//  2441(  1) -0.049946758196647 0.916482096888789 0.716695064102203
+	//  2442(  1) -0.050249972952790 0.916794802632106 0.715794910820948
+	//  2443(  1) -0.050553209052917 0.917107650235114 0.714894814023447
+	//  2444(  1) -0.050856466643824 0.917420640714378 0.713994774139082
+	//  2445(  1) -0.051159745872663 0.917733775089716 0.713094791599064
+	//  2446(  1) -0.051463046886944 0.918047054384223 0.712194866836449
+	//  2447(  1) -0.051766369834538 0.918360479624306 0.711295000286152
+	//  2448(  1) -0.052069714863683 0.918674051839705 0.710395192384974
+	//  2449(  1) -0.052373082122980 0.918987772063532 0.709495443571611
+	//  2450(  1) -0.052676471761404 0.919301641332296 0.708595754286678
+	//  2451(  1) -0.052979883928302 0.919615660685934 0.707696124972727
+	//  2452(  1) -0.053283318773394 0.919929831167842 0.706796556074265
+	//  2453(  1) -0.053586776446784 0.920244153824909 0.705897048037772
+	//  2454(  1) -0.053890257098955 0.920558629707541 0.704997601311723
+	//  2455(  1) -0.054193760880774 0.920873259869698 0.704098216346603
+	//  2456(  1) -0.054497287943498 0.921188045368926 0.703198893594934
+	//  2457(  1) -0.054800838438774 0.921502987266383 0.702299633511286
+	//  2458(  1) -0.055104412518644 0.921818086626878 0.701400436552301
+	//  2459(  1) -0.055408010335545 0.922133344518897 0.700501303176715
+	//  2460(  1) -0.055711632042316 0.922448762014641 0.699602233845375
+	//  2461(  1) -0.056015277792198 0.922764340190054 0.698703229021260
+	//  2462(  1) -0.056318947738839 0.923080080124859 0.697804289169504
+	//  2463(  1) -0.056622642036295 0.923395982902591 0.696905414757411
+	//  2464(  1) -0.056926360839036 0.923712049610628 0.696006606254485
+	//  2465(  1) -0.057230104301946 0.924028281340229 0.695107864132443
+	//  2466(  1) -0.057533872580331 0.924344679186563 0.694209188865240
+	//  2467(  1) -0.057837665829914 0.924661244248749 0.693310580929091
+	//  2468(  1) -0.058141484206848 0.924977977629884 0.692412040802490
+	//  2469(  1) -0.058445327867712 0.925294880437083 0.691513568966236
+	//  2470(  1) -0.058749196969516 0.925611953781513 0.690615165903451
+	//  2471(  1) -0.059053091669705 0.925929198778427 0.689716832099606
+	//  2472(  1) -0.059357012126164 0.926246616547199 0.688818568042542
+	//  2473(  1) -0.059660958497218 0.926564208211364 0.687920374222492
+	//  2474(  1) -0.059964930941636 0.926881974898650 0.687022251132105
+	//  2475(  1) -0.060268929618636 0.927199917741015 0.686124199266470
+	//  2476(  1) -0.060572954687887 0.927518037874688 0.685226219123138
+	//  2477(  1) -0.060877006309513 0.927836336440199 0.684328311202146
+	//  2478(  1) -0.061181084644095 0.928154814582424 0.683430476006042
+	//  2479(  1) -0.061485189852677 0.928473473450617 0.682532714039909
+	//  2480(  1) -0.061789322096766 0.928792314198450 0.681635025811387
+	//  2481(  1) -0.062093481538338 0.929111337984053 0.680737411830701
+	//  2482(  1) -0.062397668339841 0.929430545970051 0.679839872610686
+	//  2483(  1) -0.062701882664199 0.929749939323601 0.678942408666806
+	//  2484(  1) -0.063006124674812 0.930069519216436 0.678045020517189
+	//  2485(  1) -0.063310394535564 0.930389286824899 0.677147708682643
+	//  2486(  1) -0.063614692410825 0.930709243329989 0.676250473686690
+	//  2487(  1) -0.063919018465452 0.931029389917397 0.675353316055588
+	//  2488(  1) -0.064223372864798 0.931349727777547 0.674456236318355
+	//  2489(  1) -0.064527755774709 0.931670258105640 0.673559235006802
+	//  2490(  1) -0.064832167361533 0.931990982101690 0.672662312655556
+	//  2491(  1) -0.065136607792121 0.932311900970571 0.671765469802087
+	//  2492(  1) -0.065441077233831 0.932633015922058 0.670868706986735
+	//  2493(  1) -0.065745575854531 0.932954328170865 0.669972024752742
+	//  2494(  1) -0.066050103822604 0.933275838936692 0.669075423646275
+	//  2495(  1) -0.066354661306953 0.933597549444269 0.668178904216457
+	//  2496(  1) -0.066659248477000 0.933919460923395 0.667282467015394
+	//  2497(  1) -0.066963865502695 0.934241574608985 0.666386112598206
+	//  2498(  1) -0.067268512554515 0.934563891741115 0.665489841523055
+	//  2499(  1) -0.067573189803473 0.934886413565064 0.664593654351174
+	//  2500(  1) -0.067877897421116 0.935209141331359 0.663697551646897
+	//  2501(  1) -0.068182635579533 0.935532076295824 0.662801533977690
+	//  2502(  1) -0.068487404451360 0.935855219719621 0.661905601914182
+	//  2503(  1) -0.068792204209777 0.936178572869301 0.661009756030192
+	//  2504(  1) -0.069097035028520 0.936502137016846 0.660113996902766
+	//  2505(  1) -0.069401897081880 0.936825913439720 0.659218325112202
+	//  2506(  1) -0.069706790544707 0.937149903420913 0.658322741242086
+	//  2507(  1) -0.070011715592417 0.937474108248992 0.657427245879323
+	//  2508(  1) -0.070316672400994 0.937798529218146 0.656531839614170
+	//  2509(  1) -0.070621661146993 0.938123167628238 0.655636523040266
+	//  2510(  1) -0.070926682007546 0.938448024784851 0.654741296754669
+	//  2511(  1) -0.071231735160364 0.938773101999342 0.653846161357885
+	//  2512(  1) -0.071536820783745 0.939098400588887 0.652951117453908
+	//  2513(  1) -0.071841939056572 0.939423921876533 0.652056165650247
+	//  2514(  1) -0.072147090158322 0.939749667191253 0.651161306557966
+	//  2515(  1) -0.072452274269069 0.940075637867990 0.650266540791715
+	//  2516(  1) -0.072757491569487 0.940401835247717 0.649371868969768
+	//  2517(  1) -0.073062742240856 0.940728260677482 0.648477291714059
+	//  2518(  1) -0.073368026465063 0.941054915510467 0.647582809650216
+	//  2519(  1) -0.073673344424610 0.941381801106036 0.646688423407596
+	//  2520(  1) -0.073978696302617 0.941708918829794 0.645794133619328
+	//  2521(  1) -0.074284082282824 0.942036270053637 0.644899940922342
+	//  2522(  1) -0.074589502549598 0.942363856155808 0.644005845957415
+	//  2523(  1) -0.074894957287938 0.942691678520955 0.643111849369203
+	//  2524(  1) -0.075200446683475 0.943019738540182 0.642217951806281
+	//  2525(  1) -0.075505970922482 0.943348037611112 0.641324153921183
+	//  2526(  1) -0.075811530191874 0.943676577137936 0.640430456370440
+	//  2527(  1) -0.076117124679213 0.944005358531476 0.639536859814622
+	//  2528(  1) -0.076422754572717 0.944334383209243 0.638643364918376
+	//  2529(  1) -0.076728420061256 0.944663652595491 0.637749972350467
+	//  2530(  1) -0.077034121334366 0.944993168121282 0.636856682783819
+	//  2531(  1) -0.077339858582246 0.945322931224541 0.635963496895558
+	//  2532(  1) -0.077645631995766 0.945652943350118 0.635070415367054
+	//  2533(  1) -0.077951441766473 0.945983205949851 0.634177438883960
+	//  2534(  1) -0.078257288086590 0.946313720482621 0.633284568136260
+	//  2535(  1) -0.078563171149028 0.946644488414422 0.632391803818310
+	//  2536(  1) -0.078869091147385 0.946975511218419 0.631499146628881
+	//  2537(  1) -0.079175048275951 0.947306790375010 0.630606597271205
+	//  2538(  1) -0.079481042729718 0.947638327371893 0.629714156453021
+	//  2539(  1) -0.079787074704378 0.947970123704131 0.628821824886618
+	//  2540(  1) -0.080093144396332 0.948302180874211 0.627929603288882
+	//  2541(  1) -0.080399252002693 0.948634500392118 0.627037492381345
+	//  2542(  1) -0.080705397721291 0.948967083775395 0.626145492890229
+	//  2543(  1) -0.081011581750680 0.949299932549212 0.625253605546493
+	//  2544(  1) -0.081317804290137 0.949633048246436 0.624361831085886
+	//  2545(  1) -0.081624065539676 0.949966432407694 0.623470170248991
+	//  2546(  1) -0.081930365700043 0.950300086581448 0.622578623781275
+	//  2547(  1) -0.082236704972729 0.950634012324061 0.621687192433144
+	//  2548(  1) -0.082543083559970 0.950968211199867 0.620795876959987
+	//  2549(  1) -0.082849501664754 0.951302684781244 0.619904678122228
+	//  2550(  1) -0.083155959490825 0.951637434648686 0.619013596685385
+	//  2551(  1) -0.083462457242690 0.951972462390873 0.618122633420111
+	//  2552(  1) -0.083768995125622 0.952307769604747 0.617231789102258
+	//  2553(  1) -0.084075573345666 0.952643357895585 0.616341064512922
+	//  2554(  1) -0.084382192109642 0.952979228877071 0.615450460438503
+	//  2555(  1) -0.084688851625156 0.953315384171378 0.614559977670756
+	//  2556(  1) -0.084995552100597 0.953651825409238 0.613669617006849
+	//  2557(  1) -0.085302293745150 0.953988554230020 0.612779379249420
+	//  2558(  1) -0.085609076768795 0.954325572281811 0.611889265206631
+	//  2559(  1) -0.085915901382316 0.954662881221493 0.610999275692228
+	//  2560(  1) -0.086222767797306 0.955000482714820 0.610109411525597
+	//  2561(  1) -0.086529676226170 0.955338378436504 0.609219673531825
+	//  2562(  1) -0.086836626882132 0.955676570070289 0.608330062541761
+	//  2563(  1) -0.087143619979241 0.956015059309037 0.607440579392073
+	//  2564(  1) -0.087450655732375 0.956353847854812 0.606551224925312
+	//  2565(  1) -0.087757734357247 0.956692937418960 0.605661999989971
+	//  2566(  1) -0.088064856070411 0.957032329722196 0.604772905440551
+	//  2567(  1) -0.088372021089266 0.957372026494689 0.603883942137625
+	//  2568(  1) -0.088679229632063 0.957712029476147 0.602995110947897
+	//  2569(  1) -0.088986481917908 0.958052340415907 0.602106412744274
+	//  2570(  1) -0.089293778166773 0.958392961073018 0.601217848405927
+	//  2571(  1) -0.089601118599494 0.958733893216336 0.600329418818358
+	//  2572(  1) -0.089908503437784 0.959075138624610 0.599441124873472
+	//  2573(  1) -0.090215932904234 0.959416699086576 0.598552967469641
+	//  2574(  1) -0.090523407222318 0.959758576401045 0.597664947511774
+	//  2575(  1) -0.090830926616403 0.960100772376999 0.596777065911389
+	//  2576(  1) -0.091138491311750 0.960443288833684 0.595889323586682
+	//  2577(  1) -0.091446101534526 0.960786127600704 0.595001721462601
+	//  2578(  1) -0.091753757511800 0.961129290518118 0.594114260470919
+	//  2579(  1) -0.092061459471559 0.961472779436538 0.593226941550302
+	//  2580(  1) -0.092369207642707 0.961816596217224 0.592339765646395
+	//  2581(  1) -0.092677002255075 0.962160742732185 0.591452733711887
+	//  2582(  1) -0.092984843539422 0.962505220864279 0.590565846706592
+	//  2583(  1) -0.093292731727446 0.962850032507315 0.589679105597529
+	//  2584(  1) -0.093600667051789 0.963195179566153 0.588792511358998
+	//  2585(  1) -0.093908649746038 0.963540663956809 0.587906064972657
+	//  2586(  1) -0.094216680044737 0.963886487606561 0.587019767427611
+	//  2587(  1) -0.094524758183392 0.964232652454051 0.586133619720484
+	//  2588(  1) -0.094832884398471 0.964579160449394 0.585247622855510
+	//  2589(  1) -0.095141058927419 0.964926013554290 0.584361777844613
+	//  2590(  1) -0.095449282008658 0.965273213742125 0.583476085707491
+	//  2591(  1) -0.095757553881595 0.965620762998087 0.582590547471707
+	//  2592(  1) -0.096065874786627 0.965968663319279 0.581705164172771
+	//  2593(  1) -0.096374244965149 0.966316916714827 0.580819936854232
+	//  2594(  1) -0.096682664659558 0.966665525205997 0.579934866567766
+	//  2595(  1) -0.096991134113261 0.967014490826313 0.579049954373269
+	//  2596(  1) -0.097299653570681 0.967363815621668 0.578165201338946
+	//  2597(  1) -0.097608223277260 0.967713501650447 0.577280608541407
+	//  2598(  1) -0.097916843479471 0.968063550983644 0.576396177065760
+	//  2599(  1) -0.098225514424819 0.968413965704985 0.575511908005708
+	//  2600(  1) -0.098534236361851 0.968764747911048 0.574627802463645
+	//  2601(  1) -0.098843009540158 0.969115899711388 0.573743861550758
+	//  2602(  1) -0.099151834210385 0.969467423228660 0.572860086387119
+	//  2603(  1) -0.099460710624238 0.969819320598747 0.571976478101797
+	//  2604(  1) -0.099769639034485 0.970171593970890 0.571093037832949
+	//  2605(  1) -0.100078619694970 0.970524245507814 0.570209766727936
+	//  2606(  1) -0.100387652860610 0.970877277385858 0.569326665943416
+	//  2607(  1) -0.100696738787412 0.971230691795111 0.568443736645462
+	//  2608(  1) -0.101005877732470 0.971584490939545 0.567560980009664
+	//  2609(  1) -0.101315069953977 0.971938677037148 0.566678397221239
+	//  2610(  1) -0.101624315711230 0.972293252320063 0.565795989475145
+	//  2611(  1) -0.101933615264634 0.972648219034727 0.564913757976191
+	//  2612(  1) -0.102242968875713 0.973003579442009 0.564031703939157
+	//  2613(  1) -0.102552376807113 0.973359335817355 0.563149828588902
+	//  2614(  1) -0.102861839322610 0.973715490450928 0.562268133160488
+	//  2615(  1) -0.103171356687115 0.974072045647758 0.561386618899297
+	//  2616(  1) -0.103480929166683 0.974429003727883 0.560505287061152
+	//  2617(  1) -0.103790557028515 0.974786367026502 0.559624138912441
+	//  2618(  1) -0.104100240540971 0.975144137894125 0.558743175730240
+	//  2619(  1) -0.104409979973571 0.975502318696724 0.557862398802441
+	//  2620(  1) -0.104719775597002 0.975860911815885 0.556981809427878
+	//  2621(  1) -0.105029627683128 0.976219919648971 0.556101408916460
+	//  2622(  1) -0.105339536504994 0.976579344609272 0.555221198589298
+	//  2623(  1) -0.105649502336831 0.976939189126168 0.554341179778843
+	//  2624(  1) -0.105959525454067 0.977299455645292 0.553461353829023
+	//  2625(  1) -0.106269606133329 0.977660146628690 0.552581722095373
+	//  2626(  1) -0.106579744652452 0.978021264554990 0.551702285945183
+	//  2627(  1) -0.106889941290483 0.978382811919567 0.550823046757634
+	//  2628(  1) -0.107200196327692 0.978744791234715 0.549944005923946
+	//  2629(  1) -0.107510510045574 0.979107205029815 0.549065164847519
+	//  2630(  1) -0.107820882726857 0.979470055851512 0.548186524944084
+	//  2631(  1) -0.108131314655509 0.979833346263890 0.547308087641855
+	//  2632(  1) -0.108441806116743 0.980197078848649 0.546429854381676
+	//  2633(  1) -0.108752357397027 0.980561256205286 0.545551826617179
+	//  2634(  1) -0.109062968784084 0.980925880951278 0.544674005814942
+	//  2635(  1) -0.109373640566905 0.981290955722265 0.543796393454644
+	//  2636(  1) -0.109684373035752 0.981656483172238 0.542918991029231
+	//  2637(  1) -0.109995166482163 0.982022465973730 0.542041800045078
+	//  2638(  1) -0.110306021198962 0.982388906818003 0.541164822022153
+	//  2639(  1) -0.110616937480263 0.982755808415246 0.540288058494193
+	//  2640(  1) -0.110927915621477 0.983123173494772 0.539411511008866
+	//  2641(  1) -0.111238955919315 0.983491004805212 0.538535181127953
+	//  2642(  1) -0.111550058671800 0.983859305114722 0.537659070427521
+	//  2643(  1) -0.111861224178270 0.984228077211184 0.536783180498104
+	//  2644(  1) -0.112172452739382 0.984597323902413 0.535907512944883
+	//  2645(  1) -0.112483744657123 0.984967048016365 0.535032069387872
+	//  2646(  1) -0.112795100234811 0.985337252401351 0.534156851462108
+	//  2647(  1) -0.113106519777104 0.985707939926253 0.533281860817837
+	//  2648(  1) -0.113418003590005 0.986079113480734 0.532407099120714
+	//  2649(  1) -0.113729551980869 0.986450775975466 0.531532568051992
+	//  2650(  1) -0.114041165258405 0.986822930342349 0.530658269308728
+	//  2651(  1) -0.114352843732688 0.987195579534735 0.529784204603982
+	//  2652(  1) -0.114664587715159 0.987568726527663 0.528910375667026
+	//  2653(  1) -0.114976397518633 0.987942374318083 0.528036784243549
+	//  2654(  1) -0.115288273457305 0.988316525925095 0.527163432095875
+	//  2655(  1) -0.115600215846753 0.988691184390184 0.526290321003171
+	//  2656(  1) -0.115912225003947 0.989066352777465 0.525417452761675
+	//  2657(  1) -0.116224301247252 0.989442034173922 0.524544829184913
+	//  2658(  1) -0.116536444896433 0.989818231689656 0.523672452103926
+	//  2659(  1) -0.116848656272659 0.990194948458138 0.522800323367501
+	//  2660(  1) -0.117160935698514 0.990572187636460 0.521928444842403
+	//  2661(  1) -0.117473283497994 0.990949952405592 0.521056818413614
+	//  2662(  1) -0.117785699996517 0.991328245970641 0.520185445984573
+	//  2663(  1) -0.118098185520925 0.991707071561120 0.519314329477420
+	//  2664(  1) -0.118410740399490 0.992086432431208 0.518443470833247
+	//  2665(  1) -0.118723364961919 0.992466331860025 0.517572872012348
+	//  2666(  1) -0.119036059539357 0.992846773151906 0.516702534994479
+	//  2667(  1) -0.119348824464390 0.993227759636678 0.515832461779118
+	//  2668(  1) -0.119661660071054 0.993609294669942 0.514962654385728
+	//  2669(  1) -0.119974566694832 0.993991381633357 0.514093114854030
+	//  2670(  1) -0.120287544672663 0.994374023934932 0.513223845244279
+	//  2671(  1) -0.120600594342945 0.994757225009317 0.512354847637535
+	//  2672(  1) -0.120913716045537 0.995140988318103 0.511486124135956
+	//  2673(  1) -0.121226910121760 0.995525317350117 0.510617676863078
+	//  2674(  1) -0.121540176914406 0.995910215621735 0.509749507964112
+	//  2675(  1) -0.121853516767736 0.996295686677186 0.508881619606243
+	//  2676(  1) -0.122166930027485 0.996681734088867 0.508014013978928
+	//  2677(  1) -0.122480417040863 0.997068361457661 0.507146693294209
+	//  2678(  1) -0.122793978156560 0.997455572413260 0.506279659787020
+	//  2679(  1) -0.123107613724744 0.997843370614489 0.505412915715513
+	//  2680(  1) -0.123421324097067 0.998231759749642 0.504546463361375
+	//  2681(  1) -0.123735109626663 0.998620743536813 0.503680305030159
+	//  2682(  1) -0.124048970668154 0.999010325724236 0.502814443051621
+	//  2683(  1) -0.124362907577644 0.999400510090635 0.501948879780059
+	//  2684(  1) -0.124676920712728 0.999791300445570 0.501083617594658
+	//  2685(  1) -0.124991010432487 1.000182700629791 0.500218658899845
+	//  2686(  1) -0.125305177097489 1.000574714515600 0.499354006125643
+	//  2687(  1) -0.125619421069793 1.000967346007215 0.498489661728043
+	//  2688(  1) -0.125933742712943 1.001360599041140 0.497625628189368
+	//  2689(  1) -0.126248142391972 1.001754477586538 0.496761908018651
+	//  2690(  1) -0.126562620473397 1.002148985645612 0.495898503752025
+	//  2691(  1) -0.126877177325222 1.002544127253992 0.495035417953105
+	//  2692(  1) -0.127191813316933 1.002939906481127 0.494172653213395
+	//  2693(  1) -0.127506528819499 1.003336327430677 0.493310212152682
+	//  2694(  1) -0.127821324205365 1.003733394240917 0.492448097419458
+	//  2695(  1) -0.128136199848455 1.004131111085149 0.491586311691331
+	//  2696(  1) -0.128451156124163 1.004529482172111 0.490724857675457
+	//  2697(  1) -0.128766193409356 1.004928511746396 0.489863738108972
+	//  2698(  1) -0.129081312082363 1.005328204088882 0.489002955759431
+	//  2699(  1) -0.129396512522974 1.005728563517159 0.488142513425263
+	//  2700(  1) -0.129711795112436 1.006129594385973 0.487282413936227
+	//  2701(  1) -0.130027160233447 1.006531301087662 0.486422660153876
+	//  2702(  1) -0.130342608270146 1.006933688052615 0.485563254972032
+	//  2703(  1) -0.130658139608112 1.007336759749721 0.484704201317274
+	//  2704(  1) -0.130973754634354 1.007740520686841 0.483845502149424
+	//  2705(  1) -0.131289453737305 1.008144975411272 0.482987160462052
+	//  2706(  1) -0.131605237306811 1.008550128510227 0.482129179282983
+	//  2707(  1) -0.131921105734125 1.008955984611322 0.481271561674820
+	//  2708(  1) -0.132237059411897 1.009362548383061 0.480414310735473
+	//  2709(  1) -0.132553098734161 1.009769824535340 0.479557429598694
+	//  2710(  1) -0.132869224096330 1.010177817819951 0.478700921434631
+	//  2711(  1) -0.133185435895178 1.010586533031096 0.477844789450386
+	//  2712(  1) -0.133501734528831 1.010995975005908 0.476989036890582
+	//  2713(  1) -0.133818120396757 1.011406148624977 0.476133667037947
+	//  2714(  1) -0.134134593899747 1.011817058812891 0.475278683213905
+	//  2715(  1) -0.134451155439901 1.012228710538778 0.474424088779176
+	//  2716(  1) -0.134767805420616 1.012641108816858 0.473569887134393
+	//  2717(  1) -0.135084544246569 1.013054258707003 0.472716081720726
+	//  2718(  1) -0.135401372323697 1.013468165315311 0.471862676020521
+	//  2719(  1) -0.135718290059182 1.013882833794676 0.471009673557947
+	//  2720(  1) -0.136035297861429 1.014298269345381 0.470157077899664
+	//  2721(  1) -0.136352396140051 1.014714477215692 0.469304892655490
+	//  2722(  1) -0.136669585305840 1.015131462702457 0.468453121479098
+	//  2723(  1) -0.136986865770754 1.015549231151724 0.467601768068709
+	//  2724(  1) -0.137304237947887 1.015967787959363 0.466750836167814
+	//  2725(  1) -0.137621702251449 1.016387138571696 0.465900329565899
+	//  2726(  1) -0.137939259096737 1.016807288486139 0.465050252099191
+	//  2727(  1) -0.138256908900110 1.017228243251853 0.464200607651413
+	//  2728(  1) -0.138574652078961 1.017650008470405 0.463351400154559
+	//  2729(  1) -0.138892489051689 1.018072589796440 0.462502633589682
+	//  2730(  1) -0.139210420237666 1.018495992938362 0.461654311987698
+	//  2731(  1) -0.139528446057205 1.018920223659023 0.460806439430202
+	//  2732(  1) -0.139846566931529 1.019345287776430 0.459959020050312
+	//  2733(  1) -0.140164783282734 1.019771191164451 0.459112058033515
+	//  2734(  1) -0.140483095533753 1.020197939753549 0.458265557618539
+	//  2735(  1) -0.140801504108316 1.020625539531508 0.457419523098242
+	//  2736(  1) -0.141120009430916 1.021053996544181 0.456573958820516
+	//  2737(  1) -0.141438611926761 1.021483316896256 0.455728869189212
+	//  2738(  1) -0.141757312021732 1.021913506752011 0.454884258665083
+	//  2739(  1) -0.142076110142342 1.022344572336112 0.454040131766744
+	//  2740(  1) -0.142395006715684 1.022776519934391 0.453196493071655
+	//  2741(  1) -0.142714002169385 1.023209355894666 0.452353347217125
+	//  2742(  1) -0.143033096931554 1.023643086627547 0.451510698901331
+	//  2743(  1) -0.143352291430728 1.024077718607278 0.450668552884365
+	//  2744(  1) -0.143671586095819 1.024513258372572 0.449826913989296
+	//  2745(  1) -0.143990981356053 1.024949712527475 0.448985787103263
+	//  2746(  1) -0.144310477640913 1.025387087742233 0.448145177178580
+	//  2747(  1) -0.144630075380076 1.025825390754176 0.447305089233872
+	//  2748(  1) -0.144949775003346 1.026264628368620 0.446465528355234
+	//  2749(  1) -0.145269576940590 1.026704807459773 0.445626499697412
+	//  2750(  1) -0.145589481621665 1.027145934971669 0.444788008485010
+	//  2751(  1) -0.145909489476344 1.027588017919099 0.443950060013722
+	//  2752(  1) -0.146229600934246 1.028031063388579 0.443112659651593
+	//  2753(  1) -0.146549816424751 1.028475078539310 0.442275812840306
+	//  2754(  1) -0.146870136376920 1.028920070604169 0.441439525096491
+	//  2755(  1) -0.147190561219410 1.029366046890710 0.440603802013072
+	//  2756(  1) -0.147511091380386 1.029813014782183 0.439768649260639
+	//  2757(  1) -0.147831727287430 1.030260981738560 0.438934072588842
+	//  2758(  1) -0.148152469367442 1.030709955297596 0.438100077827829
+	//  2759(  1) -0.148473318046544 1.031159943075885 0.437266670889708
+	//  2760(  1) -0.148794273749978 1.031610952769950 0.436433857770039
+	//  2761(  1) -0.149115336901994 1.032062992157338 0.435601644549363
+	//  2762(  1) -0.149436507925744 1.032516069097740 0.434770037394765
+	//  2763(  1) -0.149757787243165 1.032970191534126 0.433939042561467
+	//  2764(  1) -0.150079175274859 1.033425367493897 0.433108666394461
+	//  2765(  1) -0.150400672439969 1.033881605090059 0.432278915330181
+	//  2766(  1) -0.150722279156052 1.034338912522406 0.431449795898199
+	//  2767(  1) -0.151043995838940 1.034797298078738 0.430621314722977
+	//  2768(  1) -0.151365822902609 1.035256770136080 0.429793478525645
+	//  2769(  1) -0.151687760759026 1.035717337161932 0.428966294125827
+	//  2770(  1) -0.152009809818009 1.036179007715538 0.428139768443502
+	//  2771(  1) -0.152331970487063 1.036641790449167 0.427313908500916
+	//  2772(  1) -0.152654243171225 1.037105694109428 0.426488721424527
+	//  2773(  1) -0.152976628272896 1.037570727538585 0.425664214447002
+	//  2774(  1) -0.153299126191664 1.038036899675918 0.424840394909261
+	//  2775(  1) -0.153621737324131 1.038504219559084 0.424017270262560
+	//  2776(  1) -0.153944462063720 1.038972696325509 0.423194848070631
+	//  2777(  1) -0.154267300800484 1.039442339213803 0.422373136011866
+	//  2778(  1) -0.154590253920909 1.039913157565191 0.421552141881556
+	//  2779(  1) -0.154913321807699 1.040385160824975 0.420731873594177
+	//  2780(  1) -0.155236504839567 1.040858358544005 0.419912339185737
+	//  2781(  1) -0.155559803391005 1.041332760380193 0.419093546816171
+	//  2782(  1) -0.155883217832058 1.041808376100026 0.418275504771795
+	//  2783(  1) -0.156206748528076 1.042285215580127 0.417458221467823
+	//  2784(  1) -0.156530395839471 1.042763288808819 0.416641705450935
+	//  2785(  1) -0.156854160121454 1.043242605887728 0.415825965401914
+	//  2786(  1) -0.157178041723766 1.043723177033403 0.415011010138339
+	//  2787(  1) -0.157502040990402 1.044205012578963 0.414196848617353
+	//  2788(  1) -0.157826158259320 1.044688122975766 0.413383489938485
+	//  2789(  1) -0.158150393862140 1.045172518795111 0.412570943346550
+	//  2790(  1) -0.158474748123835 1.045658210729956 0.411759218234614
+	//  2791(  1) -0.158799221362408 1.046145209596667 0.410948324147035
+	//  2792(  1) -0.159123813888556 1.046633526336796 0.410138270782571
+	//  2793(  1) -0.159448526005325 1.047123172018878 0.409329067997577
+	//  2794(  1) -0.159773358007748 1.047614157840258 0.408520725809265
+	//  2795(  1) -0.160098310182474 1.048106495128951 0.407713254399056
+	//  2796(  1) -0.160423382807376 1.048600195345514 0.406906664116011
+	//  2797(  1) -0.160748576151156 1.049095270084967 0.406100965480342
+	//  2798(  1) -0.161073890472923 1.049591731078715 0.405296169187023
+	//  2799(  1) -0.161399326021762 1.050089590196523 0.404492286109476
+	//  2800(  1) -0.161724883036286 1.050588859448504 0.403689327303359
+	//  2801(  1) -0.162050561744172 1.051089550987135 0.402887304010447
+	//  2802(  1) -0.162376362361675 1.051591677109310 0.402086227662611
+	//  2803(  1) -0.162702285093131 1.052095250258413 0.401286109885891
+	//  2804(  1) -0.163028330130434 1.052600283026421 0.400486962504685
+	//  2805(  1) -0.163354497652502 1.053106788156041 0.399688797546034
+	//  2806(  1) -0.163680787824711 1.053614778542862 0.398891627244019
+	//  2807(  1) -0.164007200798322 1.054124267237557 0.398095464044268
+	//  2808(  1) -0.164333736709875 1.054635267448086 0.397300320608587
+	//  2809(  1) -0.164660395680563 1.055147792541952 0.396506209819701
+	//  2810(  1) -0.164987177815589 1.055661856048472 0.395713144786118
+	//  2811(  1) -0.165314083203488 1.056177471661076 0.394921138847124
+	//  2812(  2) -0.165641111915576 1.056694653241456 0.394130205579151
+	//  2813(  2) -0.165968264004656 1.057213414814693 0.393340358796070
+	//  2814(  2) -0.166295539505111 1.057733770582429 0.392551612561984
+	//  2815(  2) -0.166622938431568 1.058255734918122 0.391763981191849
+	//  2816(  2) -0.166950460778222 1.058779322371266 0.390977479258379
+	//  2817(  2) -0.167278106517997 1.059304547669854 0.390192121597864
+	//  2818(  2) -0.167605875601678 1.059831425722864 0.389407923316152
+	//  2819(  2) -0.167933767956997 1.060359971622779 0.388624899794790
+	//  2820(  2) -0.168261783487701 1.060890200648122 0.387843066697319
+	//  2821(  2) -0.168589922072569 1.061422128266014 0.387062439975739
+	//  2822(  2) -0.168918183564403 1.061955770134767 0.386283035877154
+	//  2823(  2) -0.169246567788977 1.062491142106488 0.385504870950581
+	//  2824(  2) -0.169575074543937 1.063028260229696 0.384727962053948
+	//  2825(  2) -0.169903703597675 1.063567140751983 0.383952326361281
+	//  2826(  2) -0.170232454688148 1.064107800122668 0.383177981370077
+	//  2827(  2) -0.170561327521651 1.064650254995485 0.382404944908880
+	//  2828(  2) -0.170890321771554 1.065194522231274 0.381633235145059
+	//  2829(  2) -0.171219437076975 1.065740618900695 0.380862870592795
+	//  2830(  2) -0.171548673041416 1.066288562286950 0.380093870121287
+	//  2831(  2) -0.171878029231334 1.066838369888511 0.379326252963175
+	//  2832(  2) -0.172207505174668 1.067390059421866 0.378560038723193
+	//  2833(  2) -0.172537100359300 1.067943648824261 0.377795247387061
+	//  2834(  2) -0.172866814231460 1.068499156256446 0.377031899330607
+	//  2835(  2) -0.173196646194069 1.069056600105428 0.376270015329151
+	//  2836(  2) -0.173526595605019 1.069615998987212 0.375509616567137
+	//  2837(  2) -0.173856661775380 1.070177371749542 0.374750724648023
+	//  2838(  2) -0.174186843967546 1.070740737474635 0.373993361604452
+	//  2839(  2) -0.174517141393300 1.071306115481890 0.373237549908689
+	//  2840(  2) -0.174847553211811 1.071873525330598 0.372483312483353
+	//  2841(  2) -0.175178078527545 1.072442986822613 0.371730672712432
+	//  2842(  2) -0.175508716388100 1.073014520005011 0.370979654452611
+	//  2843(  2) -0.175839465781954 1.073588145172708 0.370230282044892
+	//  2844(  2) -0.176170325636124 1.074163882871051 0.369482580326554
+	//  2845(  2) -0.176501294813735 1.074741753898359 0.368736574643420
+	//  2846(  2) -0.176832372111490 1.075321779308424 0.367992290862466
+	//  2847(  2) -0.177163556257043 1.075903980412951 0.367249755384781
+	//  2848(  2) -0.177494845906269 1.076488378783944 0.366508995158867
+	//  2849(  2) -0.177826239640426 1.077074996256015 0.365770037694311
+	//  2850(  2) -0.178157735963200 1.077663854928625 0.365032911075825
+	//  2851(  2) -0.178489333297641 1.078254977168237 0.364297643977671
+	//  2852(  2) -0.178821029982976 1.078848385610370 0.363564265678468
+	//  2853(  2) -0.179152824271288 1.079444103161562 0.362832806076408
+	//  2854(  2) -0.179484714324080 1.080042153001202 0.362103295704882
+	//  2855(  2) -0.179816698208683 1.080642558583252 0.361375765748518
+	//  2856(  2) -0.180148773894541 1.081245343637831 0.360650248059665
+	//  2857(  2) -0.180480939249335 1.081850532172635 0.359926775175297
+	//  2858(  2) -0.180813192034958 1.082458148474215 0.359205380334381
+	//  2859(  2) -0.181145529903340 1.083068217109067 0.358486097495708
+	//  2860(  2) -0.181477950392088 1.083680762924532 0.357768961356180
+	//  2861(  2) -0.181810450919975 1.084295811049488 0.357054007369588
+	//  2862(  2) -0.182143028782236 1.084913386894823 0.356341271765881
+	//  2863(  2) -0.182475681145684 1.085533516153663 0.355630791570926
+	//  2864(  2) -0.182808405043636 1.086156224801326 0.354922604626782
+	//  2865(  2) -0.183141197370632 1.086781539095020 0.354216749612494
+	//  2866(  2) -0.183474054876950 1.087409485573211 0.353513266065411
+	//  2867(  2) -0.183806974162909 1.088040091054679 0.352812194403041
+	//  2868(  2) -0.184139951672944 1.088673382637219 0.352113575945444
+	//  2869(  2) -0.184472983689445 1.089309387695965 0.351417452938186
+	//  2870(  2) -0.184806066326367 1.089948133881313 0.350723868575845
+	//  2871(  2) -0.185139195522581 1.090589649116401 0.350032867026078
+	//  2872(  2) -0.185472367034968 1.091233961594139 0.349344493454269
+	//  2873(  2) -0.185805576431248 1.091881099773730 0.348658794048738
+	//  2874(  2) -0.186138819082533 1.092531092376671 0.347975816046539
+	//  2875(  2) -0.186472090155585 1.093183968382176 0.347295607759834
+	//  2876(  2) -0.186805384604789 1.093839757022004 0.346618218602848
+	//  2877(  2) -0.187138697163807 1.094498487774639 0.345943699119412
+	//  2878(  2) -0.187472022336924 1.095160190358769 0.345272101011075
+	//  2879(  2) -0.187805354390062 1.095824894726058 0.344603477165810
+	//  2880(  2) -0.188138687341459 1.096492631053110 0.343937881687274
+	//  2881(  2) -0.188472014951994 1.097163429732620 0.343275369924644
+	//  2882(  2) -0.188805330715158 1.097837321363633 0.342615998503002
+	//  2883(  2) -0.189138627846651 1.098514336740870 0.341959825354266
+	//  2884(  2) -0.189471899273604 1.099194506843061 0.341306909748645
+	//  2885(  2) -0.189805137623401 1.099877862820206 0.340657312326603
+	//  2886(  2) -0.190138335212107 1.100564435979738 0.340011095131311
+	//  2887(  2) -0.190471484032479 1.101254257771477 0.339368321641559
+	//  2888(  2) -0.190804575741559 1.101947359771343 0.338729056805107
+	//  2889(  2) -0.191137601647827 1.102643773663733 0.338093367072423
+	//  2890(  2) -0.191470552697925 1.103343531222488 0.337461320430786
+	//  2891(  2) -0.191803419462918 1.104046664290381 0.336832986438710
+	//  2892(  2) -0.192136192124103 1.104753204757039 0.336208436260628
+	//  2893(  2) -0.192468860458354 1.105463184535200 0.335587742701785
+	//  2894(  2) -0.192801413822988 1.106176635535239 0.334970980243287
+	//  2895(  2) -0.193133841140159 1.106893589637854 0.334358225077218
+	//  2896(  2) -0.193466130880761 1.107614078664822 0.333749555141778
+	//  2897(  2) -0.193798271047854 1.108338134347731 0.333145050156315
+	//  2898(  2) -0.194130249159595 1.109065788294572 0.332544791656190
+	//  2899(  2) -0.194462052231684 1.109797071954112 0.331948863027375
+	//  2900(  2) -0.194793666759322 1.110532016577918 0.331357349540631
+	//  2901(  2) -0.195125078698685 1.111270653179933 0.330770338385192
+	//  2902(  2) -0.195456273447931 1.112013012493501 0.330187918701776
+	//  2903(  2) -0.195787235827726 1.112759124925716 0.329610181614811
+	//  2904(  2) -0.196117950061326 1.113509020508988 0.329037220263685
+	//  2905(  2) -0.196448399754212 1.114262728849723 0.328469129832875
+	//  2906(  2) -0.196778567873312 1.115020279073978 0.327906007580729
+	//  2907(  2) -0.197108436725816 1.115781699770013 0.327347952866748
+	//  2908(  2) -0.197437987937627 1.116547018927597 0.326795067177090
+	//  2909(  2) -0.197767202431467 1.117316263873989 0.326247454148121
+	//  2910(  2) -0.198096060404688 1.118089461206462 0.325705219587710
+	//  2911(  2) -0.198424541306819 1.118866636721294 0.325168471494019
+	//  2912(  2) -0.198752623816902 1.119647815339121 0.324637320071515
+	//  2913(  2) -0.199080285820676 1.120433021026564 0.324111877743861
+	//  2914(  2) -0.199407504387667 1.121222276714063 0.323592259163394
+	//  2915(  2) -0.199734255748255 1.122015604209841 0.323078581216819
+	//  2916(  2) -0.200060515270794 1.122813024109949 0.322570963026775
+	//  2917(  2) -0.200386257438872 1.123614555704360 0.322069525948872
+	//  2918(  2) -0.200711455828816 1.124420216879072 0.321574393563807
+	//  2919(  2) -0.201036083087525 1.125230024014233 0.321085691664133
+	//  2920(  2) -0.201360110910767 1.126043991878301 0.320603548235234
+	//  2921(  2) -0.201683510022053 1.126862133518275 0.320128093430064
+	//  2922(  2) -0.202006250152229 1.127684460146083 0.319659459537167
+	//  2923(  2) -0.202328300019929 1.128510981021202 0.319197780941487
+	//  2924(  2) -0.202649627313045 1.129341703329658 0.318743194077478
+	//  2925(  2) -0.202970198671396 1.130176632059589 0.318295837374006
+	//  2926(  2) -0.203289979670754 1.131015769873531 0.317855851190515
+	//  2927(  2) -0.203608934808445 1.131859116977727 0.317423377743948
+	//  2928(  2) -0.203927027490705 1.132706670988728 0.316998561025906
+	//  2929(  2) -0.204244220022029 1.133558426797628 0.316581546709512
+	//  2930(  2) -0.204560473596707 1.134414376432346 0.316172482045517
+	//  2931(  2) -0.204875748292820 1.135274508918373 0.315771515747093
+	//  2932(  2) -0.205190003068901 1.136138810138529 0.315378797862924
+	//  2933(  2) -0.205503195763543 1.137007262692259 0.314994479638086
+	//  2934(  2) -0.205815283098188 1.137879845755116 0.314618713362364
+	//  2935(  2) -0.206126220683374 1.138756534939103 0.314251652205608
+	//  2936(  2) -0.206435963028697 1.139637302154638 0.313893450039852
+	//  2937(  2) -0.206744463556753 1.140522115474939 0.313544261247925
+	//  2938(  2) -0.207051674621328 1.141410939003708 0.313204240518396
+	//  2939(  2) -0.207357547530078 1.142303732747046 0.312873542626735
+	//  2940(  2) -0.207662032571968 1.143200452490589 0.312552322202718
+	//  2941(  2) -0.207965079049692 1.144101049682891 0.312240733484122
+	//  2942(  2) -0.208266635317301 1.145005471326164 0.311938930056961
+	//  2943(  2) -0.208566648823234 1.145913659875473 0.311647064582538
+	//  2944(  2) -0.208865066158945 1.146825553147575 0.311365288511796
+	//  2945(  2) -0.209161833113255 1.147741084240551 0.311093751787531
+	//  2946(  2) -0.209456894732563 1.148660181465449 0.310832602535196
+	//  2947(  2) -0.209750195386989 1.149582768291118 0.310581986743164
+	//  2948(  2) -0.210041678842477 1.150508763303413 0.310342047933504
+	//  2949(  2) -0.210331288338881 1.151438080179915 0.310112926824391
+	//  2950(  2) -0.210618966673933 1.152370627681282 0.309894760985550
+	//  2951(  2) -0.210904656293019 1.153306309660260 0.309687684488183
+	//  2952(  2) -0.211188299384578 1.154245025089331 0.309491827551021
+	//  2953(  2) -0.211469837980888 1.155186668107858 0.309307316184304
+	//  2954(  2) -0.211749214063978 1.156131128089473 0.309134271833559
+	//  2955(  2) -0.212026369676276 1.157078289730351 0.308972811025248
+	//  2956(  2) -0.212301247035605 1.158028033158822 0.308823045016404
+	//  2957(  2) -0.212573788654041 1.158980234066633 0.308685079450467
+	//  2958(  2) -0.212843937460094 1.159934763861997 0.308559014021620
+	//  2959(  2) -0.213111636923604 1.160891489844360 0.308444942149943
+	//  2960(  2) -0.213376831182723 1.161850275400620 0.308342950669727
+	//  2961(  2) -0.213639465172268 1.162810980222330 0.308253119533259
+	//  2962(  2) -0.213899484752700 1.163773460543196 0.308175521532398
+	//  2963(  2) -0.214156836838965 1.164737569395973 0.308110222040111
+	//  2964(  1) -0.214411469529147 1.165703156887250 0.308057278770660
+	//  2965(  1) -0.214663332227363 1.166670070491232 0.308016741581780
+	//  2966(  1) -0.214912375772340 1.167638155354769 0.307988652265409
+	//  2967(  1) -0.215158552553940 1.168607254620525 0.307973044404763
+	//  2968(  1) -0.215401816629911 1.169577209759755 0.307969943240110
+	//  2969(  1) -0.215642123836667 1.170547860915476 0.307979365568809
+	//  2970(  1) -0.215879431894257 1.171519047253397 0.308001319676371
+	//  2971(  1) -0.216113700504821 1.172490607318410 0.308035805299124
+	//  2972(  1) -0.216344891443863 1.173462379394350 0.308082813618899
+	//  2973(  1) -0.216572968643733 1.174434201864701 0.308142327289769
+	//  2974(  1) -0.216797898268817 1.175405913571909 0.308214320496642
+	//  2975(  1) -0.217019648781945 1.176377354172996 0.308298759045216
+	//  2976(  1) -0.217238191001684 1.177348364489223 0.308395600482489
+	//  2977(  1) -0.217453498150202 1.178318786847599 0.308504794246789
+	//  2978(  1) -0.217665545891536 1.179288465412187 0.308626281846042
+	//  2979(  1) -0.217874312360135 1.180257246503259 0.308759997062717
+	//  2980(  1) -0.218079778179679 1.181224978902490 0.308905866183773
+	//  2981(  1) -0.218281926472244 1.182191514142604 0.309063808253630
+	//  2982(  1) -0.218480742857959 1.183156706780014 0.309233735348179
+	//  2983(  1) -0.218676215445408 1.184120414649229 0.309415552867598
+	//  2984(  2) -0.218868334811829 1.185082499097386 0.309609159850069
+	//  2985(  2) -0.219057093980744 1.186042825201703 0.309814449278726
+	//  2986(  2) -0.219242488379837 1.187001261960433 0.310031308441084
+	//  2987(  2) -0.219424515802405 1.187957682468356 0.310259619258738
+	//  2988(  2) -0.219603176356262 1.188911964068256 0.310499258643206
+	//  2989(  2) -0.219778472407155 1.189863988481641 0.310750098853021
+	//  2990(  2) -0.219950408516209 1.190813641918354 0.311012007853520
+	//  2991(  2) -0.220118991372044 1.191760815165415 0.311284849677239
+	//  2992(  2) -0.220284229718173 1.192705403655604 0.311568484782914
+	//  2993(  2) -0.220446134276302 1.193647307516426 0.311862770411216
+	//  2994(  2) -0.220604717666178 1.194586431600218 0.312167560935508
+	//  2995(  2) -0.220759994322563 1.195522685496269 0.312482708206019
+	//  2996(  2) -0.220911980409960 1.196455983525903 0.312808061886064
+	//  2997(  2) -0.221060693735651 1.197386244721561 0.313143469778957
+	//  2998(  2) -0.221206153661588 1.198313392790948 0.313488778144595
+	//  2999(  2) -0.221348381015664 1.199237356067367 0.313843832004709
+	//  3000(  2) -0.221487398002850 1.200158067447387 0.314208475435988
+	//  3001(  2) -0.221623228116636 1.201075464316982 0.314582551850437
+	//  3002(  2) -0.221755896051211 1.201989488467289 0.314965904262443
+	//  3003(  2) -0.221885427614734 1.202900086001124 0.315358375542189
+	//  3004(  2) -0.222011849644051 1.203807207231349 0.315759808655145
+	//  3005(  2) -0.222135189921167 1.204710806572178 0.316170046887510
+	//  3006(  2) -0.222255477091714 1.205610842424438 0.316588934057580
+	//  3007(  2) -0.222372740585672 1.206507277055784 0.317016314713095
+	//  3008(  2) -0.222487010540519 1.207400076476804 0.317452034314726
+	//  3009(  2) -0.222598317726990 1.208289210313886 0.317895939405928
+	//  3010(  2) -0.222706693477558 1.209174651679683 0.318347877769452
+	//  3011(  2) -0.222812169617762 1.210056377041926 0.318807698570878
+	//  3012(  2) -0.222914778400442 1.210934366091318 0.319275252489550
+	//  3013(  2) -0.223014552442941 1.211808601609129 0.319750391837365
+	//  3014(  2) -0.223111524667297 1.212679069335094 0.320232970665905
+	//  3015(  2) -0.223205728243449 1.213545757836161 0.320722844862367
+	//  3016(  2) -0.223297196535423 1.214408658376534 0.321219872234841
+	//  3017(  2) -0.223385963050498 1.215267764789458 0.321723912587465
+	//  3018(  2) -0.223472061391293 1.216123073351127 0.322234827785956
+	//  3019(  2) -0.223555525210731 1.216974582657010 0.322752481814086
+	//  3020(  2) -0.223636388169817 1.217822293500902 0.323276740821633
+	//  3021(  2) -0.223714683898154 1.218666208756930 0.323807473164314
+	//  3022(  2) -0.223790445957116 1.219506333264702 0.324344549436237
+	//  3023(  2) -0.223863707805599 1.220342673717775 0.324887842495378
+	//  3024(  2) -0.223934502768253 1.221175238555567 0.325437227482555
+	//  3025(  2) -0.224002864006097 1.222004037858798 0.325992581834410
+	//  3026(  2) -0.224068824489433 1.222829083248551 0.326553785290819
+	//  3027(  2) -0.224132416972944 1.223650387788977 0.327120719897203
+	//  3028(  2) -0.224193673972883 1.224467965893679 0.327693270002146
+	//  3029(  2) -0.224252627746266 1.225281833235777 0.328271322250711
+	//  3030(  2) -0.224309310271937 1.226092006661619 0.328854765573873
+	//  3031(  2) -0.224363753233443 1.226898504108148 0.329443491174374
+	//  3032(  2) -0.224415988003605 1.227701344523821 0.330037392509402
+	//  3033(  2) -0.224466045630682 1.228500547793086 0.330636365270358
+	//  3034(  2) -0.224513956826057 1.229296134664293 0.331240307360066
+	//  3035(  2) -0.224559751953336 1.230088126681006 0.331849118867662
+	//  3036(  2) -0.224603461018787 1.230876546116606 0.332462702041457
+	//  3037(  2) -0.224645113663028 1.231661415912118 0.333080961260007
+	//  3038(  2) -0.224684739153878 1.232442759617137 0.333703803001625
+	//  3039(  2) -0.224722366380316 1.233220601333801 0.334331135812538
+	//  3040(  2) -0.224758023847440 1.233994965663664 0.334962870273902
+	//  3041(  2) -0.224791739672392 1.234765877657404 0.335598918967836
+	//  3042(  2) -0.224823541581146 1.235533362767245 0.336239196442663
+	//  3043(  2) -0.224853456906127 1.236297446802000 0.336883619177492
+	//  3044(  2) -0.224881512584579 1.237058155884617 0.337532105546301
+	//  3045(  2) -0.224907735157625 1.237815516412143 0.338184575781643
+	//  3046(  2) -0.224932150769983 1.238569555018010 0.338840951938078
+	//  3047(  2) -0.224954785170260 1.239320298536508 0.339501157855468
+	//  3048(  2) -0.224975663711800 1.240067773969403 0.340165119122201
+	//  3049(  2) -0.224994811354020 1.240812008454545 0.340832763038464
+	//  3050(  2) -0.225012252664206 1.241553029236431 0.341504018579605
+	//  3051(  2) -0.225028011819721 1.242290863638581 0.342178816359699
+	//  3052(  2) -0.225042112610582 1.243025539037679 0.342857088595352
+	//  3053(  2) -0.225054578442392 1.243757082839370 0.343538769069801
+	//  3054(  2) -0.225065432339563 1.244485522455637 0.344223793097386
+	//  3055(  2) -0.225074696948823 1.245210885283692 0.344912097488402
+	//  3056(  2) -0.225082394542967 1.245933198686275 0.345603620514406
+	//  3057(  2) -0.225088547024833 1.246652489973320 0.346298301873986
+	//  3058(  2) -0.225093175931465 1.247368786384896 0.346996082659037
+	//  3059(  2) -0.225096302438451 1.248082115075366 0.347696905321560
+	//  3060(  2) -0.225097947364416 1.248792503098686 0.348400713641022
+	//  3061(  2) -0.225098131175632 1.249499977394795 0.349107452692268
+	//  3062(  2) -0.225096873990755 1.250204564777045 0.349817068814027
+	//  3063(  2) -0.225094195585641 1.250906291920574 0.350529509578008
+	//  3064(  2) -0.225090115398254 1.251605185351615 0.351244723758599
+	//  3065(  2) -0.225084652533623 1.252301271437668 0.351962661303176
+	//  3066(  2) -0.225077825768862 1.252994576378477 0.352683273303029
+	//  3067(  2) -0.225069653558219 1.253685126197780 0.353406511964906
+	//  3068(  2) -0.225060154038155 1.254372946735786 0.354132330583168
+	//  3069(  2) -0.225049345032438 1.255058063642324 0.354860683512572
+	//  3070(  2) -0.225037244057244 1.255740502370639 0.355591526141663
+	//  3071(  2) -0.225023868326253 1.256420288171787 0.356324814866776
+	//  3072(  2) -0.225009234755738 1.257097446089601 0.357060507066650
+	//  3073(  2) -0.224993359969632 1.257772000956175 0.357798561077646
+	//  3074(  2) -0.224976260304578 1.258443977387862 0.358538936169551
+	//  3075(  2) -0.224957951814938 1.259113399781729 0.359281592521975
+	//  3076(  2) -0.224938450277781 1.259780292312457 0.360026491201332
+	//  3077(  2) -0.224917771197815 1.260444678929644 0.360773594138386
+	//  3078(  2) -0.224895929812285 1.261106583355501 0.361522864106360
+	//  3079(  2) -0.224872941095823 1.261766029082900 0.362274264699607
+	//  3080(  2) -0.224848819765238 1.262423039373760 0.363027760312809
+	//  3081(  2) -0.224823580284257 1.263077637257751 0.363783316120724
+	//  3082(  2) -0.224797236868210 1.263729845531287 0.364540898058445
+	//  3083(  2) -0.224769803488652 1.264379686756790 0.365300472802183
+	//  3084(  2) -0.224741293877920 1.265027183262213 0.366062007750534
+	//  3085(  2) -0.224711721533635 1.265672357140800 0.366825471006259
+	//  3086(  2) -0.224681099723134 1.266315230251062 0.367590831358527
+	//  3087(  2) -0.224649441487831 1.266955824216961 0.368358058265636
+	//  3088(  2) -0.224616759647523 1.267594160428283 0.369127121838189
+	//  3089(  2) -0.224583066804616 1.268230260041190 0.369897992822724
+	//  3090(  2) -0.224548375348289 1.268864143978927 0.370670642585771
+	//  3091(  2) -0.224512697458586 1.269495832932691 0.371445043098347
+	//  3092(  2) -0.224476045110441 1.270125347362628 0.372221166920863
+	//  3093(  2) -0.224438430077635 1.270752707498969 0.372998987188429
+	//  3094(  2) -0.224399863936676 1.271377933343274 0.373778477596571
+	//  3095(  2) -0.224360358070619 1.272001044669792 0.374559612387316
+	//  3096(  2) -0.224319923672812 1.272622061026916 0.375342366335666
+	//  3097(  2) -0.224278571750574 1.273241001738730 0.376126714736434
+	//  3098(  2) -0.224236313128804 1.273857885906642 0.376912633391427
+	//  3099(  2) -0.224193158453524 1.274472732411087 0.377700098596990
+	//  3100(  2) -0.224149118195355 1.275085559913301 0.378489087131882
+	//  3101(  2) -0.224104202652923 1.275696386857161 0.379279576245471
+	//  3102(  2) -0.224058421956203 1.276305231471074 0.380071543646263
+	//  3103(  2) -0.224011786069795 1.276912111769915 0.380864967490735
+	//  3104(  2) -0.223964304796138 1.277517045557022 0.381659826372468
+	//  3105(  2) -0.223915987778660 1.278120050426213 0.382456099311574
+	//  3106(  2) -0.223866844504859 1.278721143763853 0.383253765744418
+	//  3107(  2) -0.223816884309335 1.279320342750940 0.384052805513602
+	//  3108(  2) -0.223766116376748 1.279917664365224 0.384853198858232
+	//  3109(  2) -0.223714549744725 1.280513125383347 0.385654926404446
+	//  3110(  2) -0.223662193306702 1.281106742382996 0.386457969156188
+	//  3111(  2) -0.223609055814711 1.281698531745082 0.387262308486239
+	//  3112(  2) -0.223555145882109 1.282288509655922 0.388067926127485
+	//  3113(  2) -0.223500471986253 1.282876692109434 0.388874804164423
+	//  3114(  2) -0.223445042471113 1.283463094909338 0.389682925024887
+	//  3115(  2) -0.223388865549838 1.284047733671356 0.390492271472005
+	//  3116(  2) -0.223331949307269 1.284630623825432 0.391302826596356
+	//  3117(  1) -0.223274301703192 1.285211780619824 0.392114573807055
+	//  3118(  1) -0.223215930571527 1.285791219115668 0.392927496829562
+	//  3119(  1) -0.223156843627539 1.286368954200710 0.393741579690555
+	//  3120(  1) -0.223097048466893 1.286945000583765 0.394556806716194
+	//  3121(  1) -0.223036552568728 1.287519372798852 0.395373162523940
+	//  3122(  1) -0.222975363297867 1.288092085207360 0.396190632015892
+	//  3123(  1) -0.222913487906982 1.288663152000220 0.397009200372290
+	//  3124(  1) -0.222850933538716 1.289232587200058 0.397828853045192
+	//  3125(  1) -0.222787707227751 1.289800404663331 0.398649575752326
+	//  3126(  1) -0.222723815902844 1.290366618082458 0.399471354471082
+	//  3127(  1) -0.222659266388811 1.290931240987931 0.400294175432686
+	//  3128(  1) -0.222594065408475 1.291494286750404 0.401118025116502
+	//  3129(  1) -0.222528219584570 1.292055768582778 0.401942890244500
+	//  3130(  1) -0.222461735441603 1.292615699542264 0.402768757775853
+	//  3131(  1) -0.222394619407683 1.293174092532416 0.403595614901686
+	//  3132(  1) -0.222326877816306 1.293730960305168 0.404423449039946
+	//  3133(  1) -0.222258516908102 1.294286315462828 0.405252247830419
+	//  3134(  1) -0.222189542832553 1.294840170460074 0.406081999129862
+	//  3135(  1) -0.222119961649660 1.295392537605908 0.406912691007269
+	//  3136(  1) -0.222049779331591 1.295943429065611 0.407744311739248
+	//  3137(  1) -0.221979001764286 1.296492856862665 0.408576849805520
+	//  3138(  1) -0.221907634749029 1.297040832880652 0.409410293884534
+	//  3139(  1) -0.221835684003986 1.297587368865137 0.410244632849194
+	//  3140(  1) -0.221763155165713 1.298132476425535 0.411079855762683
+	//  3141(  1) -0.221690053790635 1.298676167036941 0.411915951874401
+	//  3142(  1) -0.221616385356487 1.299218452041954 0.412752910616005
+	//  3143(  1) -0.221542155263731 1.299759342652468 0.413590721597544
+	//  3144(  1) -0.221467368836939 1.300298849951445 0.414429374603691
+	//  3145(  1) -0.221392031326152 1.300836984894671 0.415268859590065
+	//  3146(  1) -0.221316147908207 1.301373758312480 0.416109166679654
+	//  3147(  1) -0.221239723688037 1.301909180911465 0.416950286159317
+	//  3148(  1) -0.221162763699948 1.302443263276161 0.417792208476371
+	//  3149(  1) -0.221085272908860 1.302976015870710 0.418634924235271
+	//  3150(  1) -0.221007256211535 1.303507449040500 0.419478424194361
+	//  3151(  1) -0.220928718437770 1.304037573013790 0.420322699262710
+	//  3152(  1) -0.220849664351570 1.304566397903302 0.421167740497022
+	//  3153(  1) -0.220770098652295 1.305093933707802 0.422013539098622
+	//  3154(  1) -0.220690025975785 1.305620190313654 0.422860086410515
+	//  3155(  1) -0.220609450895459 1.306145177496352 0.423707373914515
+	//  3156(  1) -0.220528377923399 1.306668904922035 0.424555393228439
+	//  3157(  1) -0.220446811511399 1.307191382148977 0.425404136103379
+	//  3158(  1) -0.220364756052009 1.307712618629058 0.426253594421024
+	//  3159(  1) -0.220282215879540 1.308232623709218 0.427103760191058
+	//  3160(  1) -0.220199195271066 1.308751406632877 0.427954625548613
+	//  3161(  1) -0.220115698447394 1.309268976541359 0.428806182751784
+	//  3162(  1) -0.220031729574016 1.309785342475264 0.429658424179200
+	//  3163(  1) -0.219947292762048 1.310300513375852 0.430511342327660
+	//  3164(  1) -0.219862392069145 1.310814498086387 0.431364929809809
+	//  3165(  1) -0.219777031500395 1.311327305353464 0.432219179351884
+	//  3166(  1) -0.219691215009205 1.311838943828324 0.433074083791505
+	//  3167(  1) -0.219604946498159 1.312349422068147 0.433929636075511
+	//  3168(  1) -0.219518229819864 1.312858748537319 0.434785829257864
+	//  3169(  1) -0.219431068777779 1.313366931608692 0.435642656497575
+	//  3170(  1) -0.219343467127029 1.313873979564820 0.436500111056705
+	//  3171(  1) -0.219255428575195 1.314379900599170 0.437358186298390
+	//  3172(  1) -0.219166956783103 1.314884702817333 0.438216875684922
+	//  3173(  1) -0.219078055365581 1.315388394238193 0.439076172775871
+	//  3174(  1) -0.218988727892214 1.315890982795106 0.439936071226249
+	//  3175(  1) -0.218898977888079 1.316392476337033 0.440796564784716
+	//  3176(  1) -0.218808808834464 1.316892882629681 0.441657647291825
+	//  3177(  1) -0.218718224169576 1.317392209356612 0.442519312678306
+	//  3178(  1) -0.218627227289237 1.317890464120340 0.443381554963392
+	//  3179(  1) -0.218535821547559 1.318387654443415 0.444244368253177
+	//  3180(  1) -0.218444010257616 1.318883787769479 0.445107746739014
+	//  3181(  1) -0.218351796692095 1.319378871464328 0.445971684695947
+	//  3182(  1) -0.218259184083938 1.319872912816930 0.446836176481177
+	//  3183(  1) -0.218166175626974 1.320365919040456 0.447701216532560
+	//  3184(  1) -0.218072774476531 1.320857897273271 0.448566799367148
+	//  3185(  1) -0.217978983750047 1.321348854579930 0.449432919579741
+	//  3186(  1) -0.217884806527662 1.321838797952144 0.450299571841497
+	//  3187(  1) -0.217790245852799 1.322327734309743 0.451166750898548
+	//  3188(  1) -0.217695304732739 1.322815670501615 0.452034451570660
+	//  3189(  1) -0.217599986139179 1.323302613306636 0.452902668749919
+	//  3190(  1) -0.217504293008788 1.323788569434593 0.453771397399439
+	//  3191(  1) -0.217408228243740 1.324273545527072 0.454640632552111
+	//  3192(  1) -0.217311794712249 1.324757548158358 0.455510369309361
+	//  3193(  1) -0.217214995249089 1.325240583836305 0.456380602839951
+	//  3194(  1) -0.217117832656102 1.325722659003199 0.457251328378791
+	//  3195(  1) -0.217020309702704 1.326203780036604 0.458122541225789
+	//  3196(  1) -0.216922429126371 1.326683953250203 0.458994236744717
+	//  3197(  1) -0.216824193633129 1.327163184894617 0.459866410362100
+	//  3198(  1) -0.216725605898021 1.327641481158220 0.460739057566135
+	//  3199(  1) -0.216626668565578 1.328118848167938 0.461612173905624
+	//  3200(  1) -0.216527384250273 1.328595291990029 0.462485754988939
+	//  3201(  1) -0.216427755536969 1.329070818630872 0.463359796482996
+	//  3202(  1) -0.216327784981363 1.329545434037717 0.464234294112265
+	//  3203(  1) -0.216227475110416 1.330019144099449 0.465109243657785
+	//  3204(  1) -0.216126828422778 1.330491954647321 0.465984640956209
+	//  3205(  1) -0.216025847389205 1.330963871455689 0.466860481898868
+	//  3206(  1) -0.215924534452970 1.331434900242730 0.467736762430850
+	//  3207(  1) -0.215822892030263 1.331905046671151 0.468613478550098
+	//  3208(  1) -0.215720922510589 1.332374316348887 0.469490626306530
+	//  3209(  1) -0.215618628257154 1.332842714829790 0.470368201801176
+	//  3210(  1) -0.215516011607245 1.333310247614305 0.471246201185324
+	//  3211(  1) -0.215413074872610 1.333776920150139 0.472124620659699
+	//  3212(  1) -0.215309820339819 1.334242737832919 0.473003456473641
+	//  3213(  1) -0.215206250270631 1.334707706006839 0.473882704924314
+	//  3214(  1) -0.215102366902346 1.335171829965300 0.474762362355918
+	//  3215(  1) -0.214998172448153 1.335635114951540 0.475642425158927
+	//  3216(  1) -0.214893669097478 1.336097566159250 0.476522889769338
+	//  3217(  1) -0.214788859016314 1.336559188733188 0.477403752667930
+	//  3218(  1) -0.214683744347559 1.337019987769783 0.478285010379548
+	//  3219(  1) -0.214578327211334 1.337479968317725 0.479166659472388
+	//  3220(  1) -0.214472609705310 1.337939135378549 0.480048696557308
+	//  3221(  1) -0.214366593905016 1.338397493907211 0.480931118287146
+	//  3222(  1) -0.214260281864153 1.338855048812660 0.481813921356050
+	//  3223(  1) -0.214153675614892 1.339311804958393 0.482697102498826
+	//  3224(  1) -0.214046777168179 1.339767767163006 0.483580658490291
+	//  3225(  1) -0.213939588514023 1.340222940200741 0.484464586144649
+	//  3226(  1) -0.213832111621787 1.340677328802017 0.485348882314869
+	//  3227(  1) -0.213724348440470 1.341130937653959 0.486233543892080
+	//  3228(  1) -0.213616300898987 1.341583771400920 0.487118567804973
+	//  3229(  1) -0.213507970906443 1.342035834644993 0.488003951019221
+	//  3230(  1) -0.213399360352402 1.342487131946514 0.488889690536908
+	//  3231(  1) -0.213290471107151 1.342937667824561 0.489775783395958
+	//  3232(  1) -0.213181305021962 1.343387446757446 0.490662226669596
+	//  3233(  1) -0.213071863929350 1.343836473183196 0.491549017465797
+	//  3234(  1) -0.212962149643319 1.344284751500033 0.492436152926758
+	//  3235(  1) -0.212852163959616 1.344732286066842 0.493323630228378
+	//  3236(  1) -0.212741908655973 1.345179081203637 0.494211446579745
+	//  3237(  1) -0.212631385492345 1.345625141192015 0.495099599222634
+	//  3238(  1) -0.212520596211148 1.346070470275605 0.495988085431013
+	//  3239(  1) -0.212409542537488 1.346515072660515 0.496876902510563
+	//  3240(  1) -0.212298226179394 1.346958952515771 0.497766047798195
+	//  3241(  1) -0.212186648828038 1.347402113973744 0.498655518661592
+	//  3242(  1) -0.212074812157959 1.347844561130580 0.499545312498744
+	//  3243(  1) -0.211962717827278 1.348286298046615 0.500435426737503
+	//  3244(  1) -0.211850367477913 1.348727328746790 0.501325858835138
+	//  3245(  1) -0.211737762735791 1.349167657221066 0.502216606277904
+	//  3246(  1) -0.211624905211049 1.349607287424810 0.503107666580614
+	//  3247(  1) -0.211511796498248 1.350046223279212 0.503999037286218
+	//  3248(  1) -0.211398438176564 1.350484468671654 0.504890715965400
+	//  3249(  1) -0.211284831809988 1.350922027456117 0.505782700216165
+	//  3250(  1) -0.211170978947523 1.351358903453543 0.506674987663450
+	//  3251(  1) -0.211056881123375 1.351795100452226 0.507567575958726
+	//  3252(  1) -0.210942539857135 1.352230622208165 0.508460462779627
+	//  3253(  1) -0.210827956653971 1.352665472445446 0.509353645829561
+	//  3254(  1) -0.210713133004809 1.353099654856587 0.510247122837351
+	//  3255(  1) -0.210598070386509 1.353533173102902 0.511140891556865
+	//  3256(  1) -0.210482770262046 1.353966030814848 0.512034949766663
+	//  3257(  1) -0.210367234080681 1.354398231592369 0.512929295269646
+	//  3258(  1) -0.210251463278132 1.354829779005237 0.513823925892710
+	//  3259(  1) -0.210135459276745 1.355260676593388 0.514718839486410
+	//  3260(  1) -0.210019223485659 1.355690927867258 0.515614033924621
+	//  3261(  1) -0.209902757300969 1.356120536308098 0.516509507104221
+	//  3262(  1) -0.209786062105887 1.356549505368309 0.517405256944760
+	//  3263(  1) -0.209669139270901 1.356977838471753 0.518301281388150
+	//  3264(  1) -0.209551990153929 1.357405539014067 0.519197578398352
+	//  3265(  1) -0.209434616100476 1.357832610362976 0.520094145961070
+	//  3266(  1) -0.209317018443786 1.358259055858593 0.520990982083451
+	//  3267(  1) -0.209199198504983 1.358684878813726 0.521888084793793
+	//  3268(  1) -0.209081157593231 1.359110082514172 0.522785452141249
+	//  3269(  1) -0.208962897005866 1.359534670219010 0.523683082195545
+	//  3270(  1) -0.208844418028547 1.359958645160890 0.524580973046702
+	//  3271(  1) -0.208725721935393 1.360382010546324 0.525479122804753
+	//  3272(  1) -0.208606809989120 1.360804769555957 0.526377529599478
+	//  3273(  1) -0.208487683441181 1.361226925344857 0.527276191580132
+	//  3274(  1) -0.208368343531898 1.361648481042781 0.528175106915189
+	//  3275(  1) -0.208248791490593 1.362069439754450 0.529074273792076
+	//  3276(  1) -0.208129028535722 1.362489804559812 0.529973690416924
+	//  3277(  1) -0.208009055874999 1.362909578514312 0.530873355014317
+	//  3278(  1) -0.207888874705525 1.363328764649147 0.531773265827046
+	//  3279(  1) -0.207768486213914 1.363747365971524 0.532673421115866
+	//  3280(  1) -0.207647891576413 1.364165385464914 0.533573819159263
+	//  3281(  1) -0.207527091959023 1.364582826089304 0.534474458253211
+	//  3282(  1) -0.207406088517622 1.364999690781438 0.535375336710951
+	//  3283(  1) -0.207284882398078 1.365415982455071 0.536276452862759
+	//  3284(  1) -0.207163474736369 1.365831704001200 0.537177805055724
+	//  3285(  1) -0.207041866658694 1.366246858288304 0.538079391653530
+	//  3286(  1) -0.206920059281586 1.366661448162583 0.538981211036238
+	//  3287(  1) -0.206798053712027 1.367075476448182 0.539883261600076
+	//  3288(  1) -0.206675851047551 1.367488945947429 0.540785541757226
+	//  3289(  1) -0.206553452376356 1.367901859441050 0.541688049935625
+	//  3290(  1) -0.206430858777411 1.368314219688399 0.542590784578753
+	//  3291(  1) -0.206308071320558 1.368726029427676 0.543493744145442
+	//  3292(  1) -0.206185091066617 1.369137291376143 0.544396927109677
+	//  3293(  1) -0.206061919067486 1.369548008230342 0.545300331960399
+	//  3294(  1) -0.205938556366245 1.369958182666300 0.546203957201319
+	//  3295(  1) -0.205815003997253 1.370367817339744 0.547107801350733
+	//  3296(  1) -0.205691262986244 1.370776914886305 0.548011862941329
+	//  3297(  1) -0.205567334350426 1.371185477921722 0.548916140520016
+	//  3298(  1) -0.205443219098577 1.371593509042043 0.549820632647736
+	//  3299(  1) -0.205318918231132 1.372001010823823 0.550725337899295
+	//  3300(  1) -0.205194432740285 1.372407985824324 0.551630254863185
+	//  3301(  1) -0.205069763610071 1.372814436581701 0.552535382141417
+	//  3302(  1) -0.204944911816464 1.373220365615204 0.553440718349349
+	//  3303(  1) -0.204819878327458 1.373625775425356 0.554346262115524
+	//  3304(  1) -0.204694664103160 1.374030668494148 0.555252012081507
+	//  3305(  1) -0.204569270095875 1.374435047285219 0.556157966901721
+	//  3306(  1) -0.204443697250187 1.374838914244041 0.557064125243291
+	//  3307(  1) -0.204317946503051 1.375242271798095 0.557970485785891
+	//  3308(  1) -0.204192018783866 1.375645122357052 0.558877047221586
+	//  3309(  1) -0.204065915014566 1.376047468312946 0.559783808254684
+	//  3310(  1) -0.203939636109692 1.376449312040352 0.560690767601583
+	//  3311(  1) -0.203813182976479 1.376850655896549 0.561597923990633
+	//  3312(  1) -0.203686556514930 1.377251502221699 0.562505276161980
+	//  3313(  1) -0.203559757617893 1.377651853339007 0.563412822867435
+	//  3314(  1) -0.203432787171140 1.378051711554885 0.564320562870324
+	//  3315(  1) -0.203305646053442 1.378451079159124 0.565228494945358
+	//  3316(  1) -0.203178335136639 1.378849958425046 0.566136617878490
+	//  3317(  1) -0.203050855285721 1.379248351609668 0.567044930466785
+	//  3318(  1) -0.202923207358892 1.379646260953857 0.567953431518289
+	//  3319(  1) -0.202795392207648 1.380043688682485 0.568862119851894
+	//  3320(  1) -0.202667410676844 1.380440637004589 0.569770994297212
+	//  3321(  1) -0.202539263604764 1.380837108113509 0.570680053694452
+	//  3322(  1) -0.202410951823192 1.381233104187056 0.571589296894286
+	//  3323(  1) -0.202282476157476 1.381628627387642 0.572498722757739
+	//  3324(  1) -0.202153837426596 1.382023679862441 0.573408330156056
+	//  3325(  1) -0.202025036443234 1.382418263743524 0.574318117970590
+	//  3326(  1) -0.201896074013832 1.382812381148008 0.575228085092680
+	//  3327(  1) -0.201766950938663 1.383206034178193 0.576138230423540
+	//  3328(  1) -0.201637668011892 1.383599224921704 0.577048552874137
+	//  3329(  1) -0.201508226021635 1.383991955451628 0.577959051365088
+	//  3330(  1) -0.201378625750028 1.384384227826652 0.578869724826540
+	//  3331(  1) -0.201248867973282 1.384776044091194 0.579780572198066
+	//  3332(  1) -0.201118953461747 1.385167406275540 0.580691592428552
+	//  3333(  1) -0.200988882979969 1.385558316395976 0.581602784476098
+	//  3334(  1) -0.200858657286752 1.385948776454914 0.582514147307906
+	//  3335(  1) -0.200728277135211 1.386338788441022 0.583425679900179
+	//  3336(  1) -0.200597743272834 1.386728354329356 0.584337381238019
+	//  3337(  1) -0.200467056441538 1.387117476081480 0.585249250315327
+	//  3338(  1) -0.200336217377722 1.387506155645590 0.586161286134702
+	//  3339(  1) -0.200205226812325 1.387894394956642 0.587073487707344
+	//  3340(  1) -0.200074085470878 1.388282195936469 0.587985854052958
+	//  3341(  1) -0.199942794073561 1.388669560493901 0.588898384199657
+	//  3342(  1) -0.199811353335254 1.389056490524888 0.589811077183871
+	//  3343(  1) -0.199679763965590 1.389442987912611 0.590723932050252
+	//  3344(  1) -0.199548026669005 1.389829054527603 0.591636947851581
+	//  3345(  1) -0.199416142144794 1.390214692227861 0.592550123648684
+	//  3346(  1) -0.199284111087157 1.390599902858962 0.593463458510334
+	//  3347(  1) -0.199151934185249 1.390984688254170 0.594376951513174
+	//  3348(  1) -0.199019612123234 1.391369050234554 0.595290601741620
+	//  3349(  1) -0.198887145580326 1.391752990609089 0.596204408287784
+	//  3350(  1) -0.198754535230848 1.392136511174774 0.597118370251384
+	//  3351(  1) -0.198621781744267 1.392519613716731 0.598032486739664
+	//  3352(  1) -0.198488885785250 1.392902300008314 0.598946756867313
+	//  3353(  1) -0.198355848013710 1.393284571811218 0.599861179756380
+	//  3354(  1) -0.198222669084844 1.393666430875572 0.600775754536196
+	//  3355(  1) -0.198089349649188 1.394047878940053 0.601690480343300
+	//  3356(  1) -0.197955890352657 1.394428917731980 0.602605356321351
+	//  3357(  1) -0.197822291836588 1.394809548967415 0.603520381621064
+	//  3358(  1) -0.197688554737786 1.395189774351269 0.604435555400123
+	//  3359(  1) -0.197554679688569 1.395569595577390 0.605350876823114
+	//  3360(  1) -0.197420667316805 1.395949014328664 0.606266345061446
+	//  3361(  1) -0.197286518245958 1.396328032277115 0.607181959293284
+	//  3362(  1) -0.197152233095130 1.396706651083992 0.608097718703471
+	//  3363(  1) -0.197017812479102 1.397084872399871 0.609013622483462
+	//  3364(  1) -0.196883257008372 1.397462697864741 0.609929669831251
+	//  3365(  1) -0.196748567289198 1.397840129108098 0.610845859951306
+	//  3366(  1) -0.196613743923636 1.398217167749040 0.611762192054495
+	//  3367(  1) -0.196478787509581 1.398593815396350 0.612678665358025
+	//  3368(  1) -0.196343698640805 1.398970073648589 0.613595279085368
+	//  3369(  1) -0.196208477906993 1.399345944094180 0.614512032466206
+	//  3370(  1) -0.196073125893787 1.399721428311503 0.615428924736357
+	//  3371(  1) -0.195937643182814 1.400096527868972 0.616345955137715
+	//  3372(  1) -0.195802030351734 1.400471244325124 0.617263122918187
+	//  3373(  1) -0.195666287974268 1.400845579228703 0.618180427331630
+	//  3374(  1) -0.195530416620238 1.401219534118744 0.619097867637791
+	//  3375(  1) -0.195394416855603 1.401593110524655 0.620015443102244
+	//  3376(  1) -0.195258289242491 1.401966309966297 0.620933152996331
+	//  3377(  1) -0.195122034339240 1.402339133954065 0.621850996597107
+	//  3378(  1) -0.194985652700424 1.402711583988970 0.622768973187273
+	//  3379(  1) -0.194849144876897 1.403083661562716 0.623687082055127
+	//  3380(  1) -0.194712511415819 1.403455368157777 0.624605322494501
+	//  3381(  1) -0.194575752860693 1.403826705247479 0.625523693804708
+	//  3382(  1) -0.194438869751396 1.404197674296071 0.626442195290486
+	//  3383(  1) -0.194301862624215 1.404568276758803 0.627360826261942
+	//  3384(  1) -0.194164732011876 1.404938514082003 0.628279586034499
+	//  3385(  1) -0.194027478443576 1.405308387703146 0.629198473928843
+	//  3386(  1) -0.193890102445016 1.405677899050932 0.630117489270867
+	//  3387(  1) -0.193752604538433 1.406047049545358 0.631036631391625
+	//  3388(  1) -0.193614985242628 1.406415840597786 0.631955899627273
+	//  3389(  1) -0.193477245072999 1.406784273611020 0.632875293319023
+	//  3390(  1) -0.193339384541570 1.407152349979371 0.633794811813092
+	//  3391(  1) -0.193201404157019 1.407520071088729 0.634714454460652
+	//  3392(  1) -0.193063304424714 1.407887438316634 0.635634220617781
+	//  3393(  1) -0.192925085846732 1.408254453032340 0.636554109645412
+	//  3394(  1) -0.192786748921898 1.408621116596884 0.637474120909290
+	//  3395(  1) -0.192648294145808 1.408987430363155 0.638394253779923
+	//  3396(  1) -0.192509722010857 1.409353395675957 0.639314507632531
+	//  3397(  1) -0.192371033006268 1.409719013872078 0.640234881847007
+	//  3398(  1) -0.192232227618121 1.410084286280350 0.641155375807865
+	//  3399(  1) -0.192093306329379 1.410449214221718 0.642075988904200
+	//  3400(  1) -0.191954269619915 1.410813799009300 0.642996720529640
+	//  3401(  1) -0.191815117966537 1.411178041948452 0.643917570082303
+	//  3402(  1) -0.191675851843019 1.411541944336831 0.644838536964754
+	//  3403(  1) -0.191536471720122 1.411905507464451 0.645759620583964
+	//  3404(  1) -0.191396978065623 1.412268732613752 0.646680820351262
+	//  3405(  1) -0.191257371344339 1.412631621059654 0.647602135682299
+	//  3406(  1) -0.191117652018155 1.412994174069621 0.648523565997002
+	//  3407(  1) -0.190977820546045 1.413356392903717 0.649445110719538
+	//  3408(  1) -0.190837877384099 1.413718278814666 0.650366769278269
+	//  3409(  1) -0.190697822985550 1.414079833047912 0.651288541105713
+	//  3410(  1) -0.190557657800791 1.414441056841670 0.652210425638506
+	//  3411(  1) -0.190417382277407 1.414801951426992 0.653132422317364
+	//  3412(  1) -0.190276996860194 1.415162518027816 0.654054530587040
+	//  3413(  1) -0.190136501991184 1.415522757861024 0.654976749896289
+	//  3414(  1) -0.189995898109667 1.415882672136499 0.655899079697830
+	//  3415(  1) -0.189855185652217 1.416242262057177 0.656821519448310
+	//  3416(  1) -0.189714365052710 1.416601528819102 0.657744068608263
+	//  3417(  1) -0.189573436742351 1.416960473611481 0.658666726642078
+	//  3418(  1) -0.189432401149693 1.417319097616735 0.659589493017961
+	//  3419(  1) -0.189291258700664 1.417677402010553 0.660512367207898
+	//  3420(  1) -0.189150009818579 1.418035387961942 0.661435348687625
+	//  3421(  1) -0.189008654924174 1.418393056633281 0.662358436936586
+	//  3422(  1) -0.188867194435617 1.418750409180372 0.663281631437904
+	//  3423(  1) -0.188725628768535 1.419107446752488 0.664204931678347
+	//  3424(  1) -0.188583958336034 1.419464170492426 0.665128337148289
+	//  3425(  1) -0.188442183548717 1.419820581536552 0.666051847341685
+	//  3426(  1) -0.188300304814707 1.420176681014858 0.666975461756030
+	//  3427(  1) -0.188158322539667 1.420532470051003 0.667899179892333
+	//  3428(  1) -0.188016237126821 1.420887949762363 0.668823001255080
+	//  3429(  1) -0.187874048976969 1.421243121260082 0.669746925352205
+	//  3430(  1) -0.187731758488514 1.421597985649117 0.670670951695060
+	//  3431(  1) -0.187589366057476 1.421952544028284 0.671595079798380
+	//  3432(  1) -0.187446872077512 1.422306797490303 0.672519309180255
+	//  3433(  1) -0.187304276939938 1.422660747121850 0.673443639362099
+	//  3434(  1) -0.187161581033744 1.423014394003595 0.674368069868621
+	//  3435(  1) -0.187018784745616 1.423367739210254 0.675292600227791
+	//  3436(  1) -0.186875888459952 1.423720783810626 0.676217229970819
+	//  3437(  1) -0.186732892558882 1.424073528867644 0.677141958632117
+	//  3438(  1) -0.186589797422285 1.424425975438417 0.678066785749277
+	//  3439(  1) -0.186446603427808 1.424778124574269 0.678991710863037
+	//  3440(  1) -0.186303310950882 1.425129977320788 0.679916733517258
+	//  3441(  1) -0.186159920364743 1.425481534717866 0.680841853258895
+	//  3442(  1) -0.186016432040444 1.425832797799741 0.681767069637967
+	//  3443(  1) -0.185872846346877 1.426183767595038 0.682692382207530
+	//  3444(  1) -0.185729163650789 1.426534445126811 0.683617790523656
+	//  3445(  1) -0.185585384316797 1.426884831412586 0.684543294145397
+	//  3446(  1) -0.185441508707408 1.427234927464400 0.685468892634769
+	//  3447(  1) -0.185297537183030 1.427584734288839 0.686394585556717
+	//  3448(  1) -0.185153470101997 1.427934252887082 0.687320372479094
+	//  3449(  1) -0.185009307820576 1.428283484254938 0.688246252972636
+	//  3450(  1) -0.184865050692988 1.428632429382886 0.689172226610933
+	//  3451(  1) -0.184720699071426 1.428981089256112 0.690098292970410
+	//  3452(  1) -0.184576253306064 1.429329464854552 0.691024451630295
+	//  3453(  1) -0.184431713745080 1.429677557152923 0.691950702172603
+	//  3454(  1) -0.184287080734666 1.430025367120769 0.692877044182103
+	//  3455(  1) -0.184142354619047 1.430372895722491 0.693803477246304
+	//  3456(  1) -0.183997535740492 1.430720143917388 0.694730000955420
+	//  3457(  1) -0.183852624439334 1.431067112659693 0.695656614902358
+	//  3458(  1) -0.183707621053981 1.431413802898610 0.696583318682687
+	//  3459(  1) -0.183562525920933 1.431760215578349 0.697510111894618
+	//  3460(  1) -0.183417339374794 1.432106351638161 0.698436994138983
+	//  3461(  1) -0.183272061748292 1.432452212012375 0.699363965019208
+	//  3462(  1) -0.183126693372284 1.432797797630434 0.700291024141297
+	//  3463(  1) -0.182981234575780 1.433143109416925 0.701218171113805
+	//  3464(  1) -0.182835685685951 1.433488148291622 0.702145405547817
+	//  3465(  1) -0.182690047028144 1.433832915169508 0.703072727056930
+	//  3466(  1) -0.182544318925898 1.434177410960823 0.704000135257230
+	//  3467(  1) -0.182398501700954 1.434521636571084 0.704927629767267
+	//  3468(  1) -0.182252595673272 1.434865592901129 0.705855210208042
+	//  3469(  1) -0.182106601161041 1.435209280847144 0.706782876202979
+	//  3470(  1) -0.181960518480697 1.435552701300696 0.707710627377910
+	//  3471(  1) -0.181814347946930 1.435895855148769 0.708638463361051
+	//  3472(  1) -0.181668089872702 1.436238743273791 0.709566383782985
+	//  3473(  1) -0.181521744569258 1.436581366553671 0.710494388276640
+	//  3474(  1) -0.181375312346138 1.436923725861825 0.711422476477272
+	//  3475(  1) -0.181228793511192 1.437265822067213 0.712350648022443
+	//  3476(  1) -0.181082188370590 1.437607656034365 0.713278902552004
+	//  3477(  1) -0.180935497228836 1.437949228623417 0.714207239708073
+	//  3478(  1) -0.180788720388778 1.438290540690134 0.715135659135022
+	//  3479(  1) -0.180641858151624 1.438631593085947 0.716064160479452
+	//  3480(  1) -0.180494910816951 1.438972386657981 0.716992743390178
+	//  3481(  1) -0.180347878682718 1.439312922249082 0.717921407518212
+	//  3482(  1) -0.180200762045277 1.439653200697850 0.718850152516741
+	//  3483(  1) -0.180053561199388 1.439993222838666 0.719778978041112
+	//  3484(  1) -0.179906276438226 1.440332989501721 0.720707883748817
+	//  3485(  1) -0.179758908053394 1.440672501513045 0.721636869299468
+	//  3486(  1) -0.179611456334937 1.441011759694536 0.722565934354787
+	//  3487(  1) -0.179463921571351 1.441350764863989 0.723495078578586
+	//  3488(  1) -0.179316304049593 1.441689517835120 0.724424301636748
+	//  3489(  1) -0.179168604055095 1.442028019417596 0.725353603197215
+	//  3490(  1) -0.179020821871774 1.442366270417064 0.726282982929968
+	//  3491(  1) -0.178872957782042 1.442704271635177 0.727212440507010
+	//  3492(  1) -0.178725012066817 1.443042023869620 0.728141975602354
+	//  3493(  1) -0.178576985005534 1.443379527914137 0.729071587892001
+	//  3494(  1) -0.178428876876157 1.443716784558558 0.730001277053929
+	//  3495(  1) -0.178280687955188 1.444053794588827 0.730931042768074
+	//  3496(  1) -0.178132418517677 1.444390558787024 0.731860884716317
+	//  3497(  1) -0.177984068837232 1.444727077931394 0.732790802582467
+	//  3498(  1) -0.177835639186032 1.445063352796372 0.733720796052244
+	//  3499(  1) -0.177687129834834 1.445399384152607 0.734650864813269
+	//  3500(  1) -0.177538541052987 1.445735172766989 0.735581008555042
+	//  3501(  1) -0.177389873108435 1.446070719402675 0.736511226968934
+	//  3502(  1) -0.177241126267736 1.446406024819109 0.737441519748166
+	//  3503(  1) -0.177092300796063 1.446741089772052 0.738371886587800
+	//  3504(  1) -0.176943396957220 1.447075915013603 0.739302327184721
+	//  3505(  1) -0.176794415013650 1.447410501292222 0.740232841237624
+	//  3506(  1) -0.176645355226441 1.447744849352760 0.741163428446998
+	//  3507(  1) -0.176496217855340 1.448078959936477 0.742094088515116
+	//  3508(  1) -0.176347003158763 1.448412833781068 0.743024821146017
+	//  3509(  1) -0.176197711393797 1.448746471620683 0.743955626045494
+	//  3510(  1) -0.176048342816218 1.449079874185955 0.744886502921081
+	//  3511(  1) -0.175898897680497 1.449413042204023 0.745817451482037
+	//  3512(  1) -0.175749376239803 1.449745976398548 0.746748471439336
+	//  3513(  1) -0.175599778746023 1.450078677489745 0.747679562505651
+	//  3514(  1) -0.175450105449763 1.450411146194396 0.748610724395342
+	//  3515(  1) -0.175300356600359 1.450743383225880 0.749541956824445
+	//  3516(  1) -0.175150532445885 1.451075389294192 0.750473259510654
+	//  3517(  1) -0.175000633233163 1.451407165105963 0.751404632173313
+	//  3518(  1) -0.174850659207771 1.451738711364486 0.752336074533402
+	//  3519(  1) -0.174700610614052 1.452070028769731 0.753267586313523
+	//  3520(  1) -0.174550487695121 1.452401118018374 0.754199167237890
+	//  3521(  1) -0.174400290692874 1.452731979803813 0.755130817032316
+	//  3522(  1) -0.174250019847998 1.453062614816191 0.756062535424197
+	//  3523(  1) -0.174099675399977 1.453393023742416 0.756994322142507
+	//  3524(  1) -0.173949257587100 1.453723207266182 0.757926176917782
+	//  3525(  1) -0.173798766646471 1.454053166067989 0.758858099482107
+	//  3526(  1) -0.173648202814015 1.454382900825166 0.759790089569107
+	//  3527(  1) -0.173497566324488 1.454712412211885 0.760722146913934
+	//  3528(  1) -0.173346857411483 1.455041700899188 0.761654271253255
+	//  3529(  1) -0.173196076307440 1.455370767555003 0.762586462325243
+	//  3530(  1) -0.173045223243650 1.455699612844165 0.763518719869563
+	//  3531(  1) -0.172894298450268 1.456028237428433 0.764451043627363
+	//  3532(  1) -0.172743302156314 1.456356641966513 0.765383433341259
+	//  3533(  1) -0.172592234589687 1.456684827114077 0.766315888755331
+	//  3534(  1) -0.172441095977168 1.457012793523777 0.767248409615106
+	//  3535(  1) -0.172289886544431 1.457340541845270 0.768180995667548
+	//  3536(  1) -0.172138606516046 1.457668072725234 0.769113646661051
+	//  3537(  1) -0.171987256115490 1.457995386807386 0.770046362345424
+	//  3538(  1) -0.171835835565154 1.458322484732502 0.770979142471885
+	//  3539(  1) -0.171684345086347 1.458649367138435 0.771911986793047
+	//  3540(  1) -0.171532784899306 1.458976034660132 0.772844895062906
+	//  3541(  1) -0.171381155223204 1.459302487929653 0.773777867036839
+	//  3542(  1) -0.171229456276152 1.459628727576191 0.774710902471584
+	//  3543(  1) -0.171077688275212 1.459954754226084 0.775644001125237
+	//  3544(  1) -0.170925851436400 1.460280568502839 0.776577162757240
+	//  3545(  1) -0.170773945974694 1.460606171027144 0.777510387128370
+	//  3546(  1) -0.170621972104040 1.460931562416890 0.778443674000729
+	//  3547(  1) -0.170469930037362 1.461256743287186 0.779377023137737
+	//  3548(  1) -0.170317819986564 1.461581714250376 0.780310434304121
+	//  3549(  1) -0.170165642162538 1.461906475916055 0.781243907265904
+	//  3550(  1) -0.170013396775172 1.462231028891088 0.782177441790398
+	//  3551(  1) -0.169861084033358 1.462555373779626 0.783111037646195
+	//  3552(  1) -0.169708704144992 1.462879511183122 0.784044694603153
+	//  3553(  1) -0.169556257316988 1.463203441700346 0.784978412432394
+	//  3554(  1) -0.169403743755279 1.463527165927405 0.785912190906289
+	//  3555(  1) -0.169251163664826 1.463850684457757 0.786846029798452
+	//  3556(  1) -0.169098517249624 1.464173997882227 0.787779928883730
+	//  3557(  1) -0.168945804712706 1.464497106789020 0.788713887938196
+	//  3558(  1) -0.168793026256152 1.464820011763744 0.789647906739137
+	//  3559(  1) -0.168640182081093 1.465142713389421 0.790581985065048
+	//  3560(  1) -0.168487272387719 1.465465212246500 0.791516122695623
+	//  3561(  1) -0.168334297375283 1.465787508912878 0.792450319411744
+	//  3562(  1) -0.168181257242109 1.466109603963912 0.793384574995477
+	//  3563(  1) -0.168028152185594 1.466431497972436 0.794318889230061
+	//  3564(  1) -0.167874982402219 1.466753191508775 0.795253261899898
+	//  3565(  1) -0.167721748087553 1.467074685140759 0.796187692790549
+	//  3566(  1) -0.167568449436255 1.467395979433741 0.797122181688722
+	//  3567(  1) -0.167415086642085 1.467717074950606 0.798056728382265
+	//  3568(  1) -0.167261659897908 1.468037972251794 0.798991332660161
+	//  3569(  1) -0.167108169395698 1.468358671895307 0.799925994312516
+	//  3570(  1) -0.166954615326544 1.468679174436727 0.800860713130551
+	//  3571(  1) -0.166800997880658 1.468999480429230 0.801795488906599
+	//  3572(  1) -0.166647317247377 1.469319590423599 0.802730321434092
+	//  3573(  1) -0.166493573615171 1.469639504968241 0.803665210507556
+	//  3574(  1) -0.166339767171649 1.469959224609198 0.804600155922603
+	//  3575(  1) -0.166185898103559 1.470278749890160 0.805535157475924
+	//  3576(  1) -0.166031966596801 1.470598081352483 0.806470214965278
+	//  3577(  1) -0.165877972836427 1.470917219535199 0.807405328189492
+	//  3578(  1) -0.165723917006647 1.471236164975033 0.808340496948444
+	//  3579(  1) -0.165569799290837 1.471554918206411 0.809275721043064
+	//  3580(  1) -0.165415619871539 1.471873479761480 0.810211000275325
+	//  3581(  1) -0.165261378930472 1.472191850170116 0.811146334448229
+	//  3582(  1) -0.165107076648533 1.472510029959942 0.812081723365811
+	//  3583(  1) -0.164952713205803 1.472828019656335 0.813017166833123
+	//  3584(  1) -0.164798288781553 1.473145819782445 0.813952664656231
+	//  3585(  1) -0.164643803554249 1.473463430859203 0.814888216642208
+	//  3586(  1) -0.164489257701553 1.473780853405338 0.815823822599126
+	//  3587(  1) -0.164334651400334 1.474098087937387 0.816759482336049
+	//  3588(  1) -0.164179984826670 1.474415134969709 0.817695195663028
+	//  3589(  1) -0.164025258155851 1.474731995014497 0.818630962391093
+	//  3590(  1) -0.163870471562385 1.475048668581788 0.819566782332248
+	//  3591(  1) -0.163715625220006 1.475365156179482 0.820502655299460
+	//  3592(  1) -0.163560719301672 1.475681458313346 0.821438581106657
+	//  3593(  1) -0.163405753979578 1.475997575487034 0.822374559568721
+	//  3594(  1) -0.163250729425152 1.476313508202090 0.823310590501481
+	//  3595(  1) -0.163095645809067 1.476629256957971 0.824246673721703
+	//  3596(  1) -0.162940503301240 1.476944822252050 0.825182809047090
+	//  3597(  1) -0.162785302070840 1.477260204579631 0.826118996296272
+	//  3598(  1) -0.162630042286290 1.477575404433962 0.827055235288801
+	//  3599(  1) -0.162474724115275 1.477890422306244 0.827991525845143
+	//  3600(  1) -0.162319347724743 1.478205258685645 0.828927867786675
+	//  3601(  1) -0.162163913280909 1.478519914059309 0.829864260935675
+	//  3602(  1) -0.162008420949263 1.478834388912371 0.830800705115320
+	//  3603(  1) -0.161852870894572 1.479148683727965 0.831737200149677
+	//  3604(  1) -0.161697263280884 1.479462798987236 0.832673745863701
+	//  3605(  1) -0.161541598271532 1.479776735169352 0.833610342083222
+	//  3606(  1) -0.161385876029142 1.480090492751515 0.834546988634948
+	//  3607(  1) -0.161230096715629 1.480404072208970 0.835483685346453
+	//  3608(  1) -0.161074260492212 1.480717474015020 0.836420432046172
+	//  3609(  1) -0.160918367519409 1.481030698641034 0.837357228563400
+	//  3610(  1) -0.160762417957044 1.481343746556455 0.838294074728279
+	//  3611(  1) -0.160606411964255 1.481656618228819 0.839230970371798
+	//  3612(  1) -0.160450349699492 1.481969314123756 0.840167915325788
+	//  3613(  1) -0.160294231320524 1.482281834705008 0.841104909422910
+	//  3614(  1) -0.160138056984444 1.482594180434435 0.842041952496658
+	//  3615(  1) -0.159981826847670 1.482906351772028 0.842979044381347
+	//  3616(  1) -0.159825541065952 1.483218349175917 0.843916184912110
+	//  3617(  1) -0.159669199794372 1.483530173102383 0.844853373924894
+	//  3618(  1) -0.159512803187354 1.483841824005870 0.845790611256454
+	//  3619(  1) -0.159356351398660 1.484153302338987 0.846727896744346
+	//  3620(  1) -0.159199844581402 1.484464608552531 0.847665230226923
+	//  3621(  1) -0.159043282888038 1.484775743095485 0.848602611543332
+	//  3622(  1) -0.158886666470383 1.485086706415035 0.849540040533504
+	//  3623(  1) -0.158729995479605 1.485397498956575 0.850477517038155
+	//  3624(  1) -0.158573270066237 1.485708121163722 0.851415040898775
+	//  3625(  1) -0.158416490380174 1.486018573478323 0.852352611957627
+	//  3626(  1) -0.158259656570680 1.486328856340462 0.853290230057741
+	//  3627(  1) -0.158102768786391 1.486638970188475 0.854227895042910
+	//  3628(  1) -0.157945827175319 1.486948915458957 0.855165606757682
+	//  3629(  1) -0.157788831884852 1.487258692586767 0.856103365047358
+	//  3630(  1) -0.157631783061765 1.487568302005046 0.857041169757988
+	//  3631(  1) -0.157474680852214 1.487877744145221 0.857979020736363
+	//  3632(  1) -0.157317525401750 1.488187019437013 0.858916917830013
+	//  3633(  1) -0.157160316855312 1.488496128308450 0.859854860887200
+	//  3634(  1) -0.157003055357239 1.488805071185874 0.860792849756917
+	//  3635(  1) -0.156845741051268 1.489113848493950 0.861730884288879
+	//  3636(  1) -0.156688374080539 1.489422460655677 0.862668964333523
+	//  3637(  1) -0.156530954587599 1.489730908092393 0.863607089741997
+	//  3638(  1) -0.156373482714406 1.490039191223787 0.864545260366165
+	//  3639(  1) -0.156215958602329 1.490347310467909 0.865483476058592
+	//  3640(  1) -0.156058382392157 1.490655266241174 0.866421736672547
+	//  3641(  1) -0.155900754224095 1.490963058958376 0.867360042061997
+	//  3642(  1) -0.155743074237773 1.491270689032692 0.868298392081601
+	//  3643(  1) -0.155585342572247 1.491578156875693 0.869236786586706
+	//  3644(  1) -0.155427559366002 1.491885462897353 0.870175225433343
+	//  3645(  1) -0.155269724756958 1.492192607506056 0.871113708478226
+	//  3646(  1) -0.155111838882467 1.492499591108607 0.872052235578741
+	//  3647(  1) -0.154953901879322 1.492806414110236 0.872990806592948
+	//  3648(  1) -0.154795913883759 1.493113076914609 0.873929421379573
+	//  3649(  1) -0.154637875031457 1.493419579923837 0.874868079798007
+	//  3650(  1) -0.154479785457546 1.493725923538483 0.875806781708300
+	//  3651(  1) -0.154321645296604 1.494032108157570 0.876745526971154
+	//  3652(  1) -0.154163454682665 1.494338134178588 0.877684315447927
+	//  3653(  1) -0.154005213749221 1.494644001997506 0.878623147000621
+	//  3654(  1) -0.153846922629224 1.494949712008775 0.879562021491881
+	//  3655(  1) -0.153688581455087 1.495255264605340 0.880500938784994
+	//  3656(  1) -0.153530190358692 1.495560660178645 0.881439898743878
+	//  3657(  1) -0.153371749471389 1.495865899118642 0.882378901233087
+	//  3658(  1) -0.153213258924000 1.496170981813798 0.883317946117799
+	//  3659(  1) -0.153054718846822 1.496475908651105 0.884257033263819
+	//  3660(  1) -0.152896129369630 1.496780680016086 0.885196162537567
+	//  3661(  1) -0.152737490621679 1.497085296292801 0.886135333806085
+	//  3662(  1) -0.152578802731708 1.497389757863856 0.887074546937023
+	//  3663(  1) -0.152420065827943 1.497694065110413 0.888013801798643
+	//  3664(  1) -0.152261280038096 1.497998218412194 0.888953098259809
+	//  3665(  1) -0.152102445489375 1.498302218147489 0.889892436189988
+	//  3666(  1) -0.151943562308480 1.498606064693163 0.890831815459245
+	//  3667(  1) -0.151784630621607 1.498909758424668 0.891771235938238
+	//  3668(  1) -0.151625650554456 1.499213299716042 0.892710697498218
+	//  3669(  1) -0.151466622232226 1.499516688939924 0.893650200011020
+	//  3670(  1) -0.151307545779623 1.499819926467556 0.894589743349064
+	//  3671(  1) -0.151148421320861 1.500123012668793 0.895529327385350
+	//  3672(  1) -0.150989248979663 1.500425947912108 0.896468951993454
+	//  3673(  1) -0.150830028879269 1.500728732564602 0.897408617047527
+	//  3674(  1) -0.150670761142430 1.501031366992007 0.898348322422286
+	//  3675(  1) -0.150511445891420 1.501333851558696 0.899288067993018
+	//  3676(  1) -0.150352083248030 1.501636186627690 0.900227853635571
+	//  3677(  1) -0.150192673333577 1.501938372560661 0.901167679226352
+	//  3678(  1) -0.150033216268905 1.502240409717945 0.902107544642327
+	//  3679(  1) -0.149873712174383 1.502542298458543 0.903047449761013
+	//  3680(  1) -0.149714161169914 1.502844039140132 0.903987394460475
+	//  3681(  1) -0.149554563374934 1.503145632119066 0.904927378619329
+	//  3682(  1) -0.149394918908415 1.503447077750391 0.905867402116729
+	//  3683(  1) -0.149235227888868 1.503748376387845 0.906807464832373
+	//  3684(  1) -0.149075490434342 1.504049528383865 0.907747566646495
+	//  3685(  1) -0.148915706662434 1.504350534089598 0.908687707439861
+	//  3686(  1) -0.148755876690283 1.504651393854902 0.909627887093769
+	//  3687(  1) -0.148596000634579 1.504952108028359 0.910568105490045
+	//  3688(  1) -0.148436078611559 1.505252676957272 0.911508362511037
+	//  3689(  1) -0.148276110737015 1.505553100987678 0.912448658039617
+	//  3690(  1) -0.148116097126296 1.505853380464358 0.913388991959174
+	//  3691(  1) -0.147956037894305 1.506153515730832 0.914329364153613
+	//  3692(  1) -0.147795933155506 1.506453507129374 0.915269774507349
+	//  3693(  1) -0.147635783023926 1.506753355001016 0.916210222905310
+	//  3694(  1) -0.147475587613157 1.507053059685554 0.917150709232927
+	//  3695(  1) -0.147315347036354 1.507352621521553 0.918091233376136
+	//  3696(  1) -0.147155061406246 1.507652040846355 0.919031795221373
+	//  3697(  1) -0.146994730835128 1.507951317996083 0.919972394655572
+	//  3698(  1) -0.146834355434872 1.508250453305649 0.920913031566162
+	//  3699(  1) -0.146673935316924 1.508549447108759 0.921853705841062
+	//  3700(  1) -0.146513470592309 1.508848299737918 0.922794417368683
+	//  3701(  1) -0.146352961371630 1.509147011524438 0.923735166037920
+	//  3702(  1) -0.146192407765073 1.509445582798442 0.924675951738152
+	//  3703(  1) -0.146031809882408 1.509744013888870 0.925616774359239
+	//  3704(  1) -0.145871167832992 1.510042305123487 0.926557633791519
+	//  3705(  1) -0.145710481725770 1.510340456828885 0.927498529925805
+	//  3706(  1) -0.145549751669278 1.510638469330492 0.928439462653382
+	//  3707(  1) -0.145388977771643 1.510936342952576 0.929380431866006
+	//  3708(  1) -0.145228160140588 1.511234078018252 0.930321437455899
+	//  3709(  1) -0.145067298883434 1.511531674849484 0.931262479315747
+	//  3710(  1) -0.144906394107099 1.511829133767095 0.932203557338701
+	//  3711(  1) -0.144745445918101 1.512126455090772 0.933144671418367
+	//  3712(  1) -0.144584454422565 1.512423639139068 0.934085821448810
+	//  3713(  1) -0.144423419726216 1.512720686229411 0.935027007324549
+	//  3714(  1) -0.144262341934388 1.513017596678107 0.935968228940554
+	//  3715(  1) -0.144101221152026 1.513314370800347 0.936909486192244
+	//  3716(  1) -0.143940057483682 1.513611008910213 0.937850778975485
+	//  3717(  1) -0.143778851033524 1.513907511320680 0.938792107186586
+	//  3718(  1) -0.143617601905332 1.514203878343626 0.939733470722298
+	//  3719(  1) -0.143456310202506 1.514500110289833 0.940674869479810
+	//  3720(  1) -0.143294976028061 1.514796207468994 0.941616303356749
+	//  3721(  1) -0.143133599484636 1.515092170189720 0.942557772251176
+	//  3722(  1) -0.142972180674490 1.515387998759541 0.943499276061582
+	//  3723(  1) -0.142810719699507 1.515683693484916 0.944440814686888
+	//  3724(  1) -0.142649216661198 1.515979254671233 0.945382388026442
+	//  3725(  1) -0.142487671660700 1.516274682622819 0.946323995980017
+	//  3726(  1) -0.142326084798784 1.516569977642942 0.947265638447808
+	//  3727(  1) -0.142164456175847 1.516865140033816 0.948207315330428
+	//  3728(  1) -0.142002785891925 1.517160170096608 0.949149026528909
+	//  3729(  1) -0.141841074046685 1.517455068131440 0.950090771944699
+	//  3730(  1) -0.141679320739436 1.517749834437399 0.951032551479657
+	//  3731(  1) -0.141517526069120 1.518044469312534 0.951974365036053
+	//  3732(  1) -0.141355690134326 1.518338973053870 0.952916212516566
+	//  3733(  1) -0.141193813033281 1.518633345957405 0.953858093824280
+	//  3734(  1) -0.141031894863859 1.518927588318119 0.954800008862685
+	//  3735(  1) -0.140869935723578 1.519221700429979 0.955741957535669
+	//  3736(  1) -0.140707935709605 1.519515682585941 0.956683939747522
+	//  3737(  1) -0.140545894918756 1.519809535077957 0.957625955402932
+	//  3738(  1) -0.140383813447500 1.520103258196980 0.958568004406980
+	//  3739(  1) -0.140221691391957 1.520396852232966 0.959510086665140
+	//  3740(  1) -0.140059528847901 1.520690317474882 0.960452202083277
+	//  3741(  1) -0.139897325910765 1.520983654210707 0.961394350567647
+	//  3742(  1) -0.139735082675638 1.521276862727441 0.962336532024889
+	//  3743(  1) -0.139572799237269 1.521569943311105 0.963278746362028
+	//  3744(  1) -0.139410475690069 1.521862896246748 0.964220993486471
+	//  3745(  1) -0.139248112128112 1.522155721818454 0.965163273306007
+	//  3746(  1) -0.139085708645135 1.522448420309339 0.966105585728800
+	//  3747(  1) -0.138923265334543 1.522740992001564 0.967047930663393
+	//  3748(  1) -0.138760782289408 1.523033437176334 0.967990308018701
+	//  3749(  1) -0.138598259602472 1.523325756113902 0.968932717704013
+	//  3750(  1) -0.138435697366148 1.523617949093580 0.969875159628987
+	//  3751(  1) -0.138273095672521 1.523910016393733 0.970817633703649
+	//  3752(  1) -0.138110454613350 1.524201958291794 0.971760139838393
+	//  3753(  1) -0.137947774280072 1.524493775064261 0.972702677943973
+	//  3754(  1) -0.137785054763798 1.524785466986704 0.973645247931510
+	//  3755(  1) -0.137622296155321 1.525077034333767 0.974587849712483
+	//  3756(  1) -0.137459498545112 1.525368477379177 0.975530483198729
+	//  3757(  1) -0.137296662023325 1.525659796395743 0.976473148302442
+	//  3758(  1) -0.137133786679798 1.525950991655364 0.977415844936172
+	//  3759(  1) -0.136970872604053 1.526242063429031 0.978358573012819
+	//  3760(  1) -0.136807919885299 1.526533011986832 0.979301332445636
+	//  3761(  1) -0.136644928612433 1.526823837597953 0.980244123148223
+	//  3762(  1) -0.136481898874040 1.527114540530690 0.981186945034529
+	//  3763(  1) -0.136318830758399 1.527405121052444 0.982129798018848
+	//  3764(  1) -0.136155724353478 1.527695579429730 0.983072682015816
+	//  3765(  1) -0.135992579746942 1.527985915928180 0.984015596940412
+	//  3766(  1) -0.135829397026149 1.528276130812549 0.984958542707954
+	//  3767(  1) -0.135666176278154 1.528566224346713 0.985901519234098
+	//  3768(  1) -0.135502917589710 1.528856196793680 0.986844526434838
+	//  3769(  1) -0.135339621047272 1.529146048415590 0.987787564226501
+	//  3770(  1) -0.135176286736993 1.529435779473720 0.988730632525746
+	//  3771(  1) -0.135012914744730 1.529725390228485 0.989673731249565
+	//  3772(  1) -0.134849505156043 1.530014880939449 0.990616860315277
+	//  3773(  1) -0.134686058056198 1.530304251865321 0.991560019640530
+	//  3774(  1) -0.134522573530166 1.530593503263963 0.992503209143298
+	//  3775(  1) -0.134359051662628 1.530882635392392 0.993446428741879
+	//  3776(  1) -0.134195492537974 1.531171648506787 0.994389678354892
+	//  3777(  1) -0.134031896240302 1.531460542862487 0.995332957901279
+	//  3778(  1) -0.133868262853425 1.531749318714002 0.996276267300300
+	//  3779(  1) -0.133704592460869 1.532037976315009 0.997219606471533
+	//  3780(  1) -0.133540885145874 1.532326515918363 0.998162975334869
+	//  3781(  1) -0.133377140991394 1.532614937776095 0.999106373810518
+	//  3782(  1) -0.133213360080104 1.532903242139417 1.000049801818999
+	//  3783(  1) -0.133049542494396 1.533191429258728 1.000993259281143
+	//  3784(  1) -0.132885688316381 1.533479499383617 1.001936746118091
+	//  3785(  1) -0.132721797627893 1.533767452762862 1.002880262251291
+	//  3786(  1) -0.132557870510487 1.534055289644442 1.003823807602496
+	//  3787(  1) -0.132393907045442 1.534343010275532 1.004767382093766
+	//  3788(  1) -0.132229907313762 1.534630614902511 1.005710985647463
+	//  3789(  1) -0.132065871396179 1.534918103770966 1.006654618186250
+	//  3790(  1) -0.131901799373151 1.535205477125693 1.007598279633090
+	//  3791(  1) -0.131737691324864 1.535492735210701 1.008541969911245
+	//  3792(  1) -0.131573547331236 1.535779878269219 1.009485688944274
+	//  3793(  1) -0.131409367471916 1.536066906543693 1.010429436656031
+	//  3794(  1) -0.131245151826283 1.536353820275795 1.011373212970663
+	//  3795(  1) -0.131080900473453 1.536640619706424 1.012317017812611
+	//  3796(  1) -0.130916613492276 1.536927305075710 1.013260851106606
+	//  3797(  1) -0.130752290961337 1.537213876623016 1.014204712777668
+	//  3798(  1) -0.130587932958959 1.537500334586944 1.015148602751106
+	//  3799(  1) -0.130423539563205 1.537786679205334 1.016092520952515
+	//  3800(  1) -0.130259110851875 1.538072910715273 1.017036467307775
+	//  3801(  1) -0.130094646902511 1.538359029353094 1.017980441743049
+	//  3802(  1) -0.129930147792399 1.538645035354380 1.018924444184784
+	//  3803(  1) -0.129765613598566 1.538930928953968 1.019868474559705
+	//  3804(  1) -0.129601044397783 1.539216710385952 1.020812532794819
+	//  3805(  1) -0.129436440266570 1.539502379883688 1.021756618817410
+	//  3806(  1) -0.129271801281189 1.539787937679792 1.022700732555037
+	//  3807(  1) -0.129107127517653 1.540073384006148 1.023644873935537
+	//  3808(  1) -0.128942419051723 1.540358719093911 1.024589042887019
+	//  3809(  1) -0.128777675958911 1.540643943173508 1.025533239337864
+	//  3810(  1) -0.128612898314479 1.540929056474641 1.026477463216726
+	//  3811(  1) -0.128448086193441 1.541214059226291 1.027421714452526
+	//  3812(  1) -0.128283239670567 1.541498951656723 1.028365992974457
+	//  3813(  1) -0.128118358820378 1.541783733993486 1.029310298711974
+	//  3814(  1) -0.127953443717153 1.542068406463417 1.030254631594803
+	//  3815(  1) -0.127788494434928 1.542352969292644 1.031198991552931
+	//  3816(  1) -0.127623511047495 1.542637422706591 1.032143378516609
+	//  3817(  1) -0.127458493628407 1.542921766929977 1.033087792416350
+	//  3818(  1) -0.127293442250974 1.543206002186823 1.034032233182928
+	//  3819(  1) -0.127128356988270 1.543490128700453 1.034976700747374
+	//  3820(  1) -0.126963237913129 1.543774146693496 1.035921195040979
+	//  3821(  1) -0.126798085098150 1.544058056387892 1.036865715995290
+	//  3822(  1) -0.126632898615695 1.544341858004890 1.037810263542110
+	//  3823(  1) -0.126467678537891 1.544625551765058 1.038754837613494
+	//  3824(  1) -0.126302424936632 1.544909137888280 1.039699438141753
+	//  3825(  1) -0.126137137883578 1.545192616593760 1.040644065059447
+	//  3826(  1) -0.125971817450159 1.545475988100026 1.041588718299388
+	//  3827(  1) -0.125806463707574 1.545759252624932 1.042533397794636
+	//  3828(  1) -0.125641076726791 1.546042410385663 1.043478103478501
+	//  3829(  1) -0.125475656578550 1.546325461598734 1.044422835284536
+	//  3830(  1) -0.125310203333363 1.546608406479997 1.045367593146543
+	//  3831(  1) -0.125144717061518 1.546891245244640 1.046312376998568
+	//  3832(  1) -0.124979197833073 1.547173978107191 1.047257186774897
+	//  3833(  1) -0.124813645717865 1.547456605281523 1.048202022410063
+	//  3834(  1) -0.124648060785505 1.547739126980854 1.049146883838836
+	//  3835(  1) -0.124482443105381 1.548021543417751 1.050091770996226
+	//  3836(  1) -0.124316792746662 1.548303854804131 1.051036683817483
+	//  3837(  1) -0.124151109778293 1.548586061351267 1.051981622238094
+	//  3838(  1) -0.123985394269002 1.548868163269787 1.052926586193781
+	//  3839(  1) -0.123819646287295 1.549150160769680 1.053871575620502
+	//  3840(  1) -0.123653865901462 1.549432054060295 1.054816590454448
+	//  3841(  1) -0.123488053179576 1.549713843350349 1.055761630632045
+	//  3842(  1) -0.123322208189494 1.549995528847922 1.056706696089948
+	//  3843(  1) -0.123156330998856 1.550277110760469 1.057651786765044
+	//  3844(  1) -0.122990421675091 1.550558589294812 1.058596902594449
+	//  3845(  1) -0.122824480285411 1.550839964657152 1.059542043515507
+	//  3846(  1) -0.122658506896819 1.551121237053067 1.060487209465791
+	//  3847(  1) -0.122492501576104 1.551402406687515 1.061432400383097
+	//  3848(  1) -0.122326464389846 1.551683473764835 1.062377616205450
+	//  3849(  1) -0.122160395404415 1.551964438488755 1.063322856871096
+	//  3850(  1) -0.121994294685971 1.552245301062388 1.064268122318505
+	//  3851(  1) -0.121828162300467 1.552526061688237 1.065213412486368
+	//  3852(  1) -0.121661998313651 1.552806720568201 1.066158727313599
+	//  3853(  1) -0.121495802791060 1.553087277903572 1.067104066739330
+	//  3854(  1) -0.121329575798032 1.553367733895038 1.068049430702911
+	//  3855(  1) -0.121163317399695 1.553648088742693 1.068994819143913
+	//  3856(  1) -0.120997027660977 1.553928342646027 1.069940232002120
+	//  3857(  1) -0.120830706646602 1.554208495803940 1.070885669217533
+	//  3858(  1) -0.120664354421092 1.554488548414736 1.071831130730369
+	//  3859(  1) -0.120497971048769 1.554768500676133 1.072776616481057
+	//  3860(  1) -0.120331556593755 1.555048352785257 1.073722126410239
+	//  3861(  1) -0.120165111119971 1.555328104938652 1.074667660458768
+	//  3862(  1) -0.119998634691142 1.555607757332277 1.075613218567709
+	//  3863(  1) -0.119832127370794 1.555887310161512 1.076558800678336
+	//  3864(  1) -0.119665589222257 1.556166763621157 1.077504406732131
+	//  3865(  1) -0.119499020308663 1.556446117905438 1.078450036670785
+	//  3866(  1) -0.119332420692953 1.556725373208006 1.079395690436194
+	//  3867(  1) -0.119165790437870 1.557004529721941 1.080341367970461
+	//  3868(  1) -0.118999129605965 1.557283587639755 1.081287069215895
+	//  3869(  1) -0.118832438259597 1.557562547153392 1.082232794115005
+	//  3870(  1) -0.118665716460931 1.557841408454232 1.083178542610507
+	//  3871(  1) -0.118498964271945 1.558120171733094 1.084124314645315
+	//  3872(  1) -0.118332181754422 1.558398837180236 1.085070110162548
+	//  3873(  1) -0.118165368969959 1.558677404985357 1.086015929105523
+	//  3874(  1) -0.117998525979962 1.558955875337603 1.086961771417755
+	//  3875(  1) -0.117831652845652 1.559234248425566 1.087907637042959
+	//  3876(  1) -0.117664749628059 1.559512524437286 1.088853525925048
+	//  3877(  1) -0.117497816388032 1.559790703560255 1.089799438008128
+	//  3878(  1) -0.117330853186229 1.560068785981419 1.090745373236505
+	//  3879(  1) -0.117163860083126 1.560346771887178 1.091691331554675
+	//  3880(  1) -0.116996837139015 1.560624661463390 1.092637312907331
+	//  3881(  1) -0.116829784414004 1.560902454895374 1.093583317239358
+	//  3882(  1) -0.116662701968020 1.561180152367911 1.094529344495831
+	//  3883(  1) -0.116495589860806 1.561457754065243 1.095475394622019
+	//  3884(  1) -0.116328448151926 1.561735260171082 1.096421467563380
+	//  3885(  1) -0.116161276900762 1.562012670868607 1.097367563265560
+	//  3886(  1) -0.115994076166518 1.562289986340466 1.098313681674395
+	//  3887(  1) -0.115826846008219 1.562567206768782 1.099259822735907
+	//  3888(  1) -0.115659586484711 1.562844332335150 1.100205986396307
+	//  3889(  1) -0.115492297654663 1.563121363220643 1.101152172601989
+	//  3890(  1) -0.115324979576570 1.563398299605814 1.102098381299535
+	//  3891(  1) -0.115157632308746 1.563675141670694 1.103044612435709
+	//  3892(  1) -0.114990255909335 1.563951889594798 1.103990865957459
+	//  3893(  1) -0.114822850436303 1.564228543557127 1.104937141811915
+	//  3894(  1) -0.114655415947444 1.564505103736166 1.105883439946390
+	//  3895(  1) -0.114487952500379 1.564781570309892 1.106829760308376
+	//  3896(  1) -0.114320460152556 1.565057943455769 1.107776102845547
+	//  3897(  1) -0.114152938961251 1.565334223350759 1.108722467505753
+	//  3898(  1) -0.113985388983571 1.565610410171312 1.109668854237028
+	//  3899(  1) -0.113817810276451 1.565886504093382 1.110615262987577
+	//  3900(  1) -0.113650202896657 1.566162505292416 1.111561693705786
+	//  3901(  1) -0.113482566900787 1.566438413943364 1.112508146340217
+	//  3902(  1) -0.113314902345269 1.566714230220679 1.113454620839605
+	//  3903(  1) -0.113147209286364 1.566989954298317 1.114401117152860
+	//  3904(  1) -0.112979487780169 1.567265586349742 1.115347635229067
+	//  3905(  1) -0.112811737882610 1.567541126547924 1.116294175017483
+	//  3906(  1) -0.112643959649452 1.567816575065346 1.117240736467537
+	//  3907(  1) -0.112476153136293 1.568091932074000 1.118187319528830
+	//  3908(  1) -0.112308318398566 1.568367197745395 1.119133924151132
+	//  3909(  1) -0.112140455491543 1.568642372250554 1.120080550284384
+	//  3910(  1) -0.111972564470331 1.568917455760019 1.121027197878696
+	//  3911(  1) -0.111804645389876 1.569192448443850 1.121973866884347
+	//  3912(  1) -0.111636698304962 1.569467350471628 1.122920557251781
+	//  3913(  1) -0.111468723270212 1.569742162012459 1.123867268931611
+	//  3914(  1) -0.111300720340090 1.570016883234974 1.124814001874615
+	//  3915(  1) -0.111132689568898 1.570291514307330 1.125760756031738
+	//  3916(  1) -0.110964631010781 1.570566055397212 1.126707531354088
+	//  3917(  1) -0.110796544719725 1.570840506671837 1.127654327792936
+	//  3918(  1) -0.110628430749559 1.571114868297954 1.128601145299718
+	//  3919(  1) -0.110460289153953 1.571389140441844 1.129547983826033
+	//  3920(  1) -0.110292119986422 1.571663323269326 1.130494843323638
+	//  3921(  1) -0.110123923300325 1.571937416945757 1.131441723744455
+	//  3922(  1) -0.109955699148866 1.572211421636031 1.132388625040565
+	//  3923(  1) -0.109787447585094 1.572485337504584 1.133335547164207
+	//  3924(  1) -0.109619168661904 1.572759164715396 1.134282490067781
+	//  3925(  1) -0.109450862432037 1.573032903431991 1.135229453703843
+	//  3926(  1) -0.109282528948082 1.573306553817439 1.136176438025110
+	//  3927(  1) -0.109114168262476 1.573580116034356 1.137123442984451
+	//  3928(  1) -0.108945780427504 1.573853590244911 1.138070468534896
+	//  3929(  1) -0.108777365495299 1.574126976610823 1.139017514629626
+	//  3930(  1) -0.108608923517846 1.574400275293363 1.139964581221980
+	//  3931(  1) -0.108440454546977 1.574673486453359 1.140911668265450
+	//  3932(  1) -0.108271958634378 1.574946610251193 1.141858775713681
+	//  3933(  1) -0.108103435831584 1.575219646846807 1.142805903520471
+	//  3934(  1) -0.107934886189983 1.575492596399702 1.143753051639769
+	//  3935(  1) -0.107766309760815 1.575765459068939 1.144700220025678
+	//  3936(  1) -0.107597706595174 1.576038235013144 1.145647408632450
+	//  3937(  1) -0.107429076744005 1.576310924390508 1.146594617414487
+	//  3938(  1) -0.107260420258111 1.576583527358787 1.147541846326341
+	//  3939(  1) -0.107091737188148 1.576856044075304 1.148489095322712
+	//  3940(  1) -0.106923027584626 1.577128474696953 1.149436364358450
+	//  3941(  1) -0.106754291497913 1.577400819380200 1.150383653388550
+	//  3942(  1) -0.106585528978232 1.577673078281081 1.151330962368155
+	//  3943(  1) -0.106416740075663 1.577945251555209 1.152278291252556
+	//  3944(  1) -0.106247924840146 1.578217339357771 1.153225639997188
+	//  3945(  1) -0.106079083321476 1.578489341843533 1.154173008557629
+	//  3946(  1) -0.105910215569308 1.578761259166838 1.155120396889605
+	//  3947(  1) -0.105741321633157 1.579033091481611 1.156067804948984
+	//  3948(  1) -0.105572401562395 1.579304838941359 1.157015232691778
+	//  3949(  1) -0.105403455406258 1.579576501699172 1.157962680074139
+	//  3950(  1) -0.105234483213841 1.579848079907727 1.158910147052364
+	//  3951(  1) -0.105065485034099 1.580119573719286 1.159857633582891
+	//  3952(  1) -0.104896460915850 1.580390983285698 1.160805139622296
+	//  3953(  1) -0.104727410907777 1.580662308758406 1.161752665127299
+	//  3954(  1) -0.104558335058421 1.580933550288440 1.162700210054756
+	//  3955(  1) -0.104389233416190 1.581204708026425 1.163647774361664
+	//  3956(  1) -0.104220106029356 1.581475782122580 1.164595358005157
+	//  3957(  1) -0.104050952946053 1.581746772726719 1.165542960942509
+	//  3958(  1) -0.103881774214282 1.582017679988254 1.166490583131128
+	//  3959(  1) -0.103712569881909 1.582288504056196 1.167438224528562
+	//  3960(  1) -0.103543339996666 1.582559245079155 1.168385885092492
+	//  3961(  1) -0.103374084606152 1.582829903205343 1.169333564780736
+	//  3962(  1) -0.103204803757832 1.583100478582576 1.170281263551247
+	//  3963(  1) -0.103035497499040 1.583370971358272 1.171228981362111
+	//  3964(  1) -0.102866165876978 1.583641381679460 1.172176718171550
+	//  3965(  1) -0.102696808938714 1.583911709692771 1.173124473937916
+	//  3966(  1) -0.102527426731188 1.584181955544448 1.174072248619697
+	//  3967(  1) -0.102358019301208 1.584452119380343 1.175020042175511
+	//  3968(  1) -0.102188586695453 1.584722201345919 1.175967854564108
+	//  3969(  1) -0.102019128960472 1.584992201586255 1.176915685744368
+	//  3970(  1) -0.101849646142684 1.585262120246041 1.177863535675304
+	//  3971(  1) -0.101680138288382 1.585531957469585 1.178811404316055
+	//  3972(  1) -0.101510605443729 1.585801713400811 1.179759291625893
+	//  3973(  1) -0.101341047654761 1.586071388183262 1.180707197564217
+	//  3974(  1) -0.101171464967387 1.586340981960103 1.181655122090555
+	//  3975(  1) -0.101001857427389 1.586610494874116 1.182603065164561
+	//  3976(  1) -0.100832225080423 1.586879927067710 1.183551026746017
+	//  3977(  1) -0.100662567972020 1.587149278682916 1.184499006794834
+	//  3978(  1) -0.100492886147586 1.587418549861390 1.185447005271046
+	//  3979(  1) -0.100323179652401 1.587687740744417 1.186395022134813
+	//  3980(  1) -0.100153448531621 1.587956851472907 1.187343057346422
+	//  3981(  1) -0.099983692830280 1.588225882187403 1.188291110866282
+	//  3982(  1) -0.099813912593287 1.588494833028076 1.189239182654929
+	//  3983(  1) -0.099644107865427 1.588763704134729 1.190187272673020
+	//  3984(  1) -0.099474278691366 1.589032495646801 1.191135380881335
+	//  3985(  1) -0.099304425115646 1.589301207703363 1.192083507240780
+	//  3986(  1) -0.099134547182687 1.589569840443124 1.193031651712378
+	//  3987(  1) -0.098964644936788 1.589838394004429 1.193979814257277
+	//  3988(  1) -0.098794718422129 1.590106868525262 1.194927994836744
+	//  3989(  1) -0.098624767682769 1.590375264143245 1.195876193412170
+	//  3990(  1) -0.098454792762646 1.590643580995646 1.196824409945060
+	//  3991(  1) -0.098284793705581 1.590911819219371 1.197772644397045
+	//  3992(  1) -0.098114770555275 1.591179978950970 1.198720896729870
+	//  3993(  1) -0.097944723355310 1.591448060326641 1.199669166905401
+	//  3994(  1) -0.097774652149151 1.591716063482226 1.200617454885623
+	//  3995(  1) -0.097604556980145 1.591983988553214 1.201565760632635
+	//  3996(  1) -0.097434437891521 1.592251835674743 1.202514084108657
+	//  3997(  1) -0.097264294926395 1.592519604981602 1.203462425276024
+	//  3998(  1) -0.097094128127761 1.592787296608231 1.204410784097186
+	//  3999(  1) -0.096923937538503 1.593054910688721 1.205359160534710
+	//  4000(  1) -0.096753723201385 1.593322447356817 1.206307554551279
+	//  4001(  1) -0.096583485159058 1.593589906745922 1.207255966109688
+	//  4002(  1) -0.096413223454060 1.593857288989089 1.208204395172850
+	//  4003(  1) -0.096242938128812 1.594124594219034 1.209152841703788
+	//  4004(  1) -0.096072629225622 1.594391822568129 1.210101305665642
+	//  4005(  1) -0.095902296786686 1.594658974168404 1.211049787021661
+	//  4006(  1) -0.095731940854086 1.594926049151553 1.211998285735210
+	//  4007(  1) -0.095561561469792 1.595193047648930 1.212946801769764
+	//  4008(  1) -0.095391158675661 1.595459969791553 1.213895335088910
+	//  4009(  1) -0.095220732513440 1.595726815710105 1.214843885656346
+	//  4010(  1) -0.095050283024763 1.595993585534932 1.215792453435881
+	//  4011(  1) -0.094879810251154 1.596260279396050 1.216741038391433
+	//  4012(  1) -0.094709314234027 1.596526897423139 1.217689640487032
+	//  4013(  1) -0.094538795014685 1.596793439745553 1.218638259686815
+	//  4014(  1) -0.094368252634321 1.597059906492312 1.219586895955029
+	//  4015(  1) -0.094197687134020 1.597326297792109 1.220535549256030
+	//  4016(  1) -0.094027098554757 1.597592613773308 1.221484219554281
+	//  4017(  1) -0.093856486937399 1.597858854563949 1.222432906814352
+	//  4018(  1) -0.093685852322706 1.598125020291745 1.223381611000922
+	//  4019(  1) -0.093515194751327 1.598391111084085 1.224330332078775
+	//  4020(  1) -0.093344514263808 1.598657127068036 1.225279070012803
+	//  4021(  1) -0.093173810900585 1.598923068370342 1.226227824768001
+	//  4022(  1) -0.093003084701988 1.599188935117425 1.227176596309474
+	//  4023(  1) -0.092832335708241 1.599454727435391 1.228125384602427
+	//  4024(  1) -0.092661563959462 1.599720445450022 1.229074189612173
+	//  4025(  1) -0.092490769495665 1.599986089286789 1.230023011304128
+	//  4026(  1) -0.092319952356757 1.600251659070840 1.230971849643812
+	//  4027(  1) -0.092149112582541 1.600517154927013 1.231920704596848
+	//  4028(  1) -0.091978250212716 1.600782576979827 1.232869576128963
+	//  4029(  1) -0.091807365286877 1.601047925353493 1.233818464205985
+	//  4030(  1) -0.091636457844515 1.601313200171904 1.234767368793845
+	//  4031(  1) -0.091465527925018 1.601578401558647 1.235716289858576
+	//  4032(  1) -0.091294575567671 1.601843529636996 1.236665227366312
+	//  4033(  1) -0.091123600811657 1.602108584529917 1.237614181283288
+	//  4034(  1) -0.090952603696057 1.602373566360068 1.238563151575840
+	//  4035(  1) -0.090781584259849 1.602638475249801 1.239512138210404
+	//  4036(  1) -0.090610542541912 1.602903311321160 1.240461141153514
+	//  4037(  1) -0.090439478581020 1.603168074695886 1.241410160371806
+	//  4038(  1) -0.090268392415851 1.603432765495417 1.242359195832014
+	//  4039(  1) -0.090097284084979 1.603697383840886 1.243308247500969
+	//  4040(  1) -0.089926153626880 1.603961929853125 1.244257315345604
+	//  4041(  1) -0.089755001079930 1.604226403652666 1.245206399332946
+	//  4042(  1) -0.089583826482405 1.604490805359742 1.246155499430121
+	//  4043(  1) -0.089412629872483 1.604755135094285 1.247104615604352
+	//  4044(  1) -0.089241411288243 1.605019392975932 1.248053747822959
+	//  4045(  1) -0.089070170767666 1.605283579124021 1.249002896053359
+	//  4046(  1) -0.088898908348634 1.605547693657596 1.249952060263062
+	//  4047(  1) -0.088727624068933 1.605811736695407 1.250901240419677
+	//  4048(  1) -0.088556317966250 1.606075708355907 1.251850436490906
+	//  4049(  1) -0.088384990078179 1.606339608757261 1.252799648444546
+	//  4050(  1) -0.088213640442212 1.606603438017338 1.253748876248491
+	//  4051(  1) -0.088042269095748 1.606867196253718 1.254698119870725
+	//  4052(  1) -0.087870876076091 1.607130883583693 1.255647379279329
+	//  4053(  1) -0.087699461420447 1.607394500124263 1.256596654442477
+	//  4054(  1) -0.087528025165927 1.607658045992143 1.257545945328433
+	//  4055(  1) -0.087356567349550 1.607921521303759 1.258495251905557
+	//  4056(  1) -0.087185088008238 1.608184926175253 1.259444574142301
+	//  4057(  1) -0.087013587178819 1.608448260722481 1.260393912007207
+	//  4058(  1) -0.086842064898026 1.608711525061016 1.261343265468911
+	//  4059(  1) -0.086670521202502 1.608974719306145 1.262292634496137
+	//  4060(  1) -0.086498956128794 1.609237843572877 1.263242019057703
+	//  4061(  1) -0.086327369713355 1.609500897975937 1.264191419122517
+	//  4062(  1) -0.086155761992549 1.609763882629772 1.265140834659575
+	//  4063(  1) -0.085984133002645 1.610026797648547 1.266090265637965
+	//  4064(  1) -0.085812482779821 1.610289643146150 1.267039712026865
+	//  4065(  1) -0.085640811360163 1.610552419236192 1.267989173795539
+	//  4066(  1) -0.085469118779666 1.610815126032008 1.268938650913344
+	//  4067(  1) -0.085297405074233 1.611077763646656 1.269888143349722
+	//  4068(  1) -0.085125670279678 1.611340332192918 1.270837651074205
+	//  4069(  1) -0.084953914431724 1.611602831783306 1.271787174056412
+	//  4070(  1) -0.084782137566002 1.611865262530056 1.272736712266050
+	//  4071(  1) -0.084610339718055 1.612127624545134 1.273686265672913
+	//  4072(  1) -0.084438520923338 1.612389917940234 1.274635834246882
+	//  4073(  1) -0.084266681217214 1.612652142826778 1.275585417957924
+	//  4074(  1) -0.084094820634958 1.612914299315922 1.276535016776092
+	//  4075(  1) -0.083922939211756 1.613176387518552 1.277484630671526
+	//  4076(  1) -0.083751036982709 1.613438407545285 1.278434259614450
+	//  4077(  1) -0.083579113982825 1.613700359506474 1.279383903575174
+	//  4078(  1) -0.083407170247028 1.613962243512204 1.280333562524093
+	//  4079(  1) -0.083235205810152 1.614224059672297 1.281283236431687
+	//  4080(  1) -0.083063220706948 1.614485808096310 1.282232925268519
+	//  4081(  1) -0.082891214972075 1.614747488893534 1.283182629005236
+	//  4082(  1) -0.082719188640109 1.615009102173004 1.284132347612569
+	//  4083(  1) -0.082547141745538 1.615270648043487 1.285082081061334
+	//  4084(  1) -0.082375074322767 1.615532126613494 1.286031829322426
+	//  4085(  1) -0.082202986406112 1.615793537991273 1.286981592366827
+	//  4086(  1) -0.082030878029804 1.616054882284815 1.287931370165597
+	//  4087(  1) -0.081858749227992 1.616316159601851 1.288881162689883
+	//  4088(  1) -0.081686600034737 1.616577370049858 1.289830969910909
+	//  4089(  1) -0.081514430484017 1.616838513736054 1.290780791799984
+	//  4090(  1) -0.081342240609726 1.617099590767401 1.291730628328495
+	//  4091(  1) -0.081170030445673 1.617360601250607 1.292680479467913
+	//  4092(  1) -0.080997800025585 1.617621545292127 1.293630345189787
+	//  4093(  1) -0.080825549383103 1.617882422998161 1.294580225465748
+	//  4094(  1) -0.080653278551788 1.618143234474658 1.295530120267505
+	//  4095(  1) -0.080480987565117 1.618403979827316 1.296480029566849
+	//  4096(  1) -0.080308676456483 1.618664659161580 1.297429953335647
+	//  4097(  1) -0.080136345259199 1.618925272582647 1.298379891545850
+	//  4098(  1) -0.079963994006496 1.619185820195465 1.299329844169482
+	//  4099(  1) -0.079791622731520 1.619446302104732 1.300279811178650
+	//  4100(  1) -0.079619231467341 1.619706718414901 1.301229792545538
+	//  4101(  1) -0.079446820246942 1.619967069230175 1.302179788242405
+	//  4102(  1) -0.079274389103231 1.620227354654514 1.303129798241592
+	//  4103(  1) -0.079101938069030 1.620487574791632 1.304079822515514
+	//  4104(  1) -0.078929467177083 1.620747729744998 1.305029861036665
+	//  4105(  1) -0.078756976460056 1.621007819617839 1.305979913777614
+	//  4106(  1) -0.078584465950532 1.621267844513136 1.306929980711008
+	//  4107(  1) -0.078411935681015 1.621527804533632 1.307880061809570
+	//  4108(  1) -0.078239385683932 1.621787699781826 1.308830157046098
+	//  4109(  1) -0.078066815991628 1.622047530359977 1.309780266393466
+	//  4110(  1) -0.077894226636371 1.622307296370105 1.310730389824623
+	//  4111(  1) -0.077721617650349 1.622566997913991 1.311680527312594
+	//  4112(  1) -0.077548989065675 1.622826635093178 1.312630678830478
+	//  4113(  1) -0.077376340914380 1.623086208008970 1.313580844351449
+	//  4114(  1) -0.077203673228420 1.623345716762436 1.314531023848754
+	//  4115(  1) -0.077030986039673 1.623605161454408 1.315481217295716
+	//  4116(  1) -0.076858279379938 1.623864542185483 1.316431424665731
+	//  4117(  1) -0.076685553280940 1.624123859056026 1.317381645932267
+	//  4118(  1) -0.076512807774324 1.624383112166163 1.318331881068866
+	//  4119(  1) -0.076340042891662 1.624642301615793 1.319282130049144
+	//  4120(  1) -0.076167258664447 1.624901427504577 1.320232392846789
+	//  4121(  1) -0.075994455124098 1.625160489931951 1.321182669435560
+	//  4122(  1) -0.075821632301956 1.625419488997114 1.322132959789289
+	//  4123(  1) -0.075648790229289 1.625678424799038 1.323083263881882
+	//  4124(  1) -0.075475928937289 1.625937297436467 1.324033581687313
+	//  4125(  1) -0.075303048457071 1.626196107007913 1.324983913179629
+	//  4126(  1) -0.075130148819678 1.626454853611662 1.325934258332948
+	//  4127(  1) -0.074957230056078 1.626713537345773 1.326884617121460
+	//  4128(  1) -0.074784292197164 1.626972158308079 1.327834989519423
+	//  4129(  1) -0.074611335273755 1.627230716596185 1.328785375501167
+	//  4130(  1) -0.074438359316595 1.627489212307474 1.329735775041093
+	//  4131(  1) -0.074265364356359 1.627747645539102 1.330686188113668
+	//  4132(  1) -0.074092350423642 1.628006016388003 1.331636614693434
+	//  4133(  1) -0.073919317548973 1.628264324950888 1.332587054754997
+	//  4134(  1) -0.073746265762802 1.628522571324244 1.333537508273035
+	//  4135(  1) -0.073573195095511 1.628780755604340 1.334487975222294
+	//  4136(  1) -0.073400105577407 1.629038877887220 1.335438455577590
+	//  4137(  1) -0.073226997238726 1.629296938268709 1.336388949313806
+	//  4138(  1) -0.073053870109631 1.629554936844415 1.337339456405891
+	//  4139(  1) -0.072880724220215 1.629812873709725 1.338289976828866
+	//  4140(  1) -0.072707559600498 1.630070748959809 1.339240510557817
+	//  4141(  1) -0.072534376280430 1.630328562689617 1.340191057567897
+	//  4142(  1) -0.072361174289889 1.630586314993886 1.341141617834328
+	//  4143(  1) -0.072187953658684 1.630844005967134 1.342092191332397
+	//  4144(  1) -0.072014714416551 1.631101635703664 1.343042778037459
+	//  4145(  1) -0.071841456593158 1.631359204297566 1.343993377924934
+	//  4146(  1) -0.071668180218101 1.631616711842714 1.344943990970310
+	//  4147(  1) -0.071494885320907 1.631874158432769 1.345894617149140
+	//  4148(  1) -0.071321571931035 1.632131544161180 1.346845256437041
+	//  4149(  1) -0.071148240077871 1.632388869121183 1.347795908809698
+	//  4150(  1) -0.070974889790736 1.632646133405803 1.348746574242860
+	//  4151(  1) -0.070801521098878 1.632903337107854 1.349697252712341
+	//  4152(  1) -0.070628134031480 1.633160480319939 1.350647944194020
+	//  4153(  1) -0.070454728617653 1.633417563134452 1.351598648663841
+	//  4154(  1) -0.070281304886442 1.633674585643580 1.352549366097811
+	//  4155(  1) -0.070107862866824 1.633931547939299 1.353500096472002
+	//  4156(  1) -0.069934402587707 1.634188450113378 1.354450839762550
+	//  4157(  1) -0.069760924077931 1.634445292257380 1.355401595945654
+	//  4158(  1) -0.069587427366271 1.634702074462661 1.356352364997577
+	//  4159(  1) -0.069413912481432 1.634958796820372 1.357303146894644
+	//  4160(  1) -0.069240379452053 1.635215459421457 1.358253941613245
+	//  4161(  1) -0.069066828306707 1.635472062356659 1.359204749129830
+	//  4162(  1) -0.068893259073899 1.635728605716512 1.360155569420915
+	//  4163(  1) -0.068719671782069 1.635985089591351 1.361106402463074
+	//  4164(  1) -0.068546066459590 1.636241514071308 1.362057248232947
+	//  4165(  1) -0.068372443134769 1.636497879246311 1.363008106707235
+	//  4166(  1) -0.068198801835848 1.636754185206088 1.363958977862698
+	//  4167(  1) -0.068025142591002 1.637010432040166 1.364909861676160
+	//  4168(  1) -0.067851465428342 1.637266619837872 1.365860758124506
+	//  4169(  1) -0.067677770375913 1.637522748688333 1.366811667184681
+	//  4170(  1) -0.067504057461696 1.637778818680477 1.367762588833692
+	//  4171(  1) -0.067330326713607 1.638034829903035 1.368713523048605
+	//  4172(  1) -0.067156578159497 1.638290782444538 1.369664469806549
+	//  4173(  1) -0.066982811827153 1.638546676393321 1.370615429084709
+	//  4174(  1) -0.066809027744297 1.638802511837523 1.371566400860335
+	//  4175(  1) -0.066635225938589 1.639058288865088 1.372517385110732
+	//  4176(  1) -0.066461406437623 1.639314007563760 1.373468381813267
+	//  4177(  1) -0.066287569268931 1.639569668021093 1.374419390945367
+	//  4178(  1) -0.066113714459982 1.639825270324445 1.375370412484516
+	//  4179(  1) -0.065939842038180 1.640080814560980 1.376321446408259
+	//  4180(  1) -0.065765952030868 1.640336300817670 1.377272492694199
+	//  4181(  1) -0.065592044465325 1.640591729181295 1.378223551319996
+	//  4182(  1) -0.065418119368767 1.640847099738440 1.379174622263370
+	//  4183(  1) -0.065244176768350 1.641102412575501 1.380125705502099
+	//  4184(  1) -0.065070216691166 1.641357667778685 1.381076801014019
+	//  4185(  1) -0.064896239164246 1.641612865434006 1.382027908777023
+	//  4186(  1) -0.064722244214557 1.641868005627288 1.382979028769061
+	//  4187(  1) -0.064548231869007 1.642123088444169 1.383930160968142
+	//  4188(  1) -0.064374202154441 1.642378113970096 1.384881305352330
+	//  4189(  1) -0.064200155097645 1.642633082290329 1.385832461899750
+	//  4190(  1) -0.064026090725340 1.642887993489940 1.386783630588578
+	//  4191(  1) -0.063852009064191 1.643142847653815 1.387734811397050
+	//  4192(  1) -0.063677910140799 1.643397644866654 1.388686004303459
+	//  4193(  1) -0.063503793981704 1.643652385212971 1.389637209286153
+	//  4194(  1) -0.063329660613390 1.643907068777094 1.390588426323534
+	//  4195(  1) -0.063155510062276 1.644161695643167 1.391539655394064
+	//  4196(  1) -0.062981342354723 1.644416265895151 1.392490896476257
+	//  4197(  1) -0.062807157517034 1.644670779616821 1.393442149548683
+	//  4198(  1) -0.062632955575451 1.644925236891772 1.394393414589969
+	//  4199(  1) -0.062458736556155 1.645179637803414 1.395344691578796
+	//  4200(  1) -0.062284500485270 1.645433982434979 1.396295980493898
+	//  4201(  1) -0.062110247388861 1.645688270869512 1.397247281314068
+	//  4202(  1) -0.061935977292933 1.645942503189881 1.398198594018148
+	//  4203(  1) -0.061761690223434 1.646196679478773 1.399149918585039
+	//  4204(  1) -0.061587386206251 1.646450799818697 1.400101254993693
+	//  4205(  1) -0.061413065267215 1.646704864291979 1.401052603223118
+	//  4206(  1) -0.061238727432099 1.646958872980768 1.402003963252374
+	//  4207(  1) -0.061064372726615 1.647212825967037 1.402955335060576
+	//  4208(  1) -0.060890001176422 1.647466723332579 1.403906718626891
+	//  4209(  1) -0.060715612807117 1.647720565159009 1.404858113930540
+	//  4210(  1) -0.060541207644243 1.647974351527768 1.405809520950797
+	//  4211(  1) -0.060366785713283 1.648228082520120 1.406760939666989
+	//  4212(  1) -0.060192347039665 1.648481758217153 1.407712370058495
+	//  4213(  1) -0.060017891648758 1.648735378699780 1.408663812104747
+	//  4214(  1) -0.059843419565878 1.648988944048740 1.409615265785229
+	//  4215(  1) -0.059668930816280 1.649242454344597 1.410566731079477
+	//  4216(  1) -0.059494425425166 1.649495909667742 1.411518207967079
+	//  4217(  1) -0.059319903417680 1.649749310098394 1.412469696427676
+	//  4218(  1) -0.059145364818910 1.650002655716598 1.413421196440958
+	//  4219(  1) -0.058970809653890 1.650255946602228 1.414372707986669
+	//  4220(  1) -0.058796237947595 1.650509182834985 1.415324231044603
+	//  4221(  1) -0.058621649724949 1.650762364494401 1.416275765594606
+	//  4222(  1) -0.058447045010816 1.651015491659837 1.417227311616573
+	//  4223(  1) -0.058272423830008 1.651268564410482 1.418178869090451
+	//  4224(  1) -0.058097786207280 1.651521582825358 1.419130437996239
+	//  4225(  1) -0.057923132167333 1.651774546983317 1.420082018313983
+	//  4226(  1) -0.057748461734815 1.652027456963042 1.421033610023783
+	//  4227(  1) -0.057573774934316 1.652280312843049 1.421985213105786
+	//  4228(  1) -0.057399071790374 1.652533114701685 1.422936827540190
+	//  4229(  1) -0.057224352327472 1.652785862617131 1.423888453307244
+	//  4230(  1) -0.057049616570039 1.653038556667402 1.424840090387245
+	//  4231(  1) -0.056874864542451 1.653291196930345 1.425791738760539
+	//  4232(  1) -0.056700096269030 1.653543783483642 1.426743398407524
+	//  4233(  1) -0.056525311774042 1.653796316404812 1.427695069308643
+	//  4234(  1) -0.056350511081703 1.654048795771205 1.428646751444392
+	//  4235(  1) -0.056175694216174 1.654301221660011 1.429598444795313
+	//  4236(  1) -0.056000861201564 1.654553594148253 1.430550149341998
+	//  4237(  1) -0.055826012061927 1.654805913312795 1.431501865065086
+	//  4238(  1) -0.055651146821267 1.655058179230332 1.432453591945266
+	//  4239(  1) -0.055476265503532 1.655310391977403 1.433405329963275
+	//  4240(  1) -0.055301368132621 1.655562551630380 1.434357079099896
+	//  4241(  1) -0.055126454732379 1.655814658265477 1.435308839335961
+	//  4242(  1) -0.054951525326598 1.656066711958745 1.436260610652352
+	//  4243(  1) -0.054776579939021 1.656318712786077 1.437212393029994
+	//  4244(  1) -0.054601618593335 1.656570660823202 1.438164186449862
+	//  4245(  1) -0.054426641313179 1.656822556145693 1.439115990892978
+	//  4246(  1) -0.054251648122138 1.657074398828962 1.440067806340412
+	//  4247(  1) -0.054076639043746 1.657326188948264 1.441019632773278
+	//  4248(  1) -0.053901614101488 1.657577926578693 1.441971470172740
+	//  4249(  1) -0.053726573318796 1.657829611795189 1.442923318520005
+	//  4250(  1) -0.053551516719050 1.658081244672530 1.443875177796330
+	//  4251(  1) -0.053376444325581 1.658332825285342 1.444827047983017
+	//  4252(  1) -0.053201356161670 1.658584353708091 1.445778929061412
+	//  4253(  1) -0.053026252250544 1.658835830015088 1.446730821012910
+	//  4254(  1) -0.052851132615385 1.659087254280490 1.447682723818951
+	//  4255(  1) -0.052675997279319 1.659338626578297 1.448634637461020
+	//  4256(  1) -0.052500846265427 1.659589946982354 1.449586561920647
+	//  4257(  1) -0.052325679596736 1.659841215566355 1.450538497179409
+	//  4258(  1) -0.052150497296227 1.660092432403835 1.451490443218928
+	//  4259(  1) -0.051975299386828 1.660343597568182 1.452442400020868
+	//  4260(  1) -0.051800085891420 1.660594711132624 1.453394367566943
+	//  4261(  1) -0.051624856832834 1.660845773170242 1.454346345838908
+	//  4262(  1) -0.051449612233850 1.661096783753964 1.455298334818565
+	//  4263(  1) -0.051274352117201 1.661347742956563 1.456250334487757
+	//  4264(  1) -0.051099076505572 1.661598650850665 1.457202344828376
+	//  4265(  1) -0.050923785421597 1.661849507508743 1.458154365822355
+	//  4266(  1) -0.050748478887862 1.662100313003120 1.459106397451672
+	//  4267(  1) -0.050573156926905 1.662351067405968 1.460058439698350
+	//  4268(  1) -0.050397819561215 1.662601770789313 1.461010492544452
+	//  4269(  1) -0.050222466813234 1.662852423225027 1.461962555972091
+	//  4270(  1) -0.050047098705355 1.663103024784837 1.462914629963417
+	//  4271(  1) -0.049871715259923 1.663353575540319 1.463866714500627
+	//  4272(  1) -0.049696316499236 1.663604075562906 1.464818809565962
+	//  4273(  1) -0.049520902445544 1.663854524923877 1.465770915141702
+	//  4274(  1) -0.049345473121048 1.664104923694368 1.466723031210175
+	//  4275(  1) -0.049170028547905 1.664355271945367 1.467675157753748
+	//  4276(  1) -0.048994568748221 1.664605569747718 1.468627294754832
+	//  4277(  1) -0.048819093744059 1.664855817172116 1.469579442195881
+	//  4278(  1) -0.048643603557430 1.665106014289112 1.470531600059391
+	//  4279(  1) -0.048468098210303 1.665356161169113 1.471483768327900
+	//  4280(  1) -0.048292577724598 1.665606257882380 1.472435946983989
+	//  4281(  1) -0.048117042122188 1.665856304499031 1.473388136010279
+	//  4282(  1) -0.047941491424900 1.666106301089038 1.474340335389436
+	//  4283(  1) -0.047765925654516 1.666356247722231 1.475292545104165
+	//  4284(  1) -0.047590344832771 1.666606144468299 1.476244765137215
+	//  4285(  1) -0.047414748981353 1.666855991396785 1.477196995471373
+	//  4286(  1) -0.047239138121905 1.667105788577091 1.478149236089470
+	//  4287(  1) -0.047063512276025 1.667355536078479 1.479101486974379
+	//  4288(  1) -0.046887871465264 1.667605233970066 1.480053748109012
+	//  4289(  1) -0.046712215711127 1.667854882320831 1.481006019476322
+	//  4290(  1) -0.046536545035077 1.668104481199612 1.481958301059304
+	//  4291(  1) -0.046360859458528 1.668354030675105 1.482910592840994
+	//  4292(  1) -0.046185159002850 1.668603530815867 1.483862894804467
+	//  4293(  1) -0.046009443689369 1.668852981690316 1.484815206932839
+	//  4294(  1) -0.045833713539366 1.669102383366731 1.485767529209267
+	//  4295(  1) -0.045657968574076 1.669351735913252 1.486719861616948
+	//  4296(  1) -0.045482208814690 1.669601039397880 1.487672204139118
+	//  4297(  1) -0.045306434282356 1.669850293888477 1.488624556759054
+	//  4298(  1) -0.045130644998175 1.670099499452772 1.489576919460073
+	//  4299(  1) -0.044954840983205 1.670348656158352 1.490529292225531
+	//  4300(  1) -0.044779022258461 1.670597764072668 1.491481675038823
+	//  4301(  1) -0.044603188844913 1.670846823263038 1.492434067883385
+	//  4302(  1) -0.044427340763487 1.671095833796639 1.493386470742691
+	//  4303(  1) -0.044251478035065 1.671344795740515 1.494338883600255
+	//  4304(  1) -0.044075600680486 1.671593709161575 1.495291306439629
+	//  4305(  1) -0.043899708720546 1.671842574126592 1.496243739244407
+	//  4306(  1) -0.043723802175997 1.672091390702205 1.497196181998216
+	//  4307(  1) -0.043547881067547 1.672340158954918 1.498148634684729
+	//  4308(  1) -0.043371945415863 1.672588878951102 1.499101097287650
+	//  4309(  1) -0.043195995241566 1.672837550756993 1.500053569790728
+	//  4310(  1) -0.043020030565237 1.673086174438696 1.501006052177747
+	//  4311(  1) -0.042844051407413 1.673334750062181 1.501958544432530
+	//  4312(  1) -0.042668057788588 1.673583277693288 1.502911046538936
+	//  4313(  1) -0.042492049729214 1.673831757397723 1.503863558480866
+	//  4314(  1) -0.042316027249701 1.674080189241061 1.504816080242257
+	//  4315(  1) -0.042139990370416 1.674328573288744 1.505768611807081
+	//  4316(  1) -0.041963939111684 1.674576909606087 1.506721153159353
+	//  4317(  1) -0.041787873493787 1.674825198258271 1.507673704283121
+	//  4318(  1) -0.041611793536969 1.675073439310347 1.508626265162472
+	//  4319(  1) -0.041435699261426 1.675321632827236 1.509578835781532
+	//  4320(  1) -0.041259590687318 1.675569778873732 1.510531416124461
+	//  4321(  1) -0.041083467834760 1.675817877514496 1.511484006175457
+	//  4322(  1) -0.040907330723826 1.676065928814063 1.512436605918757
+	//  4323(  1) -0.040731179374551 1.676313932836838 1.513389215338633
+	//  4324(  1) -0.040555013806926 1.676561889647098 1.514341834419393
+	//  4325(  1) -0.040378834040902 1.676809799308992 1.515294463145384
+	//  4326(  1) -0.040202640096389 1.677057661886542 1.516247101500988
+	//  4327(  1) -0.040026431993255 1.677305477443643 1.517199749470622
+	//  4328(  1) -0.039850209751330 1.677553246044063 1.518152407038743
+	//  4329(  1) -0.039673973390400 1.677800967751441 1.519105074189840
+	//  4330(  1) -0.039497722930214 1.678048642629295 1.520057750908441
+	//  4331(  1) -0.039321458390476 1.678296270741013 1.521010437179108
+	//  4332(  1) -0.039145179790855 1.678543852149859 1.521963132986441
+	//  4333(  1) -0.038968887150974 1.678791386918971 1.522915838315073
+	//  4334(  1) -0.038792580490422 1.679038875111364 1.523868553149675
+	//  4335(  1) -0.038616259828743 1.679286316789926 1.524821277474953
+	//  4336(  1) -0.038439925185444 1.679533712017423 1.525774011275647
+	//  4337(  1) -0.038263576579991 1.679781060856496 1.526726754536533
+	//  4338(  1) -0.038087214031810 1.680028363369664 1.527679507242422
+	//  4339(  1) -0.037910837560289 1.680275619619320 1.528632269378162
+	//  4340(  1) -0.037734447184776 1.680522829667737 1.529585040928634
+	//  4341(  1) -0.037558042924578 1.680769993577064 1.530537821878753
+	//  4342(  1) -0.037381624798965 1.681017111409330 1.531490612213471
+	//  4343(  1) -0.037205192827166 1.681264183226437 1.532443411917773
+	//  4344(  1) -0.037028747028373 1.681511209090171 1.533396220976679
+	//  4345(  1) -0.036852287421738 1.681758189062195 1.534349039375245
+	//  4346(  1) -0.036675814026373 1.682005123204050 1.535301867098559
+	//  4347(  1) -0.036499326861353 1.682252011577156 1.536254704131743
+	//  4348(  1) -0.036322825945715 1.682498854242816 1.537207550459956
+	//  4349(  1) -0.036146311298456 1.682745651262210 1.538160406068388
+	//  4350(  1) -0.035969782938534 1.682992402696400 1.539113270942265
+	//  4351(  1) -0.035793240884870 1.683239108606327 1.540066145066846
+	//  4352(  1) -0.035616685156348 1.683485769052815 1.541019028427423
+	//  4353(  1) -0.035440115771811 1.683732384096567 1.541971921009323
+	//  4354(  1) -0.035263532750066 1.683978953798170 1.542924822797905
+	//  4355(  1) -0.035086936109883 1.684225478218093 1.543877733778562
+	//  4356(  1) -0.034910325869991 1.684471957416685 1.544830653936722
+	//  4357(  1) -0.034733702049084 1.684718391454178 1.545783583257843
+	//  4358(  1) -0.034557064665817 1.684964780390689 1.546736521727419
+	//  4359(  1) -0.034380413738810 1.685211124286217 1.547689469330976
+	//  4360(  1) -0.034203749286643 1.685457423200644 1.548642426054071
+	//  4361(  1) -0.034027071327860 1.685703677193735 1.549595391882297
+	//  4362(  1) -0.033850379880966 1.685949886325142 1.550548366801278
+	//  4363(  1) -0.033673674964432 1.686196050654399 1.551501350796670
+	//  4364(  1) -0.033496956596690 1.686442170240925 1.552454343854164
+	//  4365(  1) -0.033320224796136 1.686688245144025 1.553407345959480
+	//  4366(  1) -0.033143479581129 1.686934275422888 1.554360357098373
+	//  4367(  1) -0.032966720969990 1.687180261136589 1.555313377256630
+	//  4368(  1) -0.032789948981006 1.687426202344091 1.556266406420068
+	//  4369(  1) -0.032613163632425 1.687672099104239 1.557219444574538
+	//  4370(  1) -0.032436364942461 1.687917951475768 1.558172491705923
+	//  4371(  1) -0.032259552929291 1.688163759517299 1.559125547800136
+	//  4372(  1) -0.032082727611054 1.688409523287339 1.560078612843124
+	//  4373(  1) -0.031905889005855 1.688655242844284 1.561031686820864
+	//  4374(  1) -0.031729037131762 1.688900918246415 1.561984769719367
+	//  4375(  1) -0.031552172006809 1.689146549551905 1.562937861524671
+	//  4376(  1) -0.031375293648991 1.689392136818812 1.563890962222850
+	//  4377(  1) -0.031198402076269 1.689637680105083 1.564844071800007
+	//  4378(  1) -0.031021497306570 1.689883179468555 1.565797190242275
+	//  4379(  1) -0.030844579357783 1.690128634966954 1.566750317535822
+	//  4380(  1) -0.030667648247763 1.690374046657894 1.567703453666842
+	//  4381(  1) -0.030490703994329 1.690619414598879 1.568656598621565
+	//  4382(  1) -0.030313746615264 1.690864738847305 1.569609752386248
+	//  4383(  1) -0.030136776128319 1.691110019460455 1.570562914947180
+	//  4384(  1) -0.029959792551207 1.691355256495507 1.571516086290681
+	//  4385(  1) -0.029782795901606 1.691600450009525 1.572469266403101
+	//  4386(  1) -0.029605786197161 1.691845600059467 1.573422455270821
+	//  4387(  1) -0.029428763455482 1.692090706702182 1.574375652880253
+	//  4388(  1) -0.029251727694143 1.692335769994409 1.575328859217836
+	//  4389(  1) -0.029074678930685 1.692580789992782 1.576282074270044
+	//  4390(  1) -0.028897617182612 1.692825766753824 1.577235298023377
+	//  4391(  1) -0.028720542467397 1.693070700333954 1.578188530464367
+	//  4392(  1) -0.028543454802476 1.693315590789479 1.579141771579577
+	//  4393(  1) -0.028366354205252 1.693560438176604 1.580095021355596
+	//  4394(  1) -0.028189240693094 1.693805242551423 1.581048279779047
+	//  4395(  1) -0.028012114283337 1.694050003969928 1.582001546836580
+	//  4396(  1) -0.027834974993281 1.694294722488001 1.582954822514876
+	//  4397(  1) -0.027657822840194 1.694539398161420 1.583908106800645
+	//  4398(  1) -0.027480657841308 1.694784031045858 1.584861399680626
+	//  4399(  1) -0.027303480013823 1.695028621196881 1.585814701141587
+	//  4400(  1) -0.027126289374906 1.695273168669950 1.586768011170326
+	//  4401(  1) -0.026949085941688 1.695517673520423 1.587721329753671
+	//  4402(  1) -0.026771869731269 1.695762135803552 1.588674656878478
+	//  4403(  1) -0.026594640760714 1.696006555574485 1.589627992531631
+	//  4404(  1) -0.026417399047056 1.696250932888267 1.590581336700045
+	//  4405(  1) -0.026240144607294 1.696495267799838 1.591534689370661
+	//  4406(  1) -0.026062877458395 1.696739560364034 1.592488050530453
+	//  4407(  1) -0.025885597617292 1.696983810635589 1.593441420166420
+	//  4408(  1) -0.025708305100886 1.697228018669136 1.594394798265591
+	//  4409(  1) -0.025530999926045 1.697472184519200 1.595348184815022
+	//  4410(  1) -0.025353682109602 1.697716308240208 1.596301579801800
+	//  4411(  1) -0.025176351668362 1.697960389886485 1.597254983213038
+	//  4412(  1) -0.024999008619093 1.698204429512250 1.598208395035879
+	//  4413(  1) -0.024821652978533 1.698448427171625 1.599161815257492
+	//  4414(  1) -0.024644284763388 1.698692382918627 1.600115243865077
+	//  4415(  1) -0.024466903990329 1.698936296807176 1.601068680845859
+	//  4416(  1) -0.024289510675998 1.699180168891085 1.602022126187092
+	//  4417(  1) -0.024112104837003 1.699423999224073 1.602975579876060
+	//  4418(  1) -0.023934686489921 1.699667787859754 1.603929041900071
+	//  4419(  1) -0.023757255651295 1.699911534851645 1.604882512246463
+	//  4420(  1) -0.023579812337640 1.700155240253160 1.605835990902601
+	//  4421(  1) -0.023402356565434 1.700398904117615 1.606789477855878
+	//  4422(  1) -0.023224888351129 1.700642526498228 1.607742973093714
+	//  4423(  1) -0.023047407711140 1.700886107448116 1.608696476603556
+	//  4424(  1) -0.022869914661855 1.701129647020297 1.609649988372879
+	//  4425(  1) -0.022692409219627 1.701373145267692 1.610603508389184
+	//  4426(  1) -0.022514891400780 1.701616602243121 1.611557036640002
+	//  4427(  1) -0.022337361221606 1.701860017999310 1.612510573112886
+	//  4428(  1) -0.022159818698365 1.702103392588882 1.613464117795422
+	//  4429(  1) -0.021982263847287 1.702346726064367 1.614417670675218
+	//  4430(  1) -0.021804696684571 1.702590018478195 1.615371231739911
+	//  4431(  1) -0.021627117226384 1.702833269882699 1.616324800977165
+	//  4432(  1) -0.021449525488862 1.703076480330116 1.617278378374669
+	//  4433(  1) -0.021271921488111 1.703319649872586 1.618231963920141
+	//  4434(  1) -0.021094305240208 1.703562778562153 1.619185557601323
+	//  4435(  1) -0.020916676761195 1.703805866450763 1.620139159405985
+	//  4436(  1) -0.020739036067086 1.704048913590268 1.621092769321923
+	//  4437(  1) -0.020561383173866 1.704291920032423 1.622046387336959
+	//  4438(  1) -0.020383718097487 1.704534885828890 1.623000013438941
+	//  4439(  1) -0.020206040853872 1.704777811031232 1.623953647615745
+	//  4440(  1) -0.020028351458912 1.705020695690919 1.624907289855271
+	//  4441(  1) -0.019850649928471 1.705263539859328 1.625860940145444
+	//  4442(  1) -0.019672936278380 1.705506343587738 1.626814598474219
+	//  4443(  1) -0.019495210524441 1.705749106927335 1.627768264829573
+	//  4444(  1) -0.019317472682426 1.705991829929213 1.628721939199510
+	//  4445(  1) -0.019139722768077 1.706234512644370 1.629675621572061
+	//  4446(  1) -0.018961960797107 1.706477155123710 1.630629311935280
+	//  4447(  1) -0.018784186785199 1.706719757418044 1.631583010277248
+	//  4448(  1) -0.018606400748005 1.706962319578093 1.632536716586073
+	//  4449(  1) -0.018428602701149 1.707204841654480 1.633490430849885
+	//  4450(  1) -0.018250792660224 1.707447323697739 1.634444153056842
+	//  4451(  1) -0.018072970640796 1.707689765758309 1.635397883195127
+	//  4452(  1) -0.017895136658398 1.707932167886541 1.636351621252947
+	//  4453(  1) -0.017717290728538 1.708174530132688 1.637305367218534
+	//  4454(  1) -0.017539432866692 1.708416852546916 1.638259121080147
+	//  4455(  1) -0.017361563088307 1.708659135179298 1.639212882826069
+	//  4456(  1) -0.017183681408802 1.708901378079815 1.640166652444607
+	//  4457(  1) -0.017005787843566 1.709143581298357 1.641120429924093
+	//  4458(  1) -0.016827882407960 1.709385744884725 1.642074215252885
+	//  4459(  1) -0.016649965117315 1.709627868888626 1.643028008419366
+	//  4460(  1) -0.016472035986935 1.709869953359681 1.643981809411940
+	//  4461(  1) -0.016294095032094 1.710111998347415 1.644935618219041
+	//  4462(  1) -0.016116142268037 1.710354003901269 1.645889434829123
+	//  4463(  1) -0.015938177709981 1.710595970070592 1.646843259230666
+	//  4464(  1) -0.015760201373116 1.710837896904640 1.647797091412176
+	//  4465(  1) -0.015582213272601 1.711079784452586 1.648750931362180
+	//  4466(  1) -0.015404213423569 1.711321632763508 1.649704779069232
+	//  4467(  1) -0.015226201841123 1.711563441886399 1.650658634521909
+	//  4468(  1) -0.015048178540338 1.711805211870163 1.651612497708812
+	//  4469(  1) -0.014870143536262 1.712046942763612 1.652566368618566
+	//  4470(  1) -0.014692096843913 1.712288634615474 1.653520247239821
+	//  4471(  1) -0.014514038478284 1.712530287474388 1.654474133561250
+	//  4472(  1) -0.014335968454338 1.712771901388903 1.655428027571549
+	//  4473(  1) -0.014157886787011 1.713013476407482 1.656381929259440
+	//  4474(  1) -0.013979793491209 1.713255012578501 1.657335838613665
+	//  4475(  1) -0.013801688581814 1.713496509950249 1.658289755622995
+	//  4476(  1) -0.013623572073677 1.713737968570927 1.659243680276220
+	//  4477(  1) -0.013445443981624 1.713979388488649 1.660197612562154
+	//  4478(  1) -0.013267304320451 1.714220769751442 1.661151552469638
+	//  4479(  1) -0.013089153104930 1.714462112407251 1.662105499987531
+	//  4480(  1) -0.012910990349802 1.714703416503929 1.663059455104721
+	//  4481(  1) -0.012732816069783 1.714944682089247 1.664013417810114
+	//  4482(  1) -0.012554630279561 1.715185909210887 1.664967388092643
+	//  4483(  1) -0.012376432993797 1.715427097916451 1.665921365941261
+	//  4484(  1) -0.012198224227125 1.715668248253449 1.666875351344948
+	//  4485(  1) -0.012020003994152 1.715909360269310 1.667829344292703
+	//  4486(  1) -0.011841772309457 1.716150434011378 1.668783344773550
+	//  4487(  1) -0.011663529187594 1.716391469526910 1.669737352776535
+	//  4488(  1) -0.011485274643088 1.716632466863082 1.670691368290729
+	//  4489(  1) -0.011307008690440 1.716873426066983 1.671645391305221
+	//  4490(  1) -0.011128731344122 1.717114347185618 1.672599421809129
+	//  4491(  1) -0.010950442618581 1.717355230265910 1.673553459791587
+	//  4492(  1) -0.010772142528235 1.717596075354696 1.674507505241758
+	//  4493(  1) -0.010593831087477 1.717836882498731 1.675461558148821
+	//  4494(  1) -0.010415508310676 1.718077651744687 1.676415618501983
+	//  4495(  1) -0.010237174212170 1.718318383139152 1.677369686290471
+	//  4496(  1) -0.010058828806275 1.718559076728631 1.678323761503533
+	//  4497(  1) -0.009880472107277 1.718799732559548 1.679277844130441
+	//  4498(  1) -0.009702104129438 1.719040350678243 1.680231934160489
+	//  4499(  1) -0.009523724886995 1.719280931130973 1.681186031582994
+	//  4500(  1) -0.009345334394156 1.719521473963914 1.682140136387292
+	//  4501(  1) -0.009166932665104 1.719761979223162 1.683094248562744
+	//  4502(  1) -0.008988519713999 1.720002446954727 1.684048368098732
+	//  4503(  1) -0.008810095554971 1.720242877204542 1.685002494984659
+	//  4504(  1) -0.008631660202126 1.720483270018454 1.685956629209952
+	//  4505(  1) -0.008453213669545 1.720723625442235 1.686910770764056
+	//  4506(  1) -0.008274755971282 1.720963943521569 1.687864919636442
+	//  4507(  1) -0.008096287121366 1.721204224302065 1.688819075816600
+	//  4508(  1) -0.007917807133802 1.721444467829249 1.689773239294043
+	//  4509(  1) -0.007739316022566 1.721684674148567 1.690727410058303
+	//  4510(  1) -0.007560813801612 1.721924843305384 1.691681588098938
+	//  4511(  1) -0.007382300484866 1.722164975344987 1.692635773405522
+	//  4512(  1) -0.007203776086232 1.722405070312581 1.693589965967654
+	//  4513(  1) -0.007025240619585 1.722645128253292 1.694544165774953
+	//  4514(  1) -0.006846694098777 1.722885149212170 1.695498372817061
+	//  4515(  1) -0.006668136537635 1.723125133234179 1.696452587083638
+	//  4516(  1) -0.006489567949961 1.723365080364211 1.697406808564367
+	//  4517(  1) -0.006310988349530 1.723604990647074 1.698361037248953
+	//  4518(  1) -0.006132397750095 1.723844864127501 1.699315273127120
+	//  4519(  1) -0.005953796165382 1.724084700850143 1.700269516188614
+	//  4520(  1) -0.005775183609093 1.724324500859576 1.701223766423203
+	//  4521(  1) -0.005596560094906 1.724564264200297 1.702178023820672
+	//  4522(  1) -0.005417925636473 1.724803990916723 1.703132288370832
+	//  4523(  1) -0.005239280247421 1.725043681053196 1.704086560063511
+	//  4524(  1) -0.005060623941355 1.725283334653979 1.705040838888559
+	//  4525(  1) -0.004881956731853 1.725522951763259 1.705995124835846
+	//  4526(  1) -0.004703278632470 1.725762532425143 1.706949417895263
+	//  4527(  1) -0.004524589656736 1.726002076683665 1.707903718056722
+	//  4528(  1) -0.004345889818156 1.726241584582777 1.708858025310155
+	//  4529(  1) -0.004167179130212 1.726481056166360 1.709812339645513
+	//  4530(  1) -0.003988457606361 1.726720491478215 1.710766661052770
+	//  4531(  1) -0.003809725260037 1.726959890562068 1.711720989521919
+	//  4532(  1) -0.003630982104649 1.727199253461568 1.712675325042973
+	//  4533(  1) -0.003452228153581 1.727438580220289 1.713629667605965
+	//  4534(  1) -0.003273463420195 1.727677870881728 1.714584017200949
+	//  4535(  1) -0.003094687917828 1.727917125489308 1.715538373817997
+	//  4536(  1) -0.002915901659793 1.728156344086377 1.716492737447205
+	//  4537(  1) -0.002737104659380 1.728395526716204 1.717447108078686
+	//  4538(  1) -0.002558296929854 1.728634673421987 1.718401485702572
+	//  4539(  1) -0.002379478484458 1.728873784246848 1.719355870309017
+	//  4540(  1) -0.002200649336410 1.729112859233834 1.720310261888196
+	//  4541(  1) -0.002021809498905 1.729351898425918 1.721264660430299
+	//  4542(  1) -0.001842958985114 1.729590901865996 1.722219065925541
+	//  4543(  1) -0.001664097808186 1.729829869596895 1.723173478364152
+	//  4544(  1) -0.001485225981244 1.730068801661363 1.724127897736387
+	//  4545(  1) -0.001306343517391 1.730307698102076 1.725082324032514
+	//  4546(  1) -0.001127450429703 1.730546558961638 1.726036757242826
+	//  4547(  1) -0.000948546731236 1.730785384282578 1.726991197357634
+	//  4548(  1) -0.000769632435021 1.731024174107350 1.727945644367265
+	//  4549(  1) -0.000590707554067 1.731262928478338 1.728900098262071
+	//  4550(  1) -0.000411772101358 1.731501647437850 1.729854559032419
+	//  4551(  1) -0.000232826089857 1.731740331028125 1.730809026668696
+	//  4552(  1) -0.000053869532504 1.731978979291326 1.731763501161311
+	//  4553(  1) 0.000125097557786 1.732217592269545 1.732717982500688
+	//  4554(  1) 0.000304075168118 1.732456170004800 1.733672470677273
+	//  4555(  1) 0.000483063285622 1.732694712539040 1.734626965681529
+	//  4556(  1) 0.000662061897450 1.732933219914139 1.735581467503941
+	//  4557(  1) 0.000841070990777 1.733171692171901 1.736535976135009
+	//  4558(  1) 0.001020090552799 1.733410129354058 1.737490491565256
+	//  4559(  1) 0.001199120570738 1.733648531502269 1.738445013785220
+	//  4560(  1) 0.001378161031834 1.733886898658124 1.739399542785460
+	//  4561(  1) 0.001557211923353 1.734125230863141 1.740354078556555
+	//  4562(  1) 0.001736273232583 1.734363528158766 1.741308621089098
+	//  4563(  1) 0.001915344946832 1.734601790586376 1.742263170373706
+	//  4564(  1) 0.002094427053434 1.734840018187276 1.743217726401011
+	//  4565(  1) 0.002273519539741 1.735078211002701 1.744172289161665
+	//  4566(  1) 0.002452622393131 1.735316369073814 1.745126858646340
+	//  4567(  1) 0.002631735601003 1.735554492441711 1.746081434845722
+	//  4568(  1) 0.002810859150776 1.735792581147416 1.747036017750520
+	//  4569(  1) 0.002989993029894 1.736030635231884 1.747990607351459
+	//  4570(  1) 0.003169137225821 1.736268654735997 1.748945203639282
+	//  4571(  1) 0.003348291726045 1.736506639700574 1.749899806604753
+	//  4572(  1) 0.003527456518073 1.736744590166358 1.750854416238651
+	//  4573(  1) 0.003706631589437 1.736982506174027 1.751809032531774
+	//  4574(  1) 0.003885816927688 1.737220387764188 1.752763655474940
+	//  4575(  1) 0.004065012520401 1.737458234977379 1.753718285058982
+	//  4576(  1) 0.004244218355171 1.737696047854071 1.754672921274754
+	//  4577(  1) 0.004423434419615 1.737933826434666 1.755627564113127
+	//  4578(  1) 0.004602660701373 1.738171570759494 1.756582213564988
+	//  4579(  1) 0.004781897188105 1.738409280868823 1.757536869621244
+	//  4580(  1) 0.004961143867494 1.738646956802846 1.758491532272821
+	//  4581(  1) 0.005140400727241 1.738884598601694 1.759446201510658
+	//  4582(  1) 0.005319667755072 1.739122206305428 1.760400877325717
+	//  4583(  1) 0.005498944938734 1.739359779954038 1.761355559708976
+	//  4584(  1) 0.005678232265994 1.739597319587453 1.762310248651429
+	//  4585(  1) 0.005857529724640 1.739834825245527 1.763264944144089
+	//  4586(  1) 0.006036837302483 1.740072296968055 1.764219646177986
+	//  4587(  1) 0.006216154987353 1.740309734794758 1.765174354744169
+	//  4588(  1) 0.006395482767102 1.740547138765294 1.766129069833703
+	//  4589(  1) 0.006574820629604 1.740784508919254 1.767083791437671
+	//  4590(  1) 0.006754168562753 1.741021845296161 1.768038519547172
+	//  4591(  1) 0.006933526554464 1.741259147935470 1.768993254153325
+	//  4592(  1) 0.007112894592672 1.741496416876575 1.769947995247264
+	//  4593(  1) 0.007292272665336 1.741733652158799 1.770902742820142
+	//  4594(  1) 0.007471660760432 1.741970853821401 1.771857496863127
+	//  4595(  1) 0.007651058865958 1.742208021903574 1.772812257367407
+	//  4596(  1) 0.007830466969935 1.742445156444444 1.773767024324184
+	//  4597(  1) 0.008009885060401 1.742682257483074 1.774721797724680
+	//  4598(  1) 0.008189313125418 1.742919325058460 1.775676577560131
+	//  4599(  1) 0.008368751153066 1.743156359209531 1.776631363821794
+	//  4600(  1) 0.008548199131446 1.743393359975156 1.777586156500939
+	//  4601(  1) 0.008727657048681 1.743630327394132 1.778540955588855
+	//  4602(  1) 0.008907124892912 1.743867261505198 1.779495761076847
+	//  4603(  1) 0.009086602652304 1.744104162347024 1.780450572956238
+	//  4604(  1) 0.009266090315038 1.744341029958216 1.781405391218367
+	//  4605(  1) 0.009445587869318 1.744577864377318 1.782360215854589
+	//  4606(  1) 0.009625095303367 1.744814665642807 1.783315046856276
+	//  4607(  1) 0.009804612605430 1.745051433793097 1.784269884214819
+	//  4608(  1) 0.009984139763771 1.745288168866538 1.785224727921622
+	//  4609(  1) 0.010163676766673 1.745524870901417 1.786179577968107
+	//  4610(  1) 0.010343223602440 1.745761539935955 1.787134434345714
+	//  4611(  1) 0.010522780259397 1.745998176008312 1.788089297045898
+	//  4612(  1) 0.010702346725887 1.746234779156584 1.789044166060130
+	//  4613(  1) 0.010881922990274 1.746471349418801 1.789999041379898
+	//  4614(  1) 0.011061509040943 1.746707886832936 1.790953922996707
+	//  4615(  1) 0.011241104866296 1.746944391436892 1.791908810902078
+	//  4616(  1) 0.011420710454758 1.747180863268514 1.792863705087547
+	//  4617(  1) 0.011600325794771 1.747417302365582 1.793818605544667
+	//  4618(  1) 0.011779950874799 1.747653708765815 1.794773512265009
+	//  4619(  1) 0.011959585683323 1.747890082506868 1.795728425240158
+	//  4620(  1) 0.012139230208845 1.748126423626334 1.796683344461715
+	//  4621(  1) 0.012318884439888 1.748362732161745 1.797638269921298
+	//  4622(  1) 0.012498548364993 1.748599008150571 1.798593201610541
+	//  4623(  1) 0.012678221972719 1.748835251630218 1.799548139521094
+	//  4624(  1) 0.012857905251647 1.749071462638033 1.800503083644622
+	//  4625(  1) 0.013037598190377 1.749307641211300 1.801458033972807
+	//  4626(  1) 0.013217300777526 1.749543787387241 1.802412990497346
+	//  4627(  1) 0.013397013001734 1.749779901203017 1.803367953209953
+	//  4628(  1) 0.013576734851657 1.750015982695730 1.804322922102357
+	//  4629(  1) 0.013756466315971 1.750252031902417 1.805277897166302
+	//  4630(  1) 0.013936207383373 1.750488048860058 1.806232878393550
+	//  4631(  1) 0.014115958042577 1.750724033605569 1.807187865775876
+	//  4632(  1) 0.014295718282316 1.750959986175808 1.808142859305072
+	//  4633(  1) 0.014475488091344 1.751195906607570 1.809097858972946
+	//  4634(  1) 0.014655267458432 1.751431794937592 1.810052864771320
+	//  4635(  1) 0.014835056372371 1.751667651202550 1.811007876692033
+	//  4636(  1) 0.015014854821970 1.751903475439059 1.811962894726940
+	//  4637(  1) 0.015194662796059 1.752139267683674 1.812917918867909
+	//  4638(  1) 0.015374480283484 1.752375027972891 1.813872949106825
+	//  4639(  1) 0.015554307273111 1.752610756343146 1.814827985435589
+	//  4640(  1) 0.015734143753825 1.752846452830816 1.815783027846116
+	//  4641(  1) 0.015913989714530 1.753082117472217 1.816738076330336
+	//  4642(  1) 0.016093845144147 1.753317750303607 1.817693130880196
+	//  4643(  1) 0.016273710031618 1.753553351361185 1.818648191487656
+	//  4644(  1) 0.016453584365901 1.753788920681090 1.819603258144695
+	//  4645(  1) 0.016633468135975 1.754024458299402 1.820558330843301
+	//  4646(  1) 0.016813361330835 1.754259964252143 1.821513409575483
+	//  4647(  1) 0.016993263939497 1.754495438575275 1.822468494333263
+	//  4648(  1) 0.017173175950993 1.754730881304704 1.823423585108675
+	//  4649(  1) 0.017353097354375 1.754966292476275 1.824378681893774
+	//  4650(  1) 0.017533028138712 1.755201672125775 1.825333784680624
+	//  4651(  1) 0.017712968293093 1.755437020288935 1.826288893461307
+	//  4652(  1) 0.017892917806624 1.755672337001425 1.827244008227920
+	//  4653(  1) 0.018072876668429 1.755907622298859 1.828199128972575
+	//  4654(  1) 0.018252844867651 1.756142876216793 1.829154255687396
+	//  4655(  1) 0.018432822393450 1.756378098790724 1.830109388364525
+	//  4656(  1) 0.018612809235006 1.756613290056094 1.831064526996118
+	//  4657(  1) 0.018792805381515 1.756848450048284 1.832019671574344
+	//  4658(  1) 0.018972810822192 1.757083578802622 1.832974822091389
+	//  4659(  1) 0.019152825546269 1.757318676354376 1.833929978539451
+	//  4660(  1) 0.019332849542997 1.757553742738756 1.834885140910745
+	//  4661(  1) 0.019512882801645 1.757788777990919 1.835840309197500
+	//  4662(  1) 0.019692925311499 1.758023782145961 1.836795483391958
+	//  4663(  1) 0.019872977061863 1.758258755238923 1.837750663486377
+	//  4664(  1) 0.020053038042059 1.758493697304791 1.838705849473029
+	//  4665(  1) 0.020233108241427 1.758728608378493 1.839661041344200
+	//  4666(  1) 0.020413187649323 1.758963488494899 1.840616239092192
+	//  4667(  1) 0.020593276255123 1.759198337688827 1.841571442709319
+	//  4668(  1) 0.020773374048219 1.759433155995036 1.842526652187911
+	//  4669(  1) 0.020953481018021 1.759667943448229 1.843481867520311
+	//  4670(  1) 0.021133597153956 1.759902700083053 1.844437088698877
+	//  4671(  1) 0.021313722445470 1.760137425934101 1.845392315715982
+	//  4672(  1) 0.021493856882025 1.760372121035910 1.846347548564011
+	//  4673(  1) 0.021674000453101 1.760606785422961 1.847302787235365
+	//  4674(  1) 0.021854153148195 1.760841419129679 1.848258031722458
+	//  4675(  1) 0.022034314956821 1.761076022190436 1.849213282017719
+	//  4676(  1) 0.022214485868511 1.761310594639545 1.850168538113590
+	//  4677(  1) 0.022394665872815 1.761545136511268 1.851123800002529
+	//  4678(  1) 0.022574854959299 1.761779647839809 1.852079067677004
+	//  4679(  1) 0.022755053117545 1.762014128659321 1.853034341129501
+	//  4680(  1) 0.022935260337155 1.762248579003899 1.853989620352518
+	//  4681(  1) 0.023115476607746 1.762482998907584 1.854944905338567
+	//  4682(  1) 0.023295701918953 1.762717388404364 1.855900196080174
+	//  4683(  1) 0.023475936260427 1.762951747528170 1.856855492569879
+	//  4684(  1) 0.023656179621838 1.763186076312884 1.857810794800234
+	//  4685(  1) 0.023836431992870 1.763420374792328 1.858766102763808
+	//  4686(  1) 0.024016693363227 1.763654643000274 1.859721416453181
+	//  4687(  1) 0.024196963722627 1.763888880970437 1.860676735860947
+	//  4688(  1) 0.024377243060808 1.764123088736483 1.861632060979715
+	//  4689(  1) 0.024557531367522 1.764357266332020 1.862587391802107
+	//  4690(  1) 0.024737828632538 1.764591413790603 1.863542728320757
+	//  4691(  1) 0.024918134845644 1.764825531145737 1.864498070528314
+	//  4692(  1) 0.025098449996643 1.765059618430871 1.865453418417441
+	//  4693(  1) 0.025278774075354 1.765293675679399 1.866408771980813
+	//  4694(  1) 0.025459107071613 1.765527702924666 1.867364131211120
+	//  4695(  1) 0.025639448975275 1.765761700199963 1.868319496101064
+	//  4696(  1) 0.025819799776208 1.765995667538527 1.869274866643361
+	//  4697(  1) 0.026000159464299 1.766229604973542 1.870230242830739
+	//  4698(  1) 0.026180528029450 1.766463512538140 1.871185624655942
+	//  4699(  1) 0.026360905461581 1.766697390265403 1.872141012111726
+	//  4700(  1) 0.026541291750626 1.766931238188357 1.873096405190859
+	//  4701(  1) 0.026721686886537 1.767165056339977 1.874051803886123
+	//  4702(  1) 0.026902090859282 1.767398844753186 1.875007208190314
+	//  4703(  1) 0.027082503658846 1.767632603460855 1.875962618096240
+	//  4704(  1) 0.027262925275230 1.767866332495804 1.876918033596723
+	//  4705(  1) 0.027443355698450 1.768100031890800 1.877873454684598
+	//  4706(  1) 0.027623794918539 1.768333701678557 1.878828881352712
+	//  4707(  1) 0.027804242925546 1.768567341891742 1.879784313593925
+	//  4708(  1) 0.027984699709537 1.768800952562964 1.880739751401113
+	//  4709(  1) 0.028165165260593 1.769034533724787 1.881695194767160
+	//  4710(  1) 0.028345639568812 1.769268085409719 1.882650643684967
+	//  4711(  1) 0.028526122624307 1.769501607650220 1.883606098147446
+	//  4712(  1) 0.028706614417206 1.769735100478697 1.884561558147522
+	//  4713(  1) 0.028887114937657 1.769968563927506 1.885517023678134
+	//  4714(  1) 0.029067624175819 1.770201998028954 1.886472494732232
+	//  4715(  1) 0.029248142121871 1.770435402815297 1.887427971302779
+	//  4716(  1) 0.029428668766004 1.770668778318737 1.888383453382753
+	//  4717(  1) 0.029609204098428 1.770902124571430 1.889338940965143
+	//  4718(  1) 0.029789748109368 1.771135441605479 1.890294434042950
+	//  4719(  1) 0.029970300789063 1.771368729452937 1.891249932609188
+	//  4720(  1) 0.030150862127769 1.771601988145807 1.892205436656885
+	//  4721(  1) 0.030331432115759 1.771835217716043 1.893160946179079
+	//  4722(  1) 0.030512010743319 1.772068418195548 1.894116461168825
+	//  4723(  1) 0.030692598000753 1.772301589616173 1.895071981619185
+	//  4724(  1) 0.030873193878378 1.772534732009724 1.896027507523236
+	//  4725(  1) 0.031053798366529 1.772767845407953 1.896983038874070
+	//  4726(  1) 0.031234411455556 1.773000929842564 1.897938575664787
+	//  4727(  1) 0.031415033135823 1.773233985345212 1.898894117888503
+	//  4728(  1) 0.031595663397710 1.773467011947503 1.899849665538343
+	//  4729(  1) 0.031776302231614 1.773700009680993 1.900805218607447
+	//  4730(  1) 0.031956949627945 1.773932978577187 1.901760777088967
+	//  4731(  1) 0.032137605577130 1.774165918667545 1.902716340976066
+	//  4732(  1) 0.032318270069612 1.774398829983474 1.903671910261921
+	//  4733(  1) 0.032498943095846 1.774631712556335 1.904627484939719
+	//  4734(  1) 0.032679624646305 1.774864566417439 1.905583065002661
+	//  4735(  1) 0.032860314711478 1.775097391598049 1.906538650443960
+	//  4736(  1) 0.033041013281866 1.775330188129378 1.907494241256840
+	//  4737(  1) 0.033221720347987 1.775562956042591 1.908449837434539
+	//  4738(  1) 0.033402435900374 1.775795695368807 1.909405438970304
+	//  4739(  1) 0.033583159929576 1.776028406139094 1.910361045857398
+	//  4740(  1) 0.033763892426155 1.776261088384473 1.911316658089094
+	//  4741(  1) 0.033944633380690 1.776493742135916 1.912272275658675
+	//  4742(  1) 0.034125382783773 1.776726367424349 1.913227898559440
+	//  4743(  1) 0.034306140626012 1.776958964280649 1.914183526784698
+	//  4744(  1) 0.034486906898031 1.777191532735643 1.915139160327769
+	//  4745(  1) 0.034667681590467 1.777424072820115 1.916094799181985
+	//  4746(  1) 0.034848464693974 1.777656584564798 1.917050443340693
+	//  4747(  1) 0.035029256199217 1.777889068000378 1.918006092797247
+	//  4748(  1) 0.035210056096880 1.778121523157495 1.918961747545016
+	//  4749(  1) 0.035390864377660 1.778353950066740 1.919917407577382
+	//  4750(  1) 0.035571681032269 1.778586348758658 1.920873072887734
+	//  4751(  1) 0.035752506051432 1.778818719263748 1.921828743469477
+	//  4752(  1) 0.035933339425892 1.779051061612458 1.922784419316026
+	//  4753(  1) 0.036114181146404 1.779283375835194 1.923740100420808
+	//  4754(  1) 0.036295031203737 1.779515661962312 1.924695786777261
+	//  4755(  1) 0.036475889588678 1.779747920024123 1.925651478378836
+	//  4756(  1) 0.036656756292026 1.779980150050890 1.926607175218994
+	//  4757(  1) 0.036837631304594 1.780212352072831 1.927562877291208
+	//  4758(  1) 0.037018514617212 1.780444526120116 1.928518584588964
+	//  4759(  1) 0.037199406220722 1.780676672222870 1.929474297105757
+	//  4760(  1) 0.037380306105981 1.780908790411171 1.930430014835096
+	//  4761(  1) 0.037561214263862 1.781140880715052 1.931385737770500
+	//  4762(  1) 0.037742130685250 1.781372943164499 1.932341465905499
+	//  4763(  1) 0.037923055361046 1.781604977789452 1.933297199233636
+	//  4764(  1) 0.038103988282164 1.781836984619806 1.934252937748463
+	//  4765(  1) 0.038284929439535 1.782068963685409 1.935208681443547
+	//  4766(  1) 0.038465878824099 1.782300915016064 1.936164430312462
+	//  4767(  1) 0.038646836426817 1.782532838641529 1.937120184348797
+	//  4768(  1) 0.038827802238658 1.782764734591516 1.938075943546149
+	//  4769(  1) 0.039008776250610 1.782996602895692 1.939031707898130
+	//  4770(  1) 0.039189758453671 1.783228443583677 1.939987477398360
+	//  4771(  1) 0.039370748838855 1.783460256685049 1.940943252040471
+	//  4772(  1) 0.039551747397192 1.783692042229339 1.941899031818108
+	//  4773(  1) 0.039732754119723 1.783923800246032 1.942854816724924
+	//  4774(  1) 0.039913768997504 1.784155530764571 1.943810606754585
+	//  4775(  1) 0.040094792021604 1.784387233814351 1.944766401900768
+	//  4776(  1) 0.040275823183110 1.784618909424724 1.945722202157162
+	//  4777(  1) 0.040456862473117 1.784850557624996 1.946678007517465
+	//  4778(  1) 0.040637909882739 1.785082178444433 1.947633817975387
+	//  4779(  1) 0.040818965403100 1.785313771912250 1.948589633524649
+	//  4780(  1) 0.041000029025340 1.785545338057622 1.949545454158983
+	//  4781(  1) 0.041181100740614 1.785776876909678 1.950501279872132
+	//  4782(  1) 0.041362180540087 1.786008388497503 1.951457110657850
+	//  4783(  1) 0.041543268414940 1.786239872850139 1.952412946509901
+	//  4784(  1) 0.041724364356369 1.786471329996583 1.953368787422060
+	//  4785(  1) 0.041905468355582 1.786702759965788 1.954324633388115
+	//  4786(  1) 0.042086580403799 1.786934162786664 1.955280484401862
+	//  4787(  1) 0.042267700492258 1.787165538488076 1.956236340457109
+	//  4788(  1) 0.042448828612207 1.787396887098847 1.957192201547675
+	//  4789(  1) 0.042629964754909 1.787628208647755 1.958148067667389
+	//  4790(  1) 0.042811108911639 1.787859503163534 1.959103938810092
+	//  4791(  1) 0.042992261073689 1.788090770674877 1.960059814969635
+	//  4792(  1) 0.043173421232361 1.788322011210433 1.961015696139878
+	//  4793(  1) 0.043354589378972 1.788553224798806 1.961971582314695
+	//  4794(  1) 0.043535765504852 1.788784411468558 1.962927473487967
+	//  4795(  1) 0.043716949601345 1.789015571248209 1.963883369653588
+	//  4796(  1) 0.043898141659808 1.789246704166233 1.964839270805463
+	//  4797(  1) 0.044079341671610 1.789477810251066 1.965795176937506
+	//  4798(  1) 0.044260549628136 1.789708889531096 1.966751088043641
+	//  4799(  1) 0.044441765520783 1.789939942034671 1.967707004117804
+	//  4800(  1) 0.044622989340961 1.790170967790097 1.968662925153941
+	//  4801(  1) 0.044804221080093 1.790401966825637 1.969618851146009
+	//  4802(  1) 0.044985460729616 1.790632939169510 1.970574782087974
+	//  4803(  1) 0.045166708280980 1.790863884849895 1.971530717973814
+	//  4804(  1) 0.045347963725648 1.791094803894926 1.972486658797516
+	//  4805(  1) 0.045529227055095 1.791325696332697 1.973442604553079
+	//  4806(  1) 0.045710498260812 1.791556562191260 1.974398555234509
+	//  4807(  1) 0.045891777334301 1.791787401498623 1.975354510835827
+	//  4808(  1) 0.046073064267077 1.792018214282755 1.976310471351061
+	//  4809(  1) 0.046254359050668 1.792249000571579 1.977266436774250
+	//  4810(  1) 0.046435661676616 1.792479760392981 1.978222407099444
+	//  4811(  1) 0.046616972136475 1.792710493774802 1.979178382320702
+	//  4812(  1) 0.046798290421813 1.792941200744842 1.980134362432094
+	//  4813(  1) 0.046979616524210 1.793171881330861 1.981090347427700
+	//  4814(  1) 0.047160950435258 1.793402535560576 1.982046337301610
+	//  4815(  1) 0.047342292146565 1.793633163461663 1.983002332047924
+	//  4816(  1) 0.047523641649749 1.793863765061756 1.983958331660753
+	//  4817(  1) 0.047704998936442 1.794094340388450 1.984914336134217
+	//  4818(  1) 0.047886363998287 1.794324889469298 1.985870345462447
+	//  4819(  1) 0.048067736826943 1.794555412331810 1.986826359639583
+	//  4820(  1) 0.048249117414079 1.794785909003458 1.987782378659775
+	//  4821(  1) 0.048430505751378 1.795016379511670 1.988738402517184
+	//  4822(  1) 0.048611901830536 1.795246823883837 1.989694431205981
+	//  4823(  1) 0.048793305643260 1.795477242147306 1.990650464720346
+	//  4824(  1) 0.048974717181271 1.795707634329385 1.991606503054470
+	//  4825(  1) 0.049156136436302 1.795938000457342 1.992562546202551
+	//  4826(  1) 0.049337563400100 1.796168340558402 1.993518594158802
+	//  4827(  1) 0.049518998064422 1.796398654659752 1.994474646917441
+	//  4828(  1) 0.049700440421040 1.796628942788538 1.995430704472699
+	//  4829(  1) 0.049881890461737 1.796859204971867 1.996386766818814
+	//  4830(  1) 0.050063348178308 1.797089441236803 1.997342833950037
+	//  4831(  1) 0.050244813562564 1.797319651610372 1.998298905860627
+	//  4832(  1) 0.050426286606323 1.797549836119560 1.999254982544852
+	//  4833(  1) 0.050607767301419 1.797779994791313 2.000211063996991
+	//  4834(  1) 0.050789255639699 1.798010127652536 2.001167150211332
+	//  4835(  1) 0.050970751613020 1.798240234730096 2.002123241182174
+	//  4836(  1) 0.051152255213251 1.798470316050819 2.003079336903824
+	//  4837(  1) 0.051333766432277 1.798700371641491 2.004035437370599
+	//  4838(  1) 0.051515285261991 1.798930401528861 2.004991542576827
+	//  4839(  1) 0.051696811694302 1.799160405739636 2.005947652516844
+	//  4840(  1) 0.051878345721127 1.799390384300486 2.006903767184995
+	//  4841(  1) 0.052059887334400 1.799620337238039 2.007859886575637
+	//  4842(  1) 0.052241436526062 1.799850264578885 2.008816010683134
+	//  4843(  1) 0.052422993288072 1.800080166349575 2.009772139501862
+	//  4844(  1) 0.052604557612396 1.800310042576622 2.010728273026205
+	//  4845(  1) 0.052786129491014 1.800539893286498 2.011684411250555
+	//  4846(  1) 0.052967708915920 1.800769718505638 2.012640554169317
+	//  4847(  1) 0.053149295879117 1.800999518260436 2.013596701776903
+	//  4848(  1) 0.053330890372621 1.801229292577250 2.014552854067734
+	//  4849(  1) 0.053512492388461 1.801459041482397 2.015509011036241
+	//  4850(  1) 0.053694101918678 1.801688765002156 2.016465172676867
+	//  4851(  1) 0.053875718955323 1.801918463162768 2.017421338984061
+	//  4852(  1) 0.054057343490461 1.802148135990437 2.018377509952280
+	//  4853(  1) 0.054238975516168 1.802377783511324 2.019333685575996
+	//  4854(  1) 0.054420615024532 1.802607405751556 2.020289865849685
+	//  4855(  1) 0.054602262007653 1.802837002737222 2.021246050767834
+	//  4856(  1) 0.054783916457643 1.803066574494369 2.022202240324940
+	//  4857(  1) 0.054965578366625 1.803296121049010 2.023158434515509
+	//  4858(  1) 0.055147247726735 1.803525642427117 2.024114633334056
+	//  4859(  1) 0.055328924530119 1.803755138654626 2.025070836775103
+	//  4860(  1) 0.055510608768938 1.803984609757434 2.026027044833185
+	//  4861(  1) 0.055692300435361 1.804214055761401 2.026983257502844
+	//  4862(  1) 0.055873999521570 1.804443476692349 2.027939474778631
+	//  4863(  1) 0.056055706019761 1.804672872576063 2.028895696655107
+	//  4864(  1) 0.056237419922138 1.804902243438290 2.029851923126841
+	//  4865(  1) 0.056419141220919 1.805131589304737 2.030808154188411
+	//  4866(  1) 0.056600869908332 1.805360910201078 2.031764389834407
+	//  4867(  1) 0.056782605976619 1.805590206152948 2.032720630059424
+	//  4868(  1) 0.056964349418031 1.805819477185943 2.033676874858067
+	//  4869(  1) 0.057146100224832 1.806048723325624 2.034633124224952
+	//  4870(  1) 0.057327858389297 1.806277944597514 2.035589378154703
+	//  4871(  1) 0.057509623903713 1.806507141027099 2.036545636641951
+	//  4872(  1) 0.057691396760378 1.806736312639827 2.037501899681339
+	//  4873(  1) 0.057873176951601 1.806965459461112 2.038458167267517
+	//  4874(  1) 0.058054964469704 1.807194581516329 2.039414439395144
+	//  4875(  1) 0.058236759307018 1.807423678830814 2.040370716058888
+	//  4876(  1) 0.058418561455888 1.807652751429872 2.041326997253426
+	//  4877(  1) 0.058600370908669 1.807881799338767 2.042283282973444
+	//  4878(  1) 0.058782187657727 1.808110822582727 2.043239573213636
+	//  4879(  1) 0.058964011695441 1.808339821186945 2.044195867968707
+	//  4880(  1) 0.059145843014198 1.808568795176577 2.045152167233368
+	//  4881(  1) 0.059327681606400 1.808797744576742 2.046108471002341
+	//  4882(  1) 0.059509527464458 1.809026669412523 2.047064779270353
+	//  4883(  1) 0.059691380580794 1.809255569708968 2.048021092032145
+	//  4884(  1) 0.059873240947844 1.809484445491086 2.048977409282463
+	//  4885(  1) 0.060055108558053 1.809713296783853 2.049933731016063
+	//  4886(  1) 0.060236983403875 1.809942123612208 2.050890057227710
+	//  4887(  1) 0.060418865477780 1.810170926001054 2.051846387912176
+	//  4888(  1) 0.060600754772246 1.810399703975258 2.052802723064242
+	//  4889(  1) 0.060782651279763 1.810628457559649 2.053759062678700
+	//  4890(  1) 0.060964554992830 1.810857186779026 2.054715406750347
+	//  4891(  1) 0.061146465903961 1.811085891658147 2.055671755273992
+	//  4892(  1) 0.061328384005679 1.811314572221736 2.056628108244451
+	//  4893(  1) 0.061510309290516 1.811543228494483 2.057584465656547
+	//  4894(  1) 0.061692241751018 1.811771860501040 2.058540827505113
+	//  4895(  1) 0.061874181379741 1.812000468266026 2.059497193784991
+	//  4896(  1) 0.062056128169252 1.812229051814024 2.060453564491031
+	//  4897(  1) 0.062238082112128 1.812457611169580 2.061409939618092
+	//  4898(  1) 0.062420043200958 1.812686146357208 2.062366319161039
+	//  4899(  1) 0.062602011428341 1.812914657401383 2.063322703114749
+	//  4900(  1) 0.062783986786889 1.813143144326548 2.064279091474104
+	//  4901(  1) 0.062965969269221 1.813371607157111 2.065235484233996
+	//  4902(  1) 0.063147958867971 1.813600045917443 2.066191881389327
+	//  4903(  1) 0.063329955575781 1.813828460631882 2.067148282935005
+	//  4904(  1) 0.063511959385304 1.814056851324731 2.068104688865946
+	//  4905(  1) 0.063693970289205 1.814285218020257 2.069061099177075
+	//  4906(  1) 0.063875988280158 1.814513560742694 2.070017513863328
+	//  4907(  1) 0.064058013350851 1.814741879516240 2.070973932919645
+	//  4908(  1) 0.064240045493979 1.814970174365060 2.071930356340976
+	//  4909(  1) 0.064422084702249 1.815198445313283 2.072886784122280
+	//  4910(  1) 0.064604130968380 1.815426692385004 2.073843216258523
+	//  4911(  1) 0.064786184285099 1.815654915604286 2.074799652744680
+	//  4912(  1) 0.064968244645145 1.815883114995153 2.075756093575734
+	//  4913(  1) 0.065150312041269 1.816111290581598 2.076712538746676
+	//  4914(  1) 0.065332386466231 1.816339442387582 2.077668988252506
+	//  4915(  1) 0.065514467912801 1.816567570437027 2.078625442088230
+	//  4916(  1) 0.065696556373760 1.816795674753825 2.079581900248864
+	//  4917(  1) 0.065878651841900 1.817023755361831 2.080538362729432
+	//  4918(  1) 0.066060754310024 1.817251812284868 2.081494829524965
+	//  4919(  1) 0.066242863770945 1.817479845546725 2.082451300630504
+	//  4920(  1) 0.066424980217484 1.817707855171158 2.083407776041095
+	//  4921(  1) 0.066607103642477 1.817935841181888 2.084364255751795
+	//  4922(  1) 0.066789234038767 1.818163803602601 2.085320739757668
+	//  4923(  1) 0.066971371399208 1.818391742456953 2.086277228053785
+	//  4924(  1) 0.067153515716665 1.818619657768565 2.087233720635225
+	//  4925(  1) 0.067335666984014 1.818847549561023 2.088190217497078
+	//  4926(  1) 0.067517825194139 1.819075417857882 2.089146718634437
+	//  4927(  1) 0.067699990339936 1.819303262682663 2.090103224042408
+	//  4928(  1) 0.067882162414312 1.819531084058853 2.091059733716101
+	//  4929(  1) 0.068064341410183 1.819758882009905 2.092016247650637
+	//  4930(  1) 0.068246527320475 1.819986656559242 2.092972765841141
+	//  4931(  1) 0.068428720138124 1.820214407730252 2.093929288282749
+	//  4932(  1) 0.068610919856079 1.820442135546289 2.094885814970605
+	//  4933(  1) 0.068793126467296 1.820669840030676 2.095842345899859
+	//  4934(  1) 0.068975339964741 1.820897521206703 2.096798881065669
+	//  4935(  1) 0.069157560341394 1.821125179097626 2.097755420463202
+	//  4936(  1) 0.069339787590241 1.821352813726668 2.098711964087633
+	//  4937(  1) 0.069522021704280 1.821580425117021 2.099668511934142
+	//  4938(  1) 0.069704262676519 1.821808013291844 2.100625063997920
+	//  4939(  1) 0.069886510499976 1.822035578274262 2.101581620274164
+	//  4940(  1) 0.070068765167678 1.822263120087368 2.102538180758080
+	//  4941(  1) 0.070251026672663 1.822490638754226 2.103494745444880
+	//  4942(  1) 0.070433295007980 1.822718134297862 2.104451314329784
+	//  4943(  1) 0.070615570166687 1.822945606741273 2.105407887408020
+	//  4944(  1) 0.070797852141851 1.823173056107423 2.106364464674825
+	//  4945(  1) 0.070980140926549 1.823400482419245 2.107321046125442
+	//  4946(  1) 0.071162436513871 1.823627885699638 2.108277631755122
+	//  4947(  1) 0.071344738896914 1.823855265971469 2.109234221559123
+	//  4948(  1) 0.071527048068784 1.824082623257574 2.110190815532712
+	//  4949(  1) 0.071709364022601 1.824309957580759 2.111147413671162
+	//  4950(  1) 0.071891686751491 1.824537268963793 2.112104015969755
+	//  4951(  1) 0.072074016248590 1.824764557429418 2.113060622423780
+	//  4952(  1) 0.072256352507048 1.824991823000341 2.114017233028532
+	//  4953(  1) 0.072438695520019 1.825219065699239 2.114973847779316
+	//  4954(  1) 0.072621045280672 1.825446285548757 2.115930466671443
+	//  4955(  1) 0.072803401782181 1.825673482571508 2.116887089700233
+	//  4956(  1) 0.072985765017734 1.825900656790075 2.117843716861010
+	//  4957(  1) 0.073168134980526 1.826127808227007 2.118800348149110
+	//  4958(  1) 0.073350511663762 1.826354936904823 2.119756983559872
+	//  4959(  1) 0.073532895060659 1.826582042846011 2.120713623088647
+	//  4960(  1) 0.073715285164441 1.826809126073026 2.121670266730789
+	//  4961(  1) 0.073897681968342 1.827036186608295 2.122626914481662
+	//  4962(  1) 0.074080085465606 1.827263224474211 2.123583566336636
+	//  4963(  1) 0.074262495649489 1.827490239693135 2.124540222291091
+	//  4964(  1) 0.074444912513252 1.827717232287400 2.125496882340410
+	//  4965(  1) 0.074627336050170 1.827944202279306 2.126453546479987
+	//  4966(  1) 0.074809766253525 1.828171149691123 2.127410214705221
+	//  4967(  1) 0.074992203116608 1.828398074545090 2.128366887011521
+	//  4968(  1) 0.075174646632722 1.828624976863414 2.129323563394300
+	//  4969(  1) 0.075357096795177 1.828851856668272 2.130280243848981
+	//  4970(  1) 0.075539553597295 1.829078713981810 2.131236928370991
+	//  4971(  1) 0.075722017032406 1.829305548826145 2.132193616955768
+	//  4972(  1) 0.075904487093849 1.829532361223361 2.133150309598756
+	//  4973(  1) 0.076086963774973 1.829759151195513 2.134107006295404
+	//  4974(  1) 0.076269447069137 1.829985918764624 2.135063707041171
+	//  4975(  1) 0.076451936969708 1.830212663952688 2.136020411831521
+	//  4976(  1) 0.076634433470065 1.830439386781668 2.136977120661927
+	//  4977(  1) 0.076816936563593 1.830666087273496 2.137933833527868
+	//  4978(  1) 0.076999446243689 1.830892765450076 2.138890550424831
+	//  4979(  1) 0.077181962503757 1.831119421333279 2.139847271348309
+	//  4980(  1) 0.077364485337214 1.831346054944948 2.140803996293802
+	//  4981(  1) 0.077547014737481 1.831572666306893 2.141760725256819
+	//  4982(  1) 0.077729550697994 1.831799255440898 2.142717458232874
+	//  4983(  1) 0.077912093212194 1.832025822368713 2.143674195217488
+	//  4984(  1) 0.078094642273533 1.832252367112062 2.144630936206192
+	//  4985(  1) 0.078277197875471 1.832478889692635 2.145587681194520
+	//  4986(  1) 0.078459760011480 1.832705390132095 2.146544430178016
+	//  4987(  1) 0.078642328675039 1.832931868452074 2.147501183152229
+	//  4988(  1) 0.078824903859635 1.833158324674175 2.148457940112717
+	//  4989(  1) 0.079007485558768 1.833384758819971 2.149414701055042
+	//  4990(  1) 0.079190073765943 1.833611170911004 2.150371465974777
+	//  4991(  1) 0.079372668474677 1.833837560968790 2.151328234867498
+	//  4992(  1) 0.079555269678495 1.834063929014811 2.152285007728790
+	//  4993(  1) 0.079737877370930 1.834290275070523 2.153241784554244
+	//  4994(  1) 0.079920491545527 1.834516599157351 2.154198565339460
+	//  4995(  1) 0.080103112195838 1.834742901296690 2.155155350080042
+	//  4996(  1) 0.080285739315423 1.834969181509909 2.156112138771602
+	//  4997(  1) 0.080468372897854 1.835195439818343 2.157068931409760
+	//  4998(  1) 0.080651012936710 1.835421676243302 2.158025727990141
+	//  4999(  1) 0.080833659425579 1.835647890806063 2.158982528508378
+	//  5000(  1) 0.081016312358058 1.835874083527878 2.159939332960110
+	//  5001(  1) 0.081198971727754 1.836100254429966 2.160896141340984
+	//  5002(  1) 0.081381637528283 1.836326403533521 2.161852953646652
+	//  5003(  1) 0.081564309753268 1.836552530859705 2.162809769872776
+	//  5004(  1) 0.081746988396342 1.836778636429651 2.163766590015019
+	//  5005(  1) 0.081929673451148 1.837004720264466 2.164723414069058
+	//  5006(  1) 0.082112364911336 1.837230782385226 2.165680242030570
+	//  5007(  1) 0.082295062770566 1.837456822812978 2.166637073895243
+	//  5008(  1) 0.082477767022507 1.837682841568742 2.167593909658771
+	//  5009(  1) 0.082660477660836 1.837908838673508 2.168550749316853
+	//  5010(  1) 0.082843194679240 1.838134814148238 2.169507592865196
+	//  5011(  1) 0.083025918071412 1.838360768013865 2.170464440299515
+	//  5012(  1) 0.083208647831058 1.838586700291294 2.171421291615527
+	//  5013(  1) 0.083391383951890 1.838812611001403 2.172378146808962
+	//  5014(  1) 0.083574126427628 1.839038500165038 2.173335005875551
+	//  5015(  1) 0.083756875252004 1.839264367803019 2.174291868811034
+	//  5016(  1) 0.083939630418755 1.839490213936139 2.175248735611159
+	//  5017(  1) 0.084122391921629 1.839716038585161 2.176205606271677
+	//  5018(  1) 0.084305159754383 1.839941841770818 2.177162480788350
+	//  5019(  1) 0.084487933910780 1.840167623513820 2.178119359156942
+	//  5020(  1) 0.084670714384596 1.840393383834845 2.179076241373227
+	//  5021(  1) 0.084853501169611 1.840619122754542 2.180033127432984
+	//  5022(  1) 0.085036294259616 1.840844840293537 2.180990017331999
+	//  5023(  1) 0.085219093648410 1.841070536472423 2.181946911066064
+	//  5024(  1) 0.085401899329802 1.841296211311769 2.182903808630978
+	//  5025(  1) 0.085584711297608 1.841521864832113 2.183860710022545
+	//  5026(  1) 0.085767529545653 1.841747497053966 2.184817615236578
+	//  5027(  1) 0.085950354067770 1.841973107997814 2.185774524268894
+	//  5028(  1) 0.086133184857802 1.842198697684112 2.186731437115319
+	//  5029(  1) 0.086316021909598 1.842424266133289 2.187688353771683
+	//  5030(  1) 0.086498865217019 1.842649813365747 2.188645274233822
+	//  5031(  1) 0.086681714773931 1.842875339401858 2.189602198497583
+	//  5032(  1) 0.086864570574211 1.843100844261969 2.190559126558813
+	//  5033(  1) 0.087047432611743 1.843326327966398 2.191516058413370
+	//  5034(  1) 0.087230300880420 1.843551790535437 2.192472994057117
+	//  5035(  1) 0.087413175374143 1.843777231989351 2.193429933485923
+	//  5036(  1) 0.087596056086822 1.844002652348375 2.194386876695663
+	//  5037(  1) 0.087778943012375 1.844228051632719 2.195343823682219
+	//  5038(  1) 0.087961836144728 1.844453429862566 2.196300774441479
+	//  5039(  1) 0.088144735477817 1.844678787058071 2.197257728969338
+	//  5040(  1) 0.088327641005584 1.844904123239362 2.198214687261697
+	//  5041(  1) 0.088510552721980 1.845129438426540 2.199171649314461
+	//  5042(  1) 0.088693470620966 1.845354732639680 2.200128615123545
+	//  5043(  1) 0.088876394696510 1.845580005898829 2.201085584684868
+	//  5044(  1) 0.089059324942588 1.845805258224006 2.202042557994357
+	//  5045(  1) 0.089242261353184 1.846030489635206 2.202999535047941
+	//  5046(  1) 0.089425203922291 1.846255700152395 2.203956515841560
+	//  5047(  1) 0.089608152643911 1.846480889795514 2.204913500371158
+	//  5048(  1) 0.089791107512053 1.846706058584474 2.205870488632685
+	//  5049(  1) 0.089974068520733 1.846931206539165 2.206827480622098
+	//  5050(  1) 0.090157035663979 1.847156333679444 2.207784476335360
+	//  5051(  1) 0.090340008935823 1.847381440025147 2.208741475768440
+	//  5052(  1) 0.090522988330308 1.847606525596079 2.209698478917312
+	//  5053(  1) 0.090705973841484 1.847831590412021 2.210655485777959
+	//  5054(  1) 0.090888965463409 1.848056634492729 2.211612496346366
+	//  5055(  1) 0.091071963190150 1.848281657857928 2.212569510618529
+	//  5056(  1) 0.091254967015781 1.848506660527320 2.213526528590445
+	//  5057(  1) 0.091437976934384 1.848731642520583 2.214483550258120
+	//  5058(  1) 0.091620992940051 1.848956603857362 2.215440575617567
+	//  5059(  1) 0.091804015026880 1.849181544557282 2.216397604664802
+	//  5060(  1) 0.091987043188978 1.849406464639940 2.217354637395850
+	//  5061(  1) 0.092170077420459 1.849631364124905 2.218311673806740
+	//  5062(  1) 0.092353117715446 1.849856243031722 2.219268713893507
+	//  5063(  1) 0.092536164068071 1.850081101379911 2.220225757652194
+	//  5064(  1) 0.092719216472471 1.850305939188963 2.221182805078847
+	//  5065(  1) 0.092902274922794 1.850530756478345 2.222139856169521
+	//  5066(  1) 0.093085339413194 1.850755553267498 2.223096910920275
+	//  5067(  1) 0.093268409937834 1.850980329575838 2.224053969327175
+	//  5068(  1) 0.093451486490885 1.851205085422752 2.225011031386292
+	//  5069(  1) 0.093634569066525 1.851429820827604 2.225968097093703
+	//  5070(  1) 0.093817657658940 1.851654535809734 2.226925166445492
+	//  5071(  1) 0.094000752262324 1.851879230388452 2.227882239437748
+	//  5072(  1) 0.094183852870880 1.852103904583046 2.228839316066566
+	//  5073(  1) 0.094366959478818 1.852328558412776 2.229796396328047
+	//  5074(  1) 0.094550072080355 1.852553191896878 2.230753480218298
+	//  5075(  1) 0.094733190669717 1.852777805054563 2.231710567733432
+	//  5076(  1) 0.094916315241138 1.853002397905014 2.232667658869567
+	//  5077(  1) 0.095099445788859 1.853226970467392 2.233624753622828
+	//  5078(  1) 0.095282582307128 1.853451522760830 2.234581851989344
+	//  5079(  1) 0.095465724790204 1.853676054804438 2.235538953965252
+	//  5080(  1) 0.095648873232349 1.853900566617298 2.236496059546693
+	//  5081(  1) 0.095832027627837 1.854125058218469 2.237453168729815
+	//  5082(  1) 0.096015187970947 1.854349529626984 2.238410281510772
+	//  5083(  1) 0.096198354255968 1.854573980861852 2.239367397885722
+	//  5084(  1) 0.096381526477194 1.854798411942055 2.240324517850831
+	//  5085(  1) 0.096564704628929 1.855022822886552 2.241281641402269
+	//  5086(  1) 0.096747888705484 1.855247213714276 2.242238768536212
+	//  5087(  1) 0.096931078701177 1.855471584444134 2.243195899248843
+	//  5088(  1) 0.097114274610334 1.855695935095011 2.244153033536348
+	//  5089(  1) 0.097297476427290 1.855920265685763 2.245110171394923
+	//  5090(  1) 0.097480684146384 1.856144576235227 2.246067312820765
+	//  5091(  1) 0.097663897761968 1.856368866762209 2.247024457810080
+	//  5092(  1) 0.097847117268396 1.856593137285495 2.247981606359078
+	//  5093(  1) 0.098030342660033 1.856817387823844 2.248938758463976
+	//  5094(  1) 0.098213573931251 1.857041618395990 2.249895914120994
+	//  5095(  1) 0.098396811076429 1.857265829020645 2.250853073326361
+	//  5096(  1) 0.098580054089954 1.857490019716493 2.251810236076310
+	//  5097(  1) 0.098763302966220 1.857714190502197 2.252767402367079
+	//  5098(  1) 0.098946557699630 1.857938341396393 2.253724572194912
+	//  5099(  1) 0.099129818284592 1.858162472417693 2.254681745556059
+	//  5100(  1) 0.099313084715522 1.858386583584686 2.255638922446777
+	//  5101(  1) 0.099496356986847 1.858610674915936 2.256596102863324
+	//  5102(  1) 0.099679635092997 1.858834746429981 2.257553286801969
+	//  5103(  1) 0.099862919028411 1.859058798145338 2.258510474258983
+	//  5104(  1) 0.100046208787537 1.859282830080496 2.259467665230644
+	//  5105(  1) 0.100229504364828 1.859506842253924 2.260424859713234
+	//  5106(  1) 0.100412805754745 1.859730834684064 2.261382057703043
+	//  5107(  1) 0.100596112951758 1.859954807389334 2.262339259196365
+	//  5108(  1) 0.100779425950343 1.860178760388129 2.263296464189499
+	//  5109(  1) 0.100962744744983 1.860402693698820 2.264253672678751
+	//  5110(  1) 0.101146069330169 1.860626607339753 2.265210884660430
+	//  5111(  1) 0.101329399700400 1.860850501329252 2.266168100130853
+	//  5112(  1) 0.101512735850181 1.861074375685616 2.267125319086341
+	//  5113(  1) 0.101696077774026 1.861298230427119 2.268082541523222
+	//  5114(  1) 0.101879425466454 1.861522065572012 2.269039767437827
+	//  5115(  1) 0.102062778921993 1.861745881138524 2.269996996826495
+	//  5116(  1) 0.102246138135177 1.861969677144859 2.270954229685568
+	//  5117(  1) 0.102429503100550 1.862193453609196 2.271911466011395
+	//  5118(  1) 0.102612873812660 1.862417210549692 2.272868705800330
+	//  5119(  1) 0.102796250266063 1.862640947984480 2.273825949048732
+	//  5120(  1) 0.102979632455324 1.862864665931670 2.274783195752966
+	//  5121(  1) 0.103163020375014 1.863088364409347 2.275740445909402
+	//  5122(  1) 0.103346414019710 1.863312043435575 2.276697699514415
+	//  5123(  1) 0.103529813383998 1.863535703028392 2.277654956564386
+	//  5124(  1) 0.103713218462472 1.863759343205815 2.278612217055701
+	//  5125(  1) 0.103896629249729 1.863982963985835 2.279569480984752
+	//  5126(  1) 0.104080045740378 1.864206565386421 2.280526748347934
+	//  5127(  1) 0.104263467929033 1.864430147425520 2.281484019141650
+	//  5128(  1) 0.104446895810313 1.864653710121053 2.282441293362307
+	//  5129(  1) 0.104630329378849 1.864877253490922 2.283398571006317
+	//  5130(  1) 0.104813768629274 1.865100777553001 2.284355852070099
+	//  5131(  1) 0.104997213556233 1.865324282325144 2.285313136550075
+	//  5132(  1) 0.105180664154373 1.865547767825182 2.286270424442673
+	//  5133(  1) 0.105364120418352 1.865771234070920 2.287227715744327
+	//  5134(  1) 0.105547582342833 1.865994681080144 2.288185010451476
+	//  5135(  1) 0.105731049922487 1.866218108870615 2.289142308560562
+	//  5136(  1) 0.105914523151992 1.866441517460071 2.290099610068037
+	//  5137(  1) 0.106098002026032 1.866664906866226 2.291056914970353
+	//  5138(  1) 0.106281486539299 1.866888277106775 2.292014223263970
+	//  5139(  1) 0.106464976686492 1.867111628199386 2.292971534945353
+	//  5140(  1) 0.106648472462316 1.867334960161708 2.293928850010972
+	//  5141(  1) 0.106831973861484 1.867558273011364 2.294886168457301
+	//  5142(  1) 0.107015480878716 1.867781566765955 2.295843490280820
+	//  5143(  1) 0.107198993508739 1.868004841443061 2.296800815478016
+	//  5144(  1) 0.107382511746285 1.868228097060238 2.297758144045377
+	//  5145(  1) 0.107566035586095 1.868451333635021 2.298715475979400
+	//  5146(  1) 0.107749565022916 1.868674551184921 2.299672811276586
+	//  5147(  1) 0.107933100051503 1.868897749727426 2.300630149933439
+	//  5148(  1) 0.108116640666617 1.869120929280003 2.301587491946470
+	//  5149(  1) 0.108300186863025 1.869344089860096 2.302544837312196
+	//  5150(  1) 0.108483738635502 1.869567231485127 2.303502186027137
+	//  5151(  1) 0.108667295978831 1.869790354172495 2.304459538087819
+	//  5152(  1) 0.108850858887799 1.870013457939578 2.305416893490773
+	//  5153(  1) 0.109034427357201 1.870236542803729 2.306374252232534
+	//  5154(  1) 0.109218001381841 1.870459608782282 2.307331614309645
+	//  5155(  1) 0.109401580956526 1.870682655892546 2.308288979718651
+	//  5156(  1) 0.109585166076073 1.870905684151812 2.309246348456103
+	//  5157(  1) 0.109768756735303 1.871128693577344 2.310203720518556
+	//  5158(  1) 0.109952352929047 1.871351684186387 2.311161095902573
+	//  5159(  1) 0.110135954652139 1.871574655996163 2.312118474604719
+	//  5160(  1) 0.110319561899424 1.871797609023871 2.313075856621565
+	//  5161(  1) 0.110503174665749 1.872020543286691 2.314033241949687
+	//  5162(  1) 0.110686792945972 1.872243458801778 2.314990630585666
+	//  5163(  1) 0.110870416734955 1.872466355586267 2.315948022526088
+	//  5164(  1) 0.111054046027568 1.872689233657270 2.316905417767543
+	//  5165(  1) 0.111237680818687 1.872912093031878 2.317862816306627
+	//  5166(  1) 0.111421321103195 1.873134933727160 2.318820218139940
+	//  5167(  1) 0.111604966875981 1.873357755760163 2.319777623264089
+	//  5168(  1) 0.111788618131943 1.873580559147912 2.320735031675683
+	//  5169(  1) 0.111972274865981 1.873803343907413 2.321692443371338
+	//  5170(  1) 0.112155937073007 1.874026110055646 2.322649858347673
+	//  5171(  1) 0.112339604747936 1.874248857609572 2.323607276601315
+	//  5172(  1) 0.112523277885690 1.874471586586131 2.324564698128892
+	//  5173(  1) 0.112706956481200 1.874694297002240 2.325522122927040
+	//  5174(  1) 0.112890640529401 1.874916988874795 2.326479550992397
+	//  5175(  1) 0.113074330025235 1.875139662220671 2.327436982321609
+	//  5176(  1) 0.113258024963651 1.875362317056721 2.328394416911325
+	//  5177(  1) 0.113441725339605 1.875584953399777 2.329351854758198
+	//  5178(  1) 0.113625431148059 1.875807571266650 2.330309295858887
+	//  5179(  1) 0.113809142383982 1.876030170674128 2.331266740210057
+	//  5180(  1) 0.113992859042348 1.876252751638980 2.332224187808374
+	//  5181(  1) 0.114176581118140 1.876475314177953 2.333181638650514
+	//  5182(  1) 0.114360308606345 1.876697858307772 2.334139092733152
+	//  5183(  1) 0.114544041501958 1.876920384045142 2.335096550052973
+	//  5184(  1) 0.114727779799979 1.877142891406746 2.336054010606663
+	//  5185(  1) 0.114911523495417 1.877365380409245 2.337011474390914
+	//  5186(  1) 0.115095272583286 1.877587851069282 2.337968941402425
+	//  5187(  1) 0.115279027058605 1.877810303403476 2.338926411637895
+	//  5188(  1) 0.115462786916401 1.878032737428426 2.339883885094032
+	//  5189(  1) 0.115646552151709 1.878255153160712 2.340841361767546
+	//  5190(  1) 0.115830322759566 1.878477550616889 2.341798841655154
+	//  5191(  1) 0.116014098735020 1.878699929813495 2.342756324753576
+	//  5192(  1) 0.116197880073123 1.878922290767045 2.343713811059536
+	//  5193(  1) 0.116381666768933 1.879144633494034 2.344671300569765
+	//  5194(  1) 0.116565458817515 1.879366958010935 2.345628793280997
+	//  5195(  1) 0.116749256213942 1.879589264334203 2.346586289189971
+	//  5196(  1) 0.116933058953290 1.879811552480269 2.347543788293431
+	//  5197(  1) 0.117116867030645 1.880033822465546 2.348501290588125
+	//  5198(  1) 0.117300680441095 1.880256074306424 2.349458796070806
+	//  5199(  1) 0.117484499179739 1.880478308019275 2.350416304738232
+	//  5200(  1) 0.117668323241679 1.880700523620449 2.351373816587165
+	//  5201(  1) 0.117852152622024 1.880922721126274 2.352331331614372
+	//  5202(  1) 0.118035987315891 1.881144900553061 2.353288849816624
+	//  5203(  1) 0.118219827318400 1.881367061917098 2.354246371190697
+	//  5204(  1) 0.118403672624680 1.881589205234653 2.355203895733371
+	//  5205(  1) 0.118587523229865 1.881811330521973 2.356161423441433
+	//  5206(  1) 0.118771379129096 1.882033437795286 2.357118954311671
+	//  5207(  1) 0.118955240317520 1.882255527070799 2.358076488340880
+	//  5208(  1) 0.119139106790290 1.882477598364700 2.359034025525859
+	//  5209(  1) 0.119322978542564 1.882699651693153 2.359991565863410
+	//  5210(  1) 0.119506855569509 1.882921687072306 2.360949109350342
+	//  5211(  1) 0.119690737866295 1.883143704518286 2.361906655983467
+	//  5212(  1) 0.119874625428101 1.883365704047197 2.362864205759602
+	//  5213(  1) 0.120058518250111 1.883587685675125 2.363821758675569
+	//  5214(  1) 0.120242416327514 1.883809649418137 2.364779314728192
+	//  5215(  1) 0.120426319655506 1.884031595292277 2.365736873914303
+	//  5216(  1) 0.120610228229291 1.884253523313573 2.366694436230736
+	//  5217(  1) 0.120794142044076 1.884475433498028 2.367652001674331
+	//  5218(  1) 0.120978061095075 1.884697325861629 2.368609570241930
+	//  5219(  1) 0.121161985377511 1.884919200420341 2.369567141930383
+	//  5220(  1) 0.121345914886608 1.885141057190111 2.370524716736543
+	//  5221(  1) 0.121529849617600 1.885362896186864 2.371482294657265
+	//  5222(  1) 0.121713789565726 1.885584717426506 2.372439875689411
+	//  5223(  1) 0.121897734726231 1.885806520924924 2.373397459829848
+	//  5224(  1) 0.122081685094365 1.886028306697984 2.374355047075446
+	//  5225(  1) 0.122265640665386 1.886250074761533 2.375312637423079
+	//  5226(  1) 0.122449601434557 1.886471825131399 2.376270230869626
+	//  5227(  1) 0.122633567397146 1.886693557823387 2.377227827411972
+	//  5228(  1) 0.122817538548429 1.886915272853287 2.378185427047003
+	//  5229(  1) 0.123001514883686 1.887136970236867 2.379143029771612
+	//  5230(  1) 0.123185496398205 1.887358649989875 2.380100635582696
+	//  5231(  1) 0.123369483087279 1.887580312128040 2.381058244477156
+	//  5232(  1) 0.123553474946206 1.887801956667072 2.382015856451896
+	//  5233(  1) 0.123737471970291 1.888023583622661 2.382973471503827
+	//  5234(  1) 0.123921474154846 1.888245193010478 2.383931089629862
+	//  5235(  1) 0.124105481495186 1.888466784846174 2.384888710826919
+	//  5236(  1) 0.124289493986636 1.888688359145380 2.385846335091922
+	//  5237(  1) 0.124473511624522 1.888909915923709 2.386803962421797
+	//  5238(  1) 0.124657534404180 1.889131455196754 2.387761592813475
+	//  5239(  1) 0.124841562320950 1.889352976980090 2.388719226263892
+	//  5240(  1) 0.125025595370179 1.889574481289270 2.389676862769987
+	//  5241(  1) 0.125209633547218 1.889795968139831 2.390634502328704
+	//  5242(  1) 0.125393676847426 1.890017437547288 2.391592144936993
+	//  5243(  1) 0.125577725266166 1.890238889527139 2.392549790591804
+	//  5244(  1) 0.125761778798809 1.890460324094860 2.393507439290096
+	//  5245(  1) 0.125945837440729 1.890681741265912 2.394465091028829
+	//  5246(  1) 0.126129901187308 1.890903141055734 2.395422745804968
+	//  5247(  1) 0.126313970033934 1.891124523479747 2.396380403615483
+	//  5248(  1) 0.126498043975999 1.891345888553351 2.397338064457347
+	//  5249(  1) 0.126682123008902 1.891567236291932 2.398295728327539
+	//  5250(  1) 0.126866207128048 1.891788566710850 2.399253395223041
+	//  5251(  1) 0.127050296328847 1.892009879825452 2.400211065140839
+	//  5252(  1) 0.127234390606715 1.892231175651064 2.401168738077923
+	//  5253(  1) 0.127418489957074 1.892452454202993 2.402126414031287
+	//  5254(  1) 0.127602594375352 1.892673715496527 2.403084092997933
+	//  5255(  1) 0.127786703856982 1.892894959546934 2.404041774974861
+	//  5256(  1) 0.127970818397403 1.893116186369467 2.404999459959079
+	//  5257(  1) 0.128154937992060 1.893337395979358 2.405957147947599
+	//  5258(  1) 0.128339062636404 1.893558588391820 2.406914838937436
+	//  5259(  1) 0.128523192325891 1.893779763622045 2.407872532925610
+	//  5260(  1) 0.128707327055983 1.894000921685213 2.408830229909144
+	//  5261(  1) 0.128891466822147 1.894222062596479 2.409787929885066
+	//  5262(  1) 0.129075611619857 1.894443186370982 2.410745632850408
+	//  5263(  1) 0.129259761444591 1.894664293023842 2.411703338802207
+	//  5264(  1) 0.129443916291835 1.894885382570162 2.412661047737503
+	//  5265(  1) 0.129628076157079 1.895106455025025 2.413618759653339
+	//  5266(  1) 0.129812241035818 1.895327510403494 2.414576474546764
+	//  5267(  1) 0.129996410923554 1.895548548720617 2.415534192414831
+	//  5268(  1) 0.130180585815794 1.895769569991422 2.416491913254596
+	//  5269(  1) 0.130364765708051 1.895990574230918 2.417449637063120
+	//  5270(  1) 0.130548950595843 1.896211561454095 2.418407363837467
+	//  5271(  1) 0.130733140474694 1.896432531675928 2.419365093574706
+	//  5272(  1) 0.130917335340135 1.896653484911371 2.420322826271909
+	//  5273(  1) 0.131101535187699 1.896874421175360 2.421280561926154
+	//  5274(  1) 0.131285740012927 1.897095340482813 2.422238300534521
+	//  5275(  1) 0.131469949811366 1.897316242848630 2.423196042094095
+	//  5276(  1) 0.131654164578568 1.897537128287693 2.424153786601965
+	//  5277(  1) 0.131838384310089 1.897757996814866 2.425111534055223
+	//  5278(  1) 0.132022609001493 1.897978848444994 2.426069284450967
+	//  5279(  1) 0.132206838648348 1.898199683192904 2.427027037786297
+	//  5280(  1) 0.132391073246228 1.898420501073407 2.427984794058317
+	//  5281(  1) 0.132575312790711 1.898641302101292 2.428942553264137
+	//  5282(  1) 0.132759557277384 1.898862086291335 2.429900315400870
+	//  5283(  1) 0.132943806701836 1.899082853658289 2.430858080465631
+	//  5284(  1) 0.133128061059662 1.899303604216893 2.431815848455542
+	//  5285(  1) 0.133312320346465 1.899524337981866 2.432773619367727
+	//  5286(  1) 0.133496584557851 1.899745054967910 2.433731393199315
+	//  5287(  1) 0.133680853689432 1.899965755189708 2.434689169947438
+	//  5288(  1) 0.133865127736826 1.900186438661928 2.435646949609231
+	//  5289(  1) 0.134049406695655 1.900407105399215 2.436604732181837
+	//  5290(  1) 0.134233690561549 1.900627755416203 2.437562517662399
+	//  5291(  1) 0.134417979330141 1.900848388727502 2.438520306048065
+	//  5292(  1) 0.134602272997069 1.901069005347709 2.439478097335986
+	//  5293(  1) 0.134786571557980 1.901289605291399 2.440435891523320
+	//  5294(  1) 0.134970875008523 1.901510188573134 2.441393688607225
+	//  5295(  1) 0.135155183344352 1.901730755207456 2.442351488584865
+	//  5296(  1) 0.135339496561130 1.901951305208887 2.443309291453408
+	//  5297(  1) 0.135523814654522 1.902171838591937 2.444267097210025
+	//  5298(  1) 0.135708137620200 1.902392355371093 2.445224905851892
+	//  5299(  1) 0.135892465453840 1.902612855560828 2.446182717376187
+	//  5300(  1) 0.136076798151124 1.902833339175596 2.447140531780093
+	//  5301(  1) 0.136261135707741 1.903053806229834 2.448098349060798
+	//  5302(  1) 0.136445478119382 1.903274256737961 2.449056169215491
+	//  5303(  1) 0.136629825381747 1.903494690714381 2.450013992241368
+	//  5304(  1) 0.136814177490537 1.903715108173476 2.450971818135625
+	//  5305(  1) 0.136998534441463 1.903935509129615 2.451929646895466
+	//  5306(  1) 0.137182896230237 1.904155893597148 2.452887478518096
+	//  5307(  1) 0.137367262852579 1.904376261590407 2.453845313000725
+	//  5308(  1) 0.137551634304215 1.904596613123708 2.454803150340566
+	//  5309(  1) 0.137736010580872 1.904816948211349 2.455760990534837
+	//  5310(  1) 0.137920391678287 1.905037266867611 2.456718833580757
+	//  5311(  1) 0.138104777592198 1.905257569106759 2.457676679475553
+	//  5312(  1) 0.138289168318354 1.905477854943039 2.458634528216453
+	//  5313(  1) 0.138473563852502 1.905698124390680 2.459592379800688
+	//  5314(  1) 0.138657964190400 1.905918377463894 2.460550234225495
+	//  5315(  1) 0.138842369327809 1.906138614176878 2.461508091488114
+	//  5316(  1) 0.139026779260494 1.906358834543810 2.462465951585787
+	//  5317(  1) 0.139211193984228 1.906579038578851 2.463423814515763
+	//  5318(  1) 0.139395613494787 1.906799226296145 2.464381680275292
+	//  5319(  1) 0.139580037787952 1.907019397709820 2.465339548861629
+	//  5320(  1) 0.139764466859511 1.907239552833986 2.466297420272032
+	//  5321(  1) 0.139948900705256 1.907459691682738 2.467255294503763
+	//  5322(  1) 0.140133339320984 1.907679814270150 2.468213171554088
+	//  5323(  1) 0.140317782702498 1.907899920610284 2.469171051420276
+	//  5324(  1) 0.140502230845605 1.908120010717182 2.470128934099601
+	//  5325(  1) 0.140686683746117 1.908340084604870 2.471086819589339
+	//  5326(  1) 0.140871141399853 1.908560142287358 2.472044707886770
+	//  5327(  1) 0.141055603802635 1.908780183778638 2.473002598989180
+	//  5328(  1) 0.141240070950292 1.909000209092687 2.473960492893855
+	//  5329(  1) 0.141424542838656 1.909220218243464 2.474918389598086
+	//  5330(  1) 0.141609019463565 1.909440211244910 2.475876289099170
+	//  5331(  1) 0.141793500820863 1.909660188110953 2.476834191394405
+	//  5332(  1) 0.141977986906398 1.909880148855500 2.477792096481092
+	//  5333(  1) 0.142162477716023 1.910100093492446 2.478750004356539
+	//  5334(  1) 0.142346973245597 1.910320022035665 2.479707915018054
+	//  5335(  1) 0.142531473490983 1.910539934499018 2.480665828462951
+	//  5336(  1) 0.142715978448050 1.910759830896347 2.481623744688547
+	//  5337(  1) 0.142900488112670 1.910979711241480 2.482581663692161
+	//  5338(  1) 0.143085002480723 1.911199575548226 2.483539585471119
+	//  5339(  1) 0.143269521548092 1.911419423830379 2.484497510022747
+	//  5340(  1) 0.143454045310665 1.911639256101715 2.485455437344377
+	//  5341(  1) 0.143638573764337 1.911859072375997 2.486413367433343
+	//  5342(  1) 0.143823106905004 1.912078872666968 2.487371300286984
+	//  5343(  1) 0.144007644728571 1.912298656988357 2.488329235902642
+	//  5344(  1) 0.144192187230947 1.912518425353875 2.489287174277661
+	//  5345(  1) 0.144376734408043 1.912738177777217 2.490245115409391
+	//  5346(  1) 0.144561286255780 1.912957914272065 2.491203059295185
+	//  5347(  1) 0.144745842770080 1.913177634852079 2.492161005932398
+	//  5348(  1) 0.144930403946871 1.913397339530907 2.493118955318390
+	//  5349(  1) 0.145114969782086 1.913617028322180 2.494076907450524
+	//  5350(  1) 0.145299540271664 1.913836701239512 2.495034862326167
+	//  5351(  1) 0.145484115411547 1.914056358296502 2.495992819942689
+	//  5352(  1) 0.145668695197683 1.914275999506732 2.496950780297463
+	//  5353(  1) 0.145853279626025 1.914495624883767 2.497908743387866
+	//  5354(  1) 0.146037868692530 1.914715234441159 2.498866709211280
+	//  5355(  1) 0.146222462393162 1.914934828192440 2.499824677765088
+	//  5356(  1) 0.146407060723887 1.915154406151130 2.500782649046678
+	//  5357(  1) 0.146591663680678 1.915373968330730 2.501740623053441
+	//  5358(  1) 0.146776271259511 1.915593514744727 2.502698599782771
+	//  5359(  1) 0.146960883456369 1.915813045406590 2.503656579232067
+	//  5360(  1) 0.147145500267239 1.916032560329773 2.504614561398730
+	//  5361(  1) 0.147330121688112 1.916252059527717 2.505572546280165
+	//  5362(  1) 0.147514747714985 1.916471543013841 2.506530533873780
+	//  5363(  1) 0.147699378343858 1.916691010801554 2.507488524176986
+	//  5364(  1) 0.147884013570738 1.916910462904247 2.508446517187200
+	//  5365(  1) 0.148068653391636 1.917129899335294 2.509404512901840
+	//  5366(  1) 0.148253297802568 1.917349320108054 2.510362511318327
+	//  5367(  1) 0.148437946799554 1.917568725235872 2.511320512434088
+	//  5368(  1) 0.148622600378619 1.917788114732075 2.512278516246552
+	//  5369(  1) 0.148807258535794 1.918007488609976 2.513236522753150
+	//  5370(  1) 0.148991921267112 1.918226846882869 2.514194531951318
+	//  5371(  1) 0.149176588568614 1.918446189564038 2.515152543838496
+	//  5372(  1) 0.149361260436344 1.918665516666747 2.516110558412125
+	//  5373(  1) 0.149545936866352 1.918884828204246 2.517068575669652
+	//  5374(  1) 0.149730617854690 1.919104124189768 2.518026595608526
+	//  5375(  1) 0.149915303397417 1.919323404636532 2.518984618226200
+	//  5376(  1) 0.150099993490597 1.919542669557742 2.519942643520129
+	//  5377(  1) 0.150284688130297 1.919761918966584 2.520900671487773
+	//  5378(  1) 0.150469387312591 1.919981152876232 2.521858702126594
+	//  5379(  1) 0.150654091033555 1.920200371299841 2.522816735434059
+	//  5380(  1) 0.150838799289271 1.920419574250552 2.523774771407637
+	//  5381(  1) 0.151023512075827 1.920638761741492 2.524732810044801
+	//  5382(  1) 0.151208229389314 1.920857933785771 2.525690851343026
+	//  5383(  1) 0.151392951225827 1.921077090396484 2.526648895299792
+	//  5384(  1) 0.151577677581468 1.921296231586710 2.527606941912582
+	//  5385(  1) 0.151762408452342 1.921515357369515 2.528564991178881
+	//  5386(  1) 0.151947143834558 1.921734467757946 2.529523043096179
+	//  5387(  1) 0.152131883724233 1.921953562765039 2.530481097661969
+	//  5388(  1) 0.152316628117484 1.922172642403811 2.531439154873746
+	//  5389(  1) 0.152501377010436 1.922391706687266 2.532397214729009
+	//  5390(  1) 0.152686130399217 1.922610755628393 2.533355277225261
+	//  5391(  1) 0.152870888279961 1.922829789240164 2.534313342360008
+	//  5392(  1) 0.153055650648806 1.923048807535537 2.535271410130759
+	//  5393(  1) 0.153240417501893 1.923267810527455 2.536229480535025
+	//  5394(  1) 0.153425188835369 1.923486798228845 2.537187553570323
+	//  5395(  1) 0.153609964645387 1.923705770652622 2.538145629234171
+	//  5396(  1) 0.153794744928103 1.923924727811681 2.539103707524091
+	//  5397(  1) 0.153979529679676 1.924143669718905 2.540061788437609
+	//  5398(  1) 0.154164318896273 1.924362596387162 2.541019871972253
+	//  5399(  1) 0.154349112574062 1.924581507829305 2.541977958125555
+	//  5400(  1) 0.154533910709219 1.924800404058171 2.542936046895049
+	//  5401(  1) 0.154718713297923 1.925019285086583 2.543894138278274
+	//  5402(  1) 0.154903520336356 1.925238150927349 2.544852232272771
+	//  5403(  1) 0.155088331820706 1.925457001593260 2.545810328876085
+	//  5404(  1) 0.155273147747167 1.925675837097097 2.546768428085764
+	//  5405(  1) 0.155457968111935 1.925894657451620 2.547726529899359
+	//  5406(  1) 0.155642792911211 1.926113462669579 2.548684634314423
+	//  5407(  1) 0.155827622141202 1.926332252763708 2.549642741328515
+	//  5408(  1) 0.156012455798118 1.926551027746724 2.550600850939195
+	//  5409(  1) 0.156197293878173 1.926769787631333 2.551558963144027
+	//  5410(  1) 0.156382136377588 1.926988532430223 2.552517077940577
+	//  5411(  1) 0.156566983292587 1.927207262156069 2.553475195326416
+	//  5412(  1) 0.156751834619397 1.927425976821530 2.554433315299117
+	//  5413(  1) 0.156936690354251 1.927644676439252 2.555391437856257
+	//  5414(  1) 0.157121550493387 1.927863361021866 2.556349562995414
+	//  5415(  1) 0.157306415033046 1.928082030581987 2.557307690714173
+	//  5416(  1) 0.157491283969475 1.928300685132216 2.558265821010118
+	//  5417(  1) 0.157676157298924 1.928519324685140 2.559223953880839
+	//  5418(  1) 0.157861035017648 1.928737949253333 2.560182089323927
+	//  5419(  1) 0.158045917121907 1.928956558849350 2.561140227336978
+	//  5420(  1) 0.158230803607964 1.929175153485736 2.562098367917591
+	//  5421(  1) 0.158415694472087 1.929393733175019 2.563056511063366
+	//  5422(  1) 0.158600589710549 1.929612297929712 2.564014656771910
+	//  5423(  1) 0.158785489319628 1.929830847762317 2.564972805040828
+	//  5424(  1) 0.158970393295604 1.930049382685318 2.565930955867732
+	//  5425(  1) 0.159155301634763 1.930267902711186 2.566889109250236
+	//  5426(  1) 0.159340214333395 1.930486407852377 2.567847265185957
+	//  5427(  1) 0.159525131387795 1.930704898121334 2.568805423672515
+	//  5428(  1) 0.159710052794262 1.930923373530485 2.569763584707533
+	//  5429(  1) 0.159894978549098 1.931141834092244 2.570721748288637
+	//  5430(  1) 0.160079908648612 1.931360279819008 2.571679914413457
+	//  5431(  1) 0.160264843089115 1.931578710723164 2.572638083079624
+	//  5432(  1) 0.160449781866923 1.931797126817082 2.573596254284775
+	//  5433(  1) 0.160634724978357 1.932015528113119 2.574554428026548
+	//  5434(  1) 0.160819672419742 1.932233914623617 2.575512604302584
+	//  5435(  1) 0.161004624187406 1.932452286360903 2.576470783110528
+	//  5436(  1) 0.161189580277684 1.932670643337292 2.577428964448027
+	//  5437(  1) 0.161374540686912 1.932888985565084 2.578387148312732
+	//  5438(  1) 0.161559505411433 1.933107313056565 2.579345334702296
+	//  5439(  1) 0.161744474447593 1.933325625824005 2.580303523614377
+	//  5440(  1) 0.161929447791743 1.933543923879662 2.581261715046633
+	//  5441(  1) 0.162114425440237 1.933762207235781 2.582219908996729
+	//  5442(  1) 0.162299407389435 1.933980475904589 2.583178105462328
+	//  5443(  1) 0.162484393635699 1.934198729898303 2.584136304441101
+	//  5444(  1) 0.162669384175398 1.934416969229124 2.585094505930718
+	//  5445(  1) 0.162854379004904 1.934635193909240 2.586052709928854
+	//  5446(  1) 0.163039378120591 1.934853403950823 2.587010916433188
+	//  5447(  1) 0.163224381518841 1.935071599366033 2.587969125441399
+	//  5448(  1) 0.163409389196039 1.935289780167017 2.588927336951171
+	//  5449(  1) 0.163594401148572 1.935507946365905 2.589885550960191
+	//  5450(  1) 0.163779417372833 1.935726097974815 2.590843767466149
+	//  5451(  1) 0.163964437865221 1.935944235005853 2.591801986466737
+	//  5452(  1) 0.164149462622136 1.936162357471106 2.592760207959650
+	//  5453(  1) 0.164334491639983 1.936380465382654 2.593718431942587
+	//  5454(  1) 0.164519524915173 1.936598558752556 2.594676658413249
+	//  5455(  1) 0.164704562444119 1.936816637592863 2.595634887369340
+	//  5456(  1) 0.164889604223240 1.937034701915609 2.596593118808568
+	//  5457(  1) 0.165074650248957 1.937252751732816 2.597551352728643
+	//  5458(  1) 0.165259700517696 1.937470787056492 2.598509589127278
+	//  5459(  1) 0.165444755025890 1.937688807898630 2.599467828002189
+	//  5460(  1) 0.165629813769971 1.937906814271212 2.600426069351095
+	//  5461(  1) 0.165814876746379 1.938124806186202 2.601384313171718
+	//  5462(  1) 0.165999943951557 1.938342783655555 2.602342559461782
+	//  5463(  1) 0.166185015381952 1.938560746691210 2.603300808219016
+	//  5464(  1) 0.166370091034014 1.938778695305092 2.604259059441150
+	//  5465(  1) 0.166555170904200 1.938996629509115 2.605217313125916
+	//  5466(  1) 0.166740254988969 1.939214549315176 2.606175569271053
+	//  5467(  1) 0.166925343284784 1.939432454735162 2.607133827874298
+	//  5468(  1) 0.167110435788113 1.939650345780943 2.608092088933394
+	//  5469(  1) 0.167295532495427 1.939868222464378 2.609050352446086
+	//  5470(  1) 0.167480633403202 1.940086084797312 2.610008618410122
+	//  5471(  1) 0.167665738507919 1.940303932791576 2.610966886823252
+	//  5472(  1) 0.167850847806061 1.940521766458988 2.611925157683230
+	//  5473(  1) 0.168035961294115 1.940739585811352 2.612883430987813
+	//  5474(  1) 0.168221078968575 1.940957390860460 2.613841706734759
+	//  5475(  1) 0.168406200825935 1.941175181618090 2.614799984921832
+	//  5476(  1) 0.168591326862698 1.941392958096005 2.615758265546795
+	//  5477(  1) 0.168776457075365 1.941610720305957 2.616716548607416
+	//  5478(  1) 0.168961591460446 1.941828468259684 2.617674834101467
+	//  5479(  1) 0.169146730014452 1.942046201968911 2.618633122026721
+	//  5480(  1) 0.169331872733901 1.942263921445348 2.619591412380953
+	//  5481(  1) 0.169517019615313 1.942481626700693 2.620549705161944
+	//  5482(  1) 0.169702170655210 1.942699317746633 2.621508000367474
+	//  5483(  1) 0.169887325850123 1.942916994594837 2.622466297995329
+	//  5484(  1) 0.170072485196583 1.943134657256964 2.623424598043297
+	//  5485(  1) 0.170257648691127 1.943352305744660 2.624382900509167
+	//  5486(  1) 0.170442816330294 1.943569940069557 2.625341205390732
+	//  5487(  1) 0.170627988110629 1.943787560243273 2.626299512685788
+	//  5488(  1) 0.170813164028680 1.944005166277416 2.627257822392135
+	//  5489(  1) 0.170998344080999 1.944222758183577 2.628216134507574
+	//  5490(  1) 0.171183528264143 1.944440335973335 2.629174449029909
+	//  5491(  1) 0.171368716574672 1.944657899658258 2.630132765956946
+	//  5492(  1) 0.171553909009149 1.944875449249901 2.631091085286496
+	//  5493(  1) 0.171739105564142 1.945092984759802 2.632049407016371
+	//  5494(  1) 0.171924306236224 1.945310506199489 2.633007731144386
+	//  5495(  1) 0.172109511021970 1.945528013580478 2.633966057668360
+	//  5496(  1) 0.172294719917961 1.945745506914270 2.634924386586113
+	//  5497(  1) 0.172479932920779 1.945962986212354 2.635882717895469
+	//  5498(  1) 0.172665150027012 1.946180451486205 2.636841051594255
+	//  5499(  1) 0.172850371233253 1.946397902747288 2.637799387680298
+	//  5500(  1) 0.173035596536095 1.946615340007051 2.638757726151431
+	//  5501(  1) 0.173220825932139 1.946832763276932 2.639716067005488
+	//  5502(  1) 0.173406059417988 1.947050172568355 2.640674410240307
+	//  5503(  1) 0.173591296990249 1.947267567892732 2.641632755853728
+	//  5504(  1) 0.173776538645532 1.947484949261462 2.642591103843592
+	//  5505(  1) 0.173961784380454 1.947702316685931 2.643549454207745
+	//  5506(  1) 0.174147034191631 1.947919670177512 2.644507806944036
+	//  5507(  1) 0.174332288075688 1.948137009747565 2.645466162050315
+	//  5508(  1) 0.174517546029249 1.948354335407438 2.646424519524436
+	//  5509(  1) 0.174702808048947 1.948571647168467 2.647382879364254
+	//  5510(  1) 0.174888074131414 1.948788945041973 2.648341241567629
+	//  5511(  1) 0.175073344273289 1.949006229039266 2.649299606132421
+	//  5512(  1) 0.175258618471213 1.949223499171644 2.650257973056496
+	//  5513(  1) 0.175443896721832 1.949440755450391 2.651216342337719
+	//  5514(  1) 0.175629179021796 1.949657997886778 2.652174713973961
+	//  5515(  1) 0.175814465367757 1.949875226492065 2.653133087963093
+	//  5516(  1) 0.175999755756373 1.950092441277498 2.654091464302991
+	//  5517(  1) 0.176185050184305 1.950309642254312 2.655049842991531
+	//  5518(  1) 0.176370348648217 1.950526829433728 2.656008224026595
+	//  5519(  1) 0.176555651144777 1.950744002826954 2.656966607406064
+	//  5520(  1) 0.176740957670659 1.950961162445188 2.657924993127824
+	//  5521(  1) 0.176926268222538 1.951178308299613 2.658883381189764
+	//  5522(  1) 0.177111582797093 1.951395440401402 2.659841771589774
+	//  5523(  1) 0.177296901391009 1.951612558761712 2.660800164325746
+	//  5524(  1) 0.177482224000972 1.951829663391691 2.661758559395578
+	//  5525(  1) 0.177667550623674 1.952046754302473 2.662716956797168
+	//  5526(  1) 0.177852881255809 1.952263831505180 2.663675356528417
+	//  5527(  1) 0.178038215894077 1.952480895010921 2.664633758587228
+	//  5528(  1) 0.178223554535179 1.952697944830793 2.665592162971508
+	//  5529(  1) 0.178408897175821 1.952914980975882 2.666550569679167
+	//  5530(  1) 0.178594243812714 1.953132003457258 2.667508978708115
+	//  5531(  1) 0.178779594442571 1.953349012285985 2.668467390056267
+	//  5532(  1) 0.178964949062108 1.953566007473106 2.669425803721540
+	//  5533(  1) 0.179150307668048 1.953782989029661 2.670384219701853
+	//  5534(  1) 0.179335670257114 1.953999956966671 2.671342637995128
+	//  5535(  1) 0.179521036826036 1.954216911295147 2.672301058599290
+	//  5536(  1) 0.179706407371544 1.954433852026089 2.673259481512265
+	//  5537(  1) 0.179891781890375 1.954650779170483 2.674217906731984
+	//  5538(  1) 0.180077160379269 1.954867692739303 2.675176334256379
+	//  5539(  1) 0.180262542834968 1.955084592743513 2.676134764083384
+	//  5540(  1) 0.180447929254219 1.955301479194061 2.677093196210937
+	//  5541(  1) 0.180633319633773 1.955518352101887 2.678051630636978
+	//  5542(  1) 0.180818713970383 1.955735211477915 2.679010067359449
+	//  5543(  1) 0.181004112260809 1.955952057333061 2.679968506376295
+	//  5544(  1) 0.181189514501810 1.956168889678225 2.680926947685465
+	//  5545(  1) 0.181374920690152 1.956385708524298 2.681885391284907
+	//  5546(  1) 0.181560330822604 1.956602513882158 2.682843837172575
+	//  5547(  1) 0.181745744895939 1.956819305762669 2.683802285346424
+	//  5548(  1) 0.181931162906932 1.957036084176685 2.684760735804411
+	//  5549(  1) 0.182116584852362 1.957252849135048 2.685719188544497
+	//  5550(  1) 0.182302010729014 1.957469600648589 2.686677643564645
+	//  5551(  1) 0.182487440533674 1.957686338728123 2.687636100862819
+	//  5552(  1) 0.182672874263132 1.957903063384458 2.688594560436988
+	//  5553(  1) 0.182858311914184 1.958119774628387 2.689553022285121
+	//  5554(  1) 0.183043753483625 1.958336472470693 2.690511486405192
+	//  5555(  1) 0.183229198968258 1.958553156922144 2.691469952795176
+	//  5556(  1) 0.183414648364887 1.958769827993500 2.692428421453050
+	//  5557(  1) 0.183600101670322 1.958986485695507 2.693386892376795
+	//  5558(  1) 0.183785558881373 1.959203130038900 2.694345365564393
+	//  5559(  1) 0.183971019994857 1.959419761034400 2.695303841013830
+	//  5560(  1) 0.184156485007593 1.959636378692720 2.696262318723094
+	//  5561(  1) 0.184341953916404 1.959852983024558 2.697220798690174
+	//  5562(  1) 0.184527426718116 1.960069574040601 2.698179280913063
+	//  5563(  1) 0.184712903409558 1.960286151751526 2.699137765389756
+	//  5564(  1) 0.184898383987564 1.960502716167995 2.700096252118252
+	//  5565(  1) 0.185083868448972 1.960719267300661 2.701054741096549
+	//  5566(  1) 0.185269356790621 1.960935805160166 2.702013232322650
+	//  5567(  1) 0.185454849009356 1.961152329757136 2.702971725794561
+	//  5568(  1) 0.185640345102024 1.961368841102191 2.703930221510289
+	//  5569(  1) 0.185825845065477 1.961585339205935 2.704888719467842
+	//  5570(  1) 0.186011348896568 1.961801824078961 2.705847219665234
+	//  5571(  1) 0.186196856592157 1.962018295731853 2.706805722100480
+	//  5572(  1) 0.186382368149104 1.962234754175181 2.707764226771596
+	//  5573(  1) 0.186567883564275 1.962451199419503 2.708722733676602
+	//  5574(  1) 0.186753402834538 1.962667631475367 2.709681242813520
+	//  5575(  1) 0.186938925956766 1.962884050353310 2.710639754180374
+	//  5576(  1) 0.187124452927834 1.963100456063856 2.711598267775191
+	//  5577(  1) 0.187309983744621 1.963316848617517 2.712556783596001
+	//  5578(  1) 0.187495518404010 1.963533228024795 2.713515301640835
+	//  5579(  1) 0.187681056902886 1.963749594296180 2.714473821907726
+	//  5580(  1) 0.187866599238140 1.963965947442150 2.715432344394712
+	//  5581(  1) 0.188052145406664 1.964182287473173 2.716390869099831
+	//  5582(  1) 0.188237695405355 1.964398614399704 2.717349396021124
+	//  5583(  1) 0.188423249231112 1.964614928232186 2.718307925156635
+	//  5584(  1) 0.188608806880839 1.964831228981053 2.719266456504410
+	//  5585(  1) 0.188794368351443 1.965047516656727 2.720224990062497
+	//  5586(  1) 0.188979933639833 1.965263791269616 2.721183525828947
+	//  5587(  1) 0.189165502742924 1.965480052830119 2.722142063801814
+	//  5588(  1) 0.189351075657632 1.965696301348625 2.723100603979152
+	//  5589(  1) 0.189536652380877 1.965912536835509 2.724059146359019
+	//  5590(  1) 0.189722232909585 1.966128759301136 2.725017690939475
+	//  5591(  1) 0.189907817240682 1.966344968755858 2.725976237718584
+	//  5592(  1) 0.190093405371098 1.966561165210019 2.726934786694410
+	//  5593(  1) 0.190278997297768 1.966777348673948 2.727893337865020
+	//  5594(  1) 0.190464593017630 1.966993519157966 2.728851891228484
+	//  5595(  1) 0.190650192527623 1.967209676672381 2.729810446782874
+	//  5596(  1) 0.190835795824693 1.967425821227491 2.730769004526264
+	//  5597(  1) 0.191021402905788 1.967641952833580 2.731727564456731
+	//  5598(  1) 0.191207013767857 1.967858071500924 2.732686126572354
+	//  5599(  1) 0.191392628407857 1.968074177239787 2.733644690871214
+	//  5600(  1) 0.191578246822743 1.968290270060421 2.734603257351394
+	//  5601(  1) 0.191763869009478 1.968506349973068 2.735561826010982
+	//  5602(  1) 0.191949494965027 1.968722416987957 2.736520396848063
+	//  5603(  1) 0.192135124686356 1.968938471115308 2.737478969860731
+	//  5604(  1) 0.192320758170437 1.969154512365330 2.738437545047076
+	//  5605(  1) 0.192506395414244 1.969370540748218 2.739396122405195
+	//  5606(  1) 0.192692036414756 1.969586556274159 2.740354701933185
+	//  5607(  1) 0.192877681168954 1.969802558953328 2.741313283629145
+	//  5608(  1) 0.193063329673822 1.970018548795889 2.742271867491179
+	//  5609(  1) 0.193248981926349 1.970234525811995 2.743230453517389
+	//  5610(  1) 0.193434637923524 1.970450490011788 2.744189041705883
+	//  5611(  1) 0.193620297662343 1.970666441405398 2.745147632054770
+	//  5612(  1) 0.193805961139804 1.970882380002945 2.746106224562161
+	//  5613(  1) 0.193991628352907 1.971098305814540 2.747064819226170
+	//  5614(  1) 0.194177299298658 1.971314218850279 2.748023416044911
+	//  5615(  1) 0.194362973974064 1.971530119120251 2.748982015016504
+	//  5616(  1) 0.194548652376135 1.971746006634530 2.749940616139069
+	//  5617(  1) 0.194734334501886 1.971961881403183 2.750899219410728
+	//  5618(  1) 0.194920020348335 1.972177743436266 2.751857824829606
+	//  5619(  1) 0.195105709912503 1.972393592743819 2.752816432393830
+	//  5620(  1) 0.195291403191413 1.972609429335878 2.753775042101530
+	//  5621(  1) 0.195477100182093 1.972825253222464 2.754733653950836
+	//  5622(  1) 0.195662800881574 1.973041064413589 2.755692267939884
+	//  5623(  1) 0.195848505286889 1.973256862919252 2.756650884066809
+	//  5624(  1) 0.196034213395076 1.973472648749444 2.757609502329749
+	//  5625(  1) 0.196219925203175 1.973688421914143 2.758568122726845
+	//  5626(  1) 0.196405640708230 1.973904182423318 2.759526745256239
+	//  5627(  1) 0.196591359907288 1.974119930286926 2.760485369916077
+	//  5628(  1) 0.196777082797398 1.974335665514914 2.761443996704506
+	//  5629(  1) 0.196962809375615 1.974551388117218 2.762402625619676
+	//  5630(  1) 0.197148539638993 1.974767098103763 2.763361256659738
+	//  5631(  1) 0.197334273584595 1.974982795484465 2.764319889822845
+	//  5632(  1) 0.197520011209482 1.975198480269227 2.765278525107155
+	//  5633(  1) 0.197705752510721 1.975414152467942 2.766237162510825
+	//  5634(  1) 0.197891497485381 1.975629812090494 2.767195802032016
+	//  5635(  1) 0.198077246130534 1.975845459146754 2.768154443668891
+	//  5636(  1) 0.198262998443257 1.976061093646585 2.769113087419614
+	//  5637(  1) 0.198448754420629 1.976276715599837 2.770071733282353
+	//  5638(  1) 0.198634514059731 1.976492325016351 2.771030381255277
+	//  5639(  1) 0.198820277357650 1.976707921905956 2.771989031336557
+	//  5640(  1) 0.199006044311474 1.976923506278473 2.772947683524368
+	//  5641(  1) 0.199191814918294 1.977139078143708 2.773906337816884
+	//  5642(  1) 0.199377589175205 1.977354637511463 2.774864994212284
+	//  5643(  1) 0.199563367079306 1.977570184391523 2.775823652708749
+	//  5644(  1) 0.199749148627698 1.977785718793667 2.776782313304460
+	//  5645(  1) 0.199934933817485 1.978001240727662 2.777740975997603
+	//  5646(  1) 0.200120722645775 1.978216750203263 2.778699640786363
+	//  5647(  1) 0.200306515109678 1.978432247230217 2.779658307668930
+	//  5648(  1) 0.200492311206309 1.978647731818260 2.780616976643495
+	//  5649(  1) 0.200678110932784 1.978863203977117 2.781575647708250
+	//  5650(  1) 0.200863914286223 1.979078663716501 2.782534320861392
+	//  5651(  1) 0.201049721263749 1.979294111046120 2.783492996101117
+	//  5652(  1) 0.201235531862490 1.979509545975665 2.784451673425626
+	//  5653(  1) 0.201421346079575 1.979724968514822 2.785410352833120
+	//  5654(  1) 0.201607163912135 1.979940378673263 2.786369034321802
+	//  5655(  1) 0.201792985357307 1.980155776460651 2.787327717889880
+	//  5656(  1) 0.201978810412230 1.980371161886640 2.788286403535561
+	//  5657(  1) 0.202164639074046 1.980586534960872 2.789245091257055
+	//  5658(  1) 0.202350471339899 1.980801895692978 2.790203781052575
+	//  5659(  1) 0.202536307206938 1.981017244092582 2.791162472920336
+	//  5660(  1) 0.202722146672314 1.981232580169295 2.792121166858553
+	//  5661(  1) 0.202907989733182 1.981447903932719 2.793079862865446
+	//  5662(  1) 0.203093836386698 1.981663215392444 2.794038560939236
+	//  5663(  1) 0.203279686630024 1.981878514558051 2.794997261078145
+	//  5664(  1) 0.203465540460322 1.982093801439113 2.795955963280399
+	//  5665(  1) 0.203651397874759 1.982309076045189 2.796914667544225
+	//  5666(  1) 0.203837258870505 1.982524338385830 2.797873373867851
+	//  5667(  1) 0.204023123444734 1.982739588470576 2.798832082249511
+	//  5668(  1) 0.204208991594619 1.982954826308959 2.799790792687436
+	//  5669(  1) 0.204394863317341 1.983170051910497 2.800749505179863
+	//  5670(  1) 0.204580738610082 1.983385265284701 2.801708219725028
+	//  5671(  1) 0.204766617470025 1.983600466441072 2.802666936321172
+	//  5672(  1) 0.204952499894360 1.983815655389098 2.803625654966538
+	//  5673(  1) 0.205138385880277 1.984030832138261 2.804584375659367
+	//  5674(  1) 0.205324275424970 1.984245996698029 2.805543098397907
+	//  5675(  1) 0.205510168525636 1.984461149077862 2.806501823180406
+	//  5676(  1) 0.205696065179475 1.984676289287211 2.807460550005112
+	//  5677(  1) 0.205881965383691 1.984891417335514 2.808419278870280
+	//  5678(  1) 0.206067869135490 1.985106533232202 2.809378009774163
+	//  5679(  1) 0.206253776432080 1.985321636986695 2.810336742715016
+	//  5680(  1) 0.206439687270674 1.985536728608402 2.811295477691099
+	//  5681(  1) 0.206625601648487 1.985751808106722 2.812254214700672
+	//  5682(  1) 0.206811519562737 1.985966875491047 2.813212953741997
+	//  5683(  1) 0.206997441010645 1.986181930770757 2.814171694813338
+	//  5684(  1) 0.207183365989436 1.986396973955220 2.815130437912963
+	//  5685(  1) 0.207369294496335 1.986612005053797 2.816089183039139
+	//  5686(  1) 0.207555226528574 1.986827024075839 2.817047930190137
+	//  5687(  1) 0.207741162083386 1.987042031030687 2.818006679364231
+	//  5688(  1) 0.207927101158006 1.987257025927670 2.818965430559693
+	//  5689(  1) 0.208113043749673 1.987472008776110 2.819924183774802
+	//  5690(  1) 0.208298989855630 1.987686979585316 2.820882939007835
+	//  5691(  1) 0.208484939473121 1.987901938364591 2.821841696257074
+	//  5692(  1) 0.208670892599394 1.988116885123226 2.822800455520801
+	//  5693(  1) 0.208856849231699 1.988331819870502 2.823759216797300
+	//  5694(  1) 0.209042809367292 1.988546742615691 2.824717980084859
+	//  5695(  1) 0.209228773003428 1.988761653368055 2.825676745381766
+	//  5696(  1) 0.209414740137367 1.988976552136846 2.826635512686312
+	//  5697(  1) 0.209600710766371 1.989191438931307 2.827594281996790
+	//  5698(  1) 0.209786684887706 1.989406313760670 2.828553053311494
+	//  5699(  1) 0.209972662498641 1.989621176634158 2.829511826628722
+	//  5700(  1) 0.210158643596446 1.989836027560986 2.830470601946771
+	//  5701(  1) 0.210344628178397 1.990050866550356 2.831429379263942
+	//  5702(  1) 0.210530616241769 1.990265693611462 2.832388158578540
+	//  5703(  1) 0.210716607783844 1.990480508753490 2.833346939888866
+	//  5704(  1) 0.210902602801904 1.990695311985613 2.834305723193230
+	//  5705(  1) 0.211088601293236 1.990910103316996 2.835264508489939
+	//  5706(  1) 0.211274603255127 1.991124882756796 2.836223295777303
+	//  5707(  1) 0.211460608684869 1.991339650314158 2.837182085053636
+	//  5708(  1) 0.211646617579758 1.991554405998218 2.838140876317252
+	//  5709(  1) 0.211832629937091 1.991769149818104 2.839099669566467
+	//  5710(  1) 0.212018645754167 1.991983881782931 2.840058464799600
+	//  5711(  1) 0.212204665028291 1.992198601901808 2.841017262014971
+	//  5712(  1) 0.212390687756768 1.992413310183833 2.841976061210903
+	//  5713(  1) 0.212576713936906 1.992628006638095 2.842934862385720
+	//  5714(  1) 0.212762743566019 1.992842691273671 2.843893665537748
+	//  5715(  1) 0.212948776641421 1.993057364099633 2.844852470665316
+	//  5716(  1) 0.213134813160429 1.993272025125039 2.845811277766754
+	//  5717(  1) 0.213320853120363 1.993486674358941 2.846770086840393
+	//  5718(  1) 0.213506896518547 1.993701311810380 2.847728897884569
+	//  5719(  1) 0.213692943352307 1.993915937488387 2.848687710897615
+	//  5720(  1) 0.213878993618972 1.994130551401985 2.849646525877872
+	//  5721(  1) 0.214065047315873 1.994345153560185 2.850605342823678
+	//  5722(  1) 0.214251104440346 1.994559743971993 2.851564161733375
+	//  5723(  1) 0.214437164989727 1.994774322646401 2.852522982605308
+	//  5724(  1) 0.214623228961357 1.994988889592394 2.853481805437821
+	//  5725(  1) 0.214809296352578 1.995203444818948 2.854440630229262
+	//  5726(  1) 0.214995367160738 1.995417988335028 2.855399456977981
+	//  5727(  1) 0.215181441383184 1.995632520149592 2.856358285682329
+	//  5728(  1) 0.215367519017268 1.995847040271585 2.857317116340659
+	//  5729(  1) 0.215553600060345 1.996061548709947 2.858275948951326
+	//  5730(  1) 0.215739684509771 1.996276045473605 2.859234783512688
+	//  5731(  1) 0.215925772362906 1.996490530571479 2.860193620023103
+	//  5732(  1) 0.216111863617113 1.996705004012480 2.861152458480933
+	//  5733(  1) 0.216297958269758 1.996919465805507 2.862111298884539
+	//  5734(  1) 0.216484056318209 1.997133915959452 2.863070141232288
+	//  5735(  1) 0.216670157759837 1.997348354483197 2.864028985522544
+	//  5736(  1) 0.216856262592015 1.997562781385616 2.864987831753678
+	//  5737(  1) 0.217042370812121 1.997777196675573 2.865946679924058
+	//  5738(  1) 0.217228482417534 1.997991600361922 2.866905530032058
+	//  5739(  1) 0.217414597405636 1.998205992453507 2.867864382076051
+	//  5740(  1) 0.217600715773812 1.998420372959166 2.868823236054413
+	//  5741(  1) 0.217786837519449 1.998634741887726 2.869782091965522
+	//  5742(  1) 0.217972962639939 1.998849099248004 2.870740949807758
+	//  5743(  1) 0.218159091132673 1.999063445048809 2.871699809579502
+	//  5744(  1) 0.218345222995049 1.999277779298941 2.872658671279138
+	//  5745(  1) 0.218531358224465 1.999492102007191 2.873617534905051
+	//  5746(  1) 0.218717496818322 1.999706413182338 2.874576400455628
+	//  5747(  1) 0.218903638774025 1.999920712833157 2.875535267929258
+	//  5748(  1) 0.219089784088981 2.000135000968410 2.876494137324332
+	//  5749(  1) 0.219275932760598 2.000349277596851 2.877453008639244
+	//  5750(  1) 0.219462084786290 2.000563542727226 2.878411881872386
+	//  5751(  1) 0.219648240163471 2.000777796368270 2.879370757022155
+	//  5752(  1) 0.219834398889560 2.000992038528711 2.880329634086951
+	//  5753(  1) 0.220020560961977 2.001206269217265 2.881288513065172
+	//  5754(  1) 0.220206726378145 2.001420488442643 2.882247393955221
+	//  5755(  1) 0.220392895135489 2.001634696213544 2.883206276755502
+	//  5756(  1) 0.220579067231440 2.001848892538660 2.884165161464420
+	//  5757(  1) 0.220765242663427 2.002063077426672 2.885124048080382
+	//  5758(  1) 0.220951421428886 2.002277250886254 2.886082936601798
+	//  5759(  1) 0.221137603525253 2.002491412926068 2.887041827027079
+	//  5760(  1) 0.221323788949966 2.002705563554771 2.888000719354637
+	//  5761(  1) 0.221509977700469 2.002919702781010 2.888959613582887
+	//  5762(  1) 0.221696169774207 2.003133830613421 2.889918509710247
+	//  5763(  1) 0.221882365168625 2.003347947060631 2.890877407735133
+	//  5764(  1) 0.222068563881176 2.003562052131262 2.891836307655967
+	//  5765(  1) 0.222254765909311 2.003776145833924 2.892795209471169
+	//  5766(  1) 0.222440971250486 2.003990228177219 2.893754113179165
+	//  5767(  1) 0.222627179902160 2.004204299169738 2.894713018778378
+	//  5768(  1) 0.222813391861792 2.004418358820068 2.895671926267238
+	//  5769(  1) 0.222999607126847 2.004632407136782 2.896630835644172
+	//  5770(  1) 0.223185825694791 2.004846444128448 2.897589746907612
+	//  5771(  1) 0.223372047563092 2.005060469803623 2.898548660055990
+	//  5772(  1) 0.223558272729221 2.005274484170855 2.899507575087741
+	//  5773(  1) 0.223744501190654 2.005488487238685 2.900466492001301
+	//  5774(  1) 0.223930732944866 2.005702479015644 2.901425410795109
+	//  5775(  1) 0.224116967989337 2.005916459510256 2.902384331467603
+	//  5776(  1) 0.224303206321548 2.006130428731032 2.903343254017226
+	//  5777(  1) 0.224489447938985 2.006344386686479 2.904302178442421
+	//  5778(  1) 0.224675692839135 2.006558333385092 2.905261104741633
+	//  5779(  1) 0.224861941019487 2.006772268835360 2.906220032913309
+	//  5780(  1) 0.225048192477534 2.006986193045762 2.907178962955898
+	//  5781(  1) 0.225234447210771 2.007200106024767 2.908137894867850
+	//  5782(  1) 0.225420705216695 2.007414007780837 2.909096828647618
+	//  5783(  1) 0.225606966492808 2.007627898322425 2.910055764293655
+	//  5784(  1) 0.225793231036611 2.007841777657974 2.911014701804417
+	//  5785(  1) 0.225979498845610 2.008055645795922 2.911973641178362
+	//  5786(  1) 0.226165769917314 2.008269502744694 2.912932582413948
+	//  5787(  1) 0.226352044249232 2.008483348512709 2.913891525509638
+	//  5788(  1) 0.226538321838879 2.008697183108377 2.914850470463893
+	//  5789(  1) 0.226724602683770 2.008911006540099 2.915809417275177
+	//  5790(  1) 0.226910886781423 2.009124818816267 2.916768365941959
+	//  5791(  1) 0.227097174129360 2.009338619945265 2.917727316462704
+	//  5792(  1) 0.227283464725104 2.009552409935468 2.918686268835883
+	//  5793(  1) 0.227469758566181 2.009766188795245 2.919645223059968
+	//  5794(  1) 0.227656055650120 2.009979956532952 2.920604179133431
+	//  5795(  1) 0.227842355974452 2.010193713156939 2.921563137054747
+	//  5796(  1) 0.228028659536711 2.010407458675549 2.922522096822393
+	//  5797(  1) 0.228214966334434 2.010621193097113 2.923481058434847
+	//  5798(  1) 0.228401276365159 2.010834916429955 2.924440021890590
+	//  5799(  1) 0.228587589626428 2.011048628682392 2.925398987188103
+	//  5800(  1) 0.228773906115785 2.011262329862730 2.926357954325869
+	//  5801(  1) 0.228960225830776 2.011476019979270 2.927316923302374
+	//  5802(  1) 0.229146548768951 2.011689699040300 2.928275894116104
+	//  5803(  1) 0.229332874927861 2.011903367054103 2.929234866765549
+	//  5804(  1) 0.229519204305061 2.012117024028953 2.930193841249198
+	//  5805(  1) 0.229705536898108 2.012330669973114 2.931152817565544
+	//  5806(  1) 0.229891872704559 2.012544304894843 2.932111795713080
+	//  5807(  1) 0.230078211721978 2.012757928802388 2.933070775690302
+	//  5808(  1) 0.230264553947929 2.012971541703991 2.934029757495706
+	//  5809(  1) 0.230450899379978 2.013185143607880 2.934988741127793
+	//  5810(  1) 0.230637248015695 2.013398734522282 2.935947726585061
+	//  5811(  1) 0.230823599852651 2.013612314455408 2.936906713866013
+	//  5812(  1) 0.231009954888422 2.013825883415467 2.937865702969154
+	//  5813(  1) 0.231196313120583 2.014039441410656 2.938824693892988
+	//  5814(  1) 0.231382674546714 2.014252988449166 2.939783686636023
+	//  5815(  1) 0.231569039164398 2.014466524539178 2.940742681196768
+	//  5816(  1) 0.231755406971217 2.014680049688864 2.941701677573733
+	//  5817(  1) 0.231941777964760 2.014893563906391 2.942660675765431
+	//  5818(  1) 0.232128152142615 2.015107067199914 2.943619675770376
+	//  5819(  1) 0.232314529502375 2.015320559577582 2.944578677587082
+	//  5820(  1) 0.232500910041633 2.015534041047535 2.945537681214069
+	//  5821(  1) 0.232687293757987 2.015747511617906 2.946496686649853
+	//  5822(  1) 0.232873680649035 2.015960971296817 2.947455693892956
+	//  5823(  1) 0.233060070712379 2.016174420092384 2.948414702941901
+	//  5824(  1) 0.233246463945624 2.016387858012715 2.949373713795210
+	//  5825(  1) 0.233432860346375 2.016601285065908 2.950332726451410
+	//  5826(  1) 0.233619259912243 2.016814701260055 2.951291740909028
+	//  5827(  1) 0.233805662640839 2.017028106603238 2.952250757166593
+	//  5828(  1) 0.233992068529776 2.017241501103531 2.953209775222635
+	//  5829(  1) 0.234178477576671 2.017454884769001 2.954168795075686
+	//  5830(  1) 0.234364889779143 2.017668257607706 2.955127816724280
+	//  5831(  1) 0.234551305134814 2.017881619627696 2.956086840166952
+	//  5832(  1) 0.234737723641307 2.018094970837014 2.957045865402241
+	//  5833(  1) 0.234924145296248 2.018308311243693 2.958004892428684
+	//  5834(  1) 0.235110570097266 2.018521640855758 2.958963921244821
+	//  5835(  1) 0.235296998041992 2.018734959681228 2.959922951849194
+	//  5836(  1) 0.235483429128059 2.018948267728112 2.960881984240348
+	//  5837(  1) 0.235669863353104 2.019161565004411 2.961841018416827
+	//  5838(  1) 0.235856300714765 2.019374851518119 2.962800054377179
+	//  5839(  1) 0.236042741210682 2.019588127277221 2.963759092119951
+	//  5840(  1) 0.236229184838499 2.019801392289696 2.964718131643694
+	//  5841(  1) 0.236415631595862 2.020014646563510 2.965677172946959
+	//  5842(  1) 0.236602081480418 2.020227890106628 2.966636216028300
+	//  5843(  1) 0.236788534489818 2.020441122927001 2.967595260886271
+	//  5844(  1) 0.236974990621714 2.020654345032575 2.968554307519430
+	//  5845(  1) 0.237161449873762 2.020867556431287 2.969513355926334
+	//  5846(  1) 0.237347912243619 2.021080757131066 2.970472406105543
+	//  5847(  1) 0.237534377728946 2.021293947139835 2.971431458055618
+	//  5848(  1) 0.237720846327404 2.021507126465505 2.972390511775122
+	//  5849(  1) 0.237907318036659 2.021720295115984 2.973349567262620
+	//  5850(  1) 0.238093792854378 2.021933453099168 2.974308624516679
+	//  5851(  1) 0.238280270778229 2.022146600422947 2.975267683535864
+	//  5852(  1) 0.238466751805886 2.022359737095202 2.976226744318747
+	//  5853(  1) 0.238653235935022 2.022572863123808 2.977185806863898
+	//  5854(  1) 0.238839723163315 2.022785978516631 2.978144871169889
+	//  5855(  1) 0.239026213488442 2.022999083281527 2.979103937235295
+	//  5856(  1) 0.239212706908085 2.023212177426348 2.980063005058690
+	//  5857(  1) 0.239399203419929 2.023425260958936 2.981022074638652
+	//  5858(  1) 0.239585703021659 2.023638333887126 2.981981145973761
+	//  5859(  1) 0.239772205710964 2.023851396218742 2.982940219062597
+	//  5860(  1) 0.239958711485534 2.024064447961606 2.983899293903741
+	//  5861(  1) 0.240145220343062 2.024277489123527 2.984858370495776
+	//  5862(  1) 0.240331732281245 2.024490519712308 2.985817448837289
+	//  5863(  1) 0.240518247297780 2.024703539735746 2.986776528926865
+	//  5864(  1) 0.240704765390367 2.024916549201627 2.987735610763094
+	//  5865(  1) 0.240891286556708 2.025129548117731 2.988694694344563
+	//  5866(  1) 0.241077810794509 2.025342536491831 2.989653779669866
+	//  5867(  1) 0.241264338101476 2.025555514331690 2.990612866737595
+	//  5868(  1) 0.241450868475320 2.025768481645065 2.991571955546344
+	//  5869(  1) 0.241637401913751 2.025981438439704 2.992531046094709
+	//  5870(  1) 0.241823938414485 2.026194384723349 2.993490138381288
+	//  5871(  1) 0.242010477975237 2.026407320503732 2.994449232404680
+	//  5872(  1) 0.242197020593726 2.026620245788581 2.995408328163486
+	//  5873(  1) 0.242383566267674 2.026833160585611 2.996367425656308
+	//  5874(  1) 0.242570114994804 2.027046064902534 2.997326524881749
+	//  5875(  1) 0.242756666772841 2.027258958747052 2.998285625838415
+	//  5876(  1) 0.242943221599513 2.027471842126860 2.999244728524912
+	//  5877(  1) 0.243129779472551 2.027684715049644 3.000203832939850
+	//  5878(  1) 0.243316340389688 2.027897577523085 3.001162939081837
+	//  5879(  1) 0.243502904348658 2.028110429554854 3.002122046949486
+	//  5880(  1) 0.243689471347198 2.028323271152615 3.003081156541408
+	//  5881(  1) 0.243876041383048 2.028536102324026 3.004040267856219
+	//  5882(  1) 0.244062614453950 2.028748923076735 3.004999380892535
+	//  5883(  1) 0.244249190557647 2.028961733418383 3.005958495648973
+	//  5884(  1) 0.244435769691887 2.029174533356604 3.006917612124151
+	//  5885(  1) 0.244622351854417 2.029387322899026 3.007876730316692
+	//  5886(  1) 0.244808937042988 2.029600102053264 3.008835850225216
+	//  5887(  1) 0.244995525255354 2.029812870826933 3.009794971848347
+	//  5888(  1) 0.245182116489269 2.030025629227633 3.010754095184711
+	//  5889(  1) 0.245368710742492 2.030238377262963 3.011713220232933
+	//  5890(  1) 0.245555308012783 2.030451114940510 3.012672346991642
+	//  5891(  1) 0.245741908297903 2.030663842267855 3.013631475459468
+	//  5892(  1) 0.245928511595618 2.030876559252571 3.014590605635041
+	//  5893(  1) 0.246115117903692 2.031089265902225 3.015549737516995
+	//  5894(  1) 0.246301727219897 2.031301962224374 3.016508871103963
+	//  5895(  1) 0.246488339542002 2.031514648226571 3.017468006394580
+	//  5896(  1) 0.246674954867782 2.031727323916357 3.018427143387485
+	//  5897(  1) 0.246861573195011 2.031939989301269 3.019386282081315
+	//  5898(  1) 0.247048194521469 2.032152644388836 3.020345422474711
+	//  5899(  1) 0.247234818844934 2.032365289186579 3.021304564566313
+	//  5900(  1) 0.247421446163189 2.032577923702011 3.022263708354767
+	//  5901(  1) 0.247608076474019 2.032790547942639 3.023222853838714
+	//  5902(  1) 0.247794709775210 2.033003161915961 3.024182001016802
+	//  5903(  1) 0.247981346064553 2.033215765629468 3.025141149887679
+	//  5904(  1) 0.248167985339837 2.033428359090646 3.026100300449992
+	//  5905(  1) 0.248354627598856 2.033640942306969 3.027059452702393
+	//  5906(  1) 0.248541272839406 2.033853515285908 3.028018606643533
+	//  5907(  1) 0.248727921059285 2.034066078034925 3.028977762272066
+	//  5908(  1) 0.248914572256293 2.034278630561473 3.029936919586647
+	//  5909(  1) 0.249101226428233 2.034491172873000 3.030896078585931
+	//  5910(  1) 0.249287883572908 2.034703704976946 3.031855239268577
+	//  5911(  1) 0.249474543688125 2.034916226880743 3.032814401633244
+	//  5912(  1) 0.249661206771694 2.035128738591816 3.033773565678593
+	//  5913(  1) 0.249847872821425 2.035341240117583 3.034732731403285
+	//  5914(  1) 0.250034541835132 2.035553731465455 3.035691898805985
+	//  5915(  1) 0.250221213810631 2.035766212642835 3.036651067885356
+	//  5916(  1) 0.250407888745737 2.035978683657117 3.037610238640067
+	//  5917(  1) 0.250594566638273 2.036191144515692 3.038569411068785
+	//  5918(  1) 0.250781247486059 2.036403595225942 3.039528585170178
+	//  5919(  1) 0.250967931286920 2.036616035795238 3.040487760942919
+	//  5920(  1) 0.251154618038682 2.036828466230949 3.041446938385679
+	//  5921(  1) 0.251341307739175 2.037040886540435 3.042406117497133
+	//  5922(  1) 0.251528000386227 2.037253296731047 3.043365298275954
+	//  5923(  1) 0.251714695977673 2.037465696810131 3.044324480720821
+	//  5924(  1) 0.251901394511347 2.037678086785023 3.045283664830410
+	//  5925(  1) 0.252088095985086 2.037890466663058 3.046242850603401
+	//  5926(  1) 0.252274800396730 2.038102836451555 3.047202038038477
+	//  5927(  1) 0.252461507744121 2.038315196157833 3.048161227134317
+	//  5928(  1) 0.252648218025102 2.038527545789201 3.049120417889608
+	//  5929(  1) 0.252834931237518 2.038739885352960 3.050079610303032
+	//  5930(  1) 0.253021647379218 2.038952214856406 3.051038804373278
+	//  5931(  1) 0.253208366448052 2.039164534306825 3.051998000099034
+	//  5932(  1) 0.253395088441872 2.039376843711499 3.052957197478988
+	//  5933(  1) 0.253581813358533 2.039589143077702 3.053916396511832
+	//  5934(  1) 0.253768541195890 2.039801432412698 3.054875597196257
+	//  5935(  1) 0.253955271951803 2.040013711723748 3.055834799530959
+	//  5936(  1) 0.254142005624132 2.040225981018104 3.056794003514631
+	//  5937(  1) 0.254328742210740 2.040438240303011 3.057753209145970
+	//  5938(  1) 0.254515481709492 2.040650489585706 3.058712416423675
+	//  5939(  1) 0.254702224118256 2.040862728873421 3.059671625346443
+	//  5940(  1) 0.254888969434900 2.041074958173378 3.060630835912978
+	//  5941(  1) 0.255075717657296 2.041287177492796 3.061590048121980
+	//  5942(  1) 0.255262468783317 2.041499386838883 3.062549261972152
+	//  5943(  1) 0.255449222810840 2.041711586218843 3.063508477462201
+	//  5944(  1) 0.255635979737740 2.041923775639870 3.064467694590831
+	//  5945(  1) 0.255822739561900 2.042135955109153 3.065426913356752
+	//  5946(  1) 0.256009502281199 2.042348124633874 3.066386133758672
+	//  5947(  1) 0.256196267893523 2.042560284221208 3.067345355795301
+	//  5948(  1) 0.256383036396758 2.042772433878322 3.068304579465352
+	//  5949(  1) 0.256569807788791 2.042984573612375 3.069263804767538
+	//  5950(  1) 0.256756582067512 2.043196703430524 3.070223031700573
+	//  5951(  1) 0.256943359230815 2.043408823339912 3.071182260263174
+	//  5952(  1) 0.257130139276594 2.043620933347681 3.072141490454058
+	//  5953(  1) 0.257316922202745 2.043833033460963 3.073100722271943
+	//  5954(  1) 0.257503708007167 2.044045123686884 3.074059955715551
+	//  5955(  1) 0.257690496687760 2.044257204032562 3.075019190783602
+	//  5956(  1) 0.257877288242428 2.044469274505109 3.075978427474820
+	//  5957(  1) 0.258064082669074 2.044681335111631 3.076937665787928
+	//  5958(  1) 0.258250879965607 2.044893385859225 3.077896905721653
+	//  5959(  1) 0.258437680129935 2.045105426754983 3.078856147274722
+	//  5960(  1) 0.258624483159969 2.045317457805988 3.079815390445862
+	//  5961(  1) 0.258811289053621 2.045529479019319 3.080774635233805
+	//  5962(  1) 0.258998097808809 2.045741490402045 3.081733881637280
+	//  5963(  1) 0.259184909423447 2.045953491961231 3.082693129655020
+	//  5964(  1) 0.259371723895457 2.046165483703932 3.083652379285760
+	//  5965(  1) 0.259558541222759 2.046377465637200 3.084611630528234
+	//  5966(  1) 0.259745361403276 2.046589437768076 3.085570883381179
+	//  5967(  1) 0.259932184434934 2.046801400103599 3.086530137843333
+	//  5968(  1) 0.260119010315660 2.047013352650795 3.087489393913435
+	//  5969(  1) 0.260305839043384 2.047225295416689 3.088448651590226
+	//  5970(  1) 0.260492670616038 2.047437228408297 3.089407910872447
+	//  5971(  1) 0.260679505031554 2.047649151632626 3.090367171758843
+	//  5972(  1) 0.260866342287869 2.047861065096680 3.091326434248157
+	//  5973(  1) 0.261053182382921 2.048072968807454 3.092285698339136
+	//  5974(  1) 0.261240025314648 2.048284862771936 3.093244964030527
+	//  5975(  1) 0.261426871080992 2.048496746997108 3.094204231321078
+	//  5976(  1) 0.261613719679898 2.048708621489947 3.095163500209540
+	//  5977(  1) 0.261800571109312 2.048920486257419 3.096122770694664
+	//  5978(  1) 0.261987425367179 2.049132341306486 3.097082042775203
+	//  5979(  1) 0.262174282451452 2.049344186644105 3.098041316449911
+	//  5980(  1) 0.262361142360080 2.049556022277222 3.099000591717542
+	//  5981(  1) 0.262548005091019 2.049767848212779 3.099959868576854
+	//  5982(  1) 0.262734870642223 2.049979664457711 3.100919147026604
+	//  5983(  1) 0.262921739011651 2.050191471018947 3.101878427065553
+	//  5984(  1) 0.263108610197263 2.050403267903407 3.102837708692460
+	//  5985(  1) 0.263295484197020 2.050615055118007 3.103796991906087
+	//  5986(  1) 0.263482361008886 2.050826832669653 3.104756276705198
+	//  5987(  1) 0.263669240630827 2.051038600565249 3.105715563088557
+	//  5988(  1) 0.263856123060811 2.051250358811688 3.106674851054930
+	//  5989(  1) 0.264043008296807 2.051462107415858 3.107634140603085
+	//  5990(  1) 0.264229896336787 2.051673846384642 3.108593431731789
+	//  5991(  1) 0.264416787178725 2.051885575724914 3.109552724439813
+	//  5992(  1) 0.264603680820597 2.052097295443541 3.110512018725928
+	//  5993(  1) 0.264790577260380 2.052309005547387 3.111471314588905
+	//  5994(  1) 0.264977476496054 2.052520706043305 3.112430612027520
+	//  5995(  1) 0.265164378525601 2.052732396938144 3.113389911040546
+	//  5996(  1) 0.265351283347004 2.052944078238746 3.114349211626761
+	//  5997(  1) 0.265538190958249 2.053155749951946 3.115308513784941
+	//  5998(  1) 0.265725101357324 2.053367412084572 3.116267817513867
+	//  5999(  1) 0.265912014542217 2.053579064643448 3.117227122812317
+	//  6000(  1) 0.266098930510921 2.053790707635388 3.118186429679073
+	//  6001(  1) 0.266285849261429 2.054002341067201 3.119145738112918
+	//  6002(  1) 0.266472770791737 2.054213964945690 3.120105048112638
+	//  6003(  1) 0.266659695099841 2.054425579277651 3.121064359677015
+	//  6004(  1) 0.266846622183741 2.054637184069873 3.122023672804838
+	//  6005(  1) 0.267033552041439 2.054848779329138 3.122982987494894
+	//  6006(  1) 0.267220484670937 2.055060365062224 3.123942303745972
+	//  6007(  1) 0.267407420070241 2.055271941275900 3.124901621556864
+	//  6008(  1) 0.267594358237357 2.055483507976930 3.125860940926360
+	//  6009(  1) 0.267781299170296 2.055695065172070 3.126820261853254
+	//  6010(  1) 0.267968242867067 2.055906612868071 3.127779584336340
+	//  6011(  1) 0.268155189325684 2.056118151071677 3.128738908374413
+	//  6012(  1) 0.268342138544162 2.056329679789625 3.129698233966271
+	//  6013(  1) 0.268529090520516 2.056541199028646 3.130657561110712
+	//  6014(  1) 0.268716045252767 2.056752708795465 3.131616889806534
+	//  6015(  1) 0.268903002738935 2.056964209096801 3.132576220052540
+	//  6016(  1) 0.269089962977042 2.057175699939364 3.133535551847530
+	//  6017(  1) 0.269276925965112 2.057387181329860 3.134494885190308
+	//  6018(  1) 0.269463891701172 2.057598653274988 3.135454220079678
+	//  6019(  1) 0.269650860183251 2.057810115781442 3.136413556514446
+	//  6020(  1) 0.269837831409379 2.058021568855905 3.137372894493419
+	//  6021(  1) 0.270024805377587 2.058233012505059 3.138332234015406
+	//  6022(  1) 0.270211782085910 2.058444446735576 3.139291575079215
+	//  6023(  1) 0.270398761532383 2.058655871554125 3.140250917683657
+	//  6024(  1) 0.270585743715045 2.058867286967364 3.141210261827545
+	//  6025(  1) 0.270772728631936 2.059078692981949 3.142169607509692
+	//  6026(  1) 0.270959716281096 2.059290089604528 3.143128954728911
+	//  6027(  1) 0.271146706660570 2.059501476841741 3.144088303484020
+	//  6028(  1) 0.271333699768402 2.059712854700225 3.145047653773834
+	//  6029(  1) 0.271520695602641 2.059924223186608 3.146007005597172
+	//  6030(  1) 0.271707694161335 2.060135582307511 3.146966358952853
+	//  6031(  1) 0.271894695442536 2.060346932069554 3.147925713839698
+	//  6032(  1) 0.272081699444297 2.060558272479343 3.148885070256530
+	//  6033(  1) 0.272268706164671 2.060769603543485 3.149844428202170
+	//  6034(  1) 0.272455715601717 2.060980925268576 3.150803787675445
+	//  6035(  1) 0.272642727753493 2.061192237661206 3.151763148675178
+	//  6036(  1) 0.272829742618059 2.061403540727962 3.152722511200197
+	//  6037(  1) 0.273016760193477 2.061614834475421 3.153681875249331
+	//  6038(  1) 0.273203780477813 2.061826118910156 3.154641240821407
+	//  6039(  1) 0.273390803469131 2.062037394038733 3.155600607915257
+	//  6040(  1) 0.273577829165500 2.062248659867712 3.156559976529714
+	//  6041(  1) 0.273764857564991 2.062459916403645 3.157519346663609
+	//  6042(  1) 0.273951888665673 2.062671163653083 3.158478718315776
+	//  6043(  1) 0.274138922465622 2.062882401622562 3.159438091485052
+	//  6044(  1) 0.274325958962913 2.063093630318622 3.160397466170273
+	//  6045(  1) 0.274512998155622 2.063304849747789 3.161356842370276
+	//  6046(  1) 0.274700040041829 2.063516059916586 3.162316220083901
+	//  6047(  1) 0.274887084619615 2.063727260831530 3.163275599309989
+	//  6048(  1) 0.275074131887062 2.063938452499130 3.164234980047380
+	//  6049(  1) 0.275261181842256 2.064149634925891 3.165194362294917
+	//  6050(  1) 0.275448234483283 2.064360808118311 3.166153746051444
+	//  6051(  1) 0.275635289808231 2.064571972082881 3.167113131315806
+	//  6052(  1) 0.275822347815191 2.064783126826087 3.168072518086850
+	//  6053(  1) 0.276009408502254 2.064994272354408 3.169031906363423
+	//  6054(  1) 0.276196471867514 2.065205408674318 3.169991296144373
+	//  6055(  1) 0.276383537909067 2.065416535792283 3.170950687428552
+	//  6056(  1) 0.276570606625011 2.065627653714766 3.171910080214809
+	//  6057(  1) 0.276757678013444 2.065838762448220 3.172869474501997
+	//  6058(  1) 0.276944752072469 2.066049861999093 3.173828870288969
+	//  6059(  1) 0.277131828800188 2.066260952373831 3.174788267574581
+	//  6060(  1) 0.277318908194705 2.066472033578868 3.175747666357688
+	//  6061(  1) 0.277505990254128 2.066683105620636 3.176707066637147
+	//  6062(  1) 0.277693074976565 2.066894168505558 3.177666468411816
+	//  6063(  1) 0.277880162360125 2.067105222240054 3.178625871680556
+	//  6064(  1) 0.278067252402923 2.067316266830535 3.179585276442225
+	//  6065(  1) 0.278254345103070 2.067527302283409 3.180544682695687
+	//  6066(  1) 0.278441440458683 2.067738328605074 3.181504090439805
+	//  6067(  1) 0.278628538467879 2.067949345801925 3.182463499673442
+	//  6068(  1) 0.278815639128778 2.068160353880352 3.183422910395463
+	//  6069(  1) 0.279002742439500 2.068371352846735 3.184382322604736
+	//  6070(  1) 0.279189848398169 2.068582342707451 3.185341736300128
+	//  6071(  1) 0.279376957002909 2.068793323468870 3.186301151480508
+	//  6072(  1) 0.279564068251847 2.069004295137357 3.187260568144746
+	//  6073(  1) 0.279751182143111 2.069215257719268 3.188219986291712
+	//  6074(  1) 0.279938298674831 2.069426211220957 3.189179405920281
+	//  6075(  1) 0.280125417845138 2.069637155648770 3.190138827029324
+	//  6076(  1) 0.280312539652168 2.069848091009047 3.191098249617717
+	//  6077(  1) 0.280499664094054 2.070059017308122 3.192057673684336
+	//  6078(  1) 0.280686791168934 2.070269934552323 3.193017099228058
+	//  6079(  1) 0.280873920874947 2.070480842747973 3.193976526247760
+	//  6080(  1) 0.281061053210234 2.070691741901388 3.194935954742323
+	//  6081(  1) 0.281248188172937 2.070902632018879 3.195895384710626
+	//  6082(  1) 0.281435325761201 2.071113513106750 3.196854816151552
+	//  6083(  1) 0.281622465973171 2.071324385171299 3.197814249063983
+	//  6084(  1) 0.281809608806996 2.071535248218821 3.198773683446804
+	//  6085(  1) 0.281996754260824 2.071746102255601 3.199733119298898
+	//  6086(  1) 0.282183902332809 2.071956947287919 3.200692556619154
+	//  6087(  1) 0.282371053021101 2.072167783322052 3.201651995406458
+	//  6088(  1) 0.282558206323857 2.072378610364269 3.202611435659698
+	//  6089(  1) 0.282745362239233 2.072589428420831 3.203570877377765
+	//  6090(  1) 0.282932520765388 2.072800237497999 3.204530320559549
+	//  6091(  1) 0.283119681900480 2.073011037602021 3.205489765203942
+	//  6092(  1) 0.283306845642674 2.073221828739144 3.206449211309838
+	//  6093(  1) 0.283494011990131 2.073432610915608 3.207408658876131
+	//  6094(  1) 0.283681180941017 2.073643384137647 3.208368107901715
+	//  6095(  1) 0.283868352493500 2.073854148411489 3.209327558385489
+	//  6096(  1) 0.284055526645748 2.074064903743357 3.210287010326348
+	//  6097(  1) 0.284242703395932 2.074275650139465 3.211246463723194
+	//  6098(  1) 0.284429882742224 2.074486387606027 3.212205918574924
+	//  6099(  1) 0.284617064682799 2.074697116149245 3.213165374880441
+	//  6100(  1) 0.284804249215832 2.074907835775320 3.214124832638646
+	//  6101(  1) 0.284991436339500 2.075118546490445 3.215084291848443
+	//  6102(  1) 0.285178626051983 2.075329248300806 3.216043752508737
+	//  6103(  1) 0.285365818351462 2.075539941212586 3.217003214618432
+	//  6104(  1) 0.285553013236119 2.075750625231961 3.217962678176437
+	//  6105(  1) 0.285740210704139 2.075961300365100 3.218922143181658
+	//  6106(  1) 0.285927410753709 2.076171966618169 3.219881609633004
+	//  6107(  1) 0.286114613383015 2.076382623997326 3.220841077529386
+	//  6108(  1) 0.286301818590248 2.076593272508723 3.221800546869715
+	//  6109(  1) 0.286489026373599 2.076803912158508 3.222760017652903
+	//  6110(  1) 0.286676236731260 2.077014542952822 3.223719489877863
+	//  6111(  1) 0.286863449661427 2.077225164897801 3.224678963543511
+	//  6112(  1) 0.287050665162296 2.077435777999576 3.225638438648761
+	//  6113(  1) 0.287237883232065 2.077646382264269 3.226597915192531
+	//  6114(  1) 0.287425103868934 2.077856977698001 3.227557393173738
+	//  6115(  1) 0.287612327071105 2.078067564306883 3.228516872591302
+	//  6116(  1) 0.287799552836780 2.078278142097024 3.229476353444142
+	//  6117(  1) 0.287986781164164 2.078488711074522 3.230435835731181
+	//  6118(  1) 0.288174012051465 2.078699271245477 3.231395319451338
+	//  6119(  1) 0.288361245496890 2.078909822615978 3.232354804603540
+	//  6120(  1) 0.288548481498650 2.079120365192108 3.233314291186709
+	//  6121(  1) 0.288735720054956 2.079330898979947 3.234273779199771
+	//  6122(  1) 0.288922961164022 2.079541423985567 3.235233268641654
+	//  6123(  1) 0.289110204824062 2.079751940215038 3.236192759511284
+	//  6124(  1) 0.289297451033293 2.079962447674419 3.237152251807592
+	//  6125(  1) 0.289484699789934 2.080172946369769 3.238111745529506
+	//  6126(  1) 0.289671951092205 2.080383436307137 3.239071240675957
+	//  6127(  1) 0.289859204938328 2.080593917492567 3.240030737245879
+	//  6128(  1) 0.290046461326526 2.080804389932101 3.240990235238205
+	//  6129(  1) 0.290233720255024 2.081014853631772 3.241949734651867
+	//  6130(  1) 0.290420981722049 2.081225308597607 3.242909235485802
+	//  6131(  1) 0.290608245725829 2.081435754835630 3.243868737738947
+	//  6132(  1) 0.290795512264595 2.081646192351858 3.244828241410239
+	//  6133(  1) 0.290982781336579 2.081856621152302 3.245787746498616
+	//  6134(  1) 0.291170052940013 2.082067041242967 3.246747253003019
+	//  6135(  1) 0.291357327073133 2.082277452629856 3.247706760922388
+	//  6136(  1) 0.291544603734176 2.082487855318961 3.248666270255665
+	//  6137(  1) 0.291731882921380 2.082698249316274 3.249625781001793
+	//  6138(  1) 0.291919164632985 2.082908634627776 3.250585293159716
+	//  6139(  1) 0.292106448867233 2.083119011259447 3.251544806728379
+	//  6140(  1) 0.292293735622367 2.083329379217258 3.252504321706728
+	//  6141(  1) 0.292481024896633 2.083539738507179 3.253463838093712
+	//  6142(  1) 0.292668316688277 2.083750089135169 3.254423355888277
+	//  6143(  1) 0.292855610995547 2.083960431107184 3.255382875089373
+	//  6144(  1) 0.293042907816694 2.084170764429177 3.256342395695951
+	//  6145(  1) 0.293230207149968 2.084381089107091 3.257301917706962
+	//  6146(  1) 0.293417508993623 2.084591405146867 3.258261441121360
+	//  6147(  1) 0.293604813345915 2.084801712554438 3.259220965938096
+	//  6148(  1) 0.293792120205099 2.085012011335733 3.260180492156127
+	//  6149(  1) 0.293979429569433 2.085222301496675 3.261140019774408
+	//  6150(  1) 0.294166741437178 2.085432583043182 3.262099548791895
+	//  6151(  1) 0.294354055806595 2.085642855981167 3.263059079207547
+	//  6152(  1) 0.294541372675947 2.085853120316536 3.264018611020322
+	//  6153(  1) 0.294728692043498 2.086063376055190 3.264978144229181
+	//  6154(  1) 0.294916013907515 2.086273623203026 3.265937678833085
+	//  6155(  1) 0.295103338266265 2.086483861765934 3.266897214830994
+	//  6156(  1) 0.295290665118019 2.086694091749799 3.267856752221874
+	//  6157(  1) 0.295477994461047 2.086904313160500 3.268816291004688
+	//  6158(  1) 0.295665326293622 2.087114526003913 3.269775831178400
+	//  6159(  1) 0.295852660614018 2.087324730285906 3.270735372741978
+	//  6160(  1) 0.296039997420512 2.087534926012341 3.271694915694389
+	//  6161(  1) 0.296227336711381 2.087745113189079 3.272654460034600
+	//  6162(  1) 0.296414678484903 2.087955291821970 3.273614005761583
+	//  6163(  1) 0.296602022739361 2.088165461916862 3.274573552874305
+	//  6164(  1) 0.296789369473036 2.088375623479598 3.275533101371740
+	//  6165(  1) 0.296976718684212 2.088585776516014 3.276492651252860
+	//  6166(  1) 0.297164070371174 2.088795921031940 3.277452202516638
+	//  6167(  1) 0.297351424532211 2.089006057033204 3.278411755162049
+	//  6168(  1) 0.297538781165611 2.089216184525625 3.279371309188069
+	//  6169(  1) 0.297726140269664 2.089426303515018 3.280330864593673
+	//  6170(  1) 0.297913501842662 2.089636414007194 3.281290421377840
+	//  6171(  1) 0.298100865882898 2.089846516007956 3.282249979539549
+	//  6172(  1) 0.298288232388669 2.090056609523105 3.283209539077779
+	//  6173(  1) 0.298475601358269 2.090266694558433 3.284169099991511
+	//  6174(  1) 0.298662972789999 2.090476771119730 3.285128662279726
+	//  6175(  1) 0.298850346682158 2.090686839212778 3.286088225941409
+	//  6176(  1) 0.299037723033046 2.090896898843356 3.287047790975541
+	//  6177(  1) 0.299225101840968 2.091106950017236 3.288007357381108
+	//  6178(  1) 0.299412483104228 2.091316992740186 3.288966925157097
+	//  6179(  1) 0.299599866821131 2.091527027017967 3.289926494302493
+	//  6180(  1) 0.299787252989987 2.091737052856336 3.290886064816284
+	//  6181(  1) 0.299974641609104 2.091947070261046 3.291845636697461
+	//  6182(  1) 0.300162032676792 2.092157079237842 3.292805209945012
+	//  6183(  1) 0.300349426191366 2.092367079792465 3.293764784557928
+	//  6184(  1) 0.300536822151138 2.092577071930652 3.294724360535202
+	//  6185(  1) 0.300724220554424 2.092787055658132 3.295683937875826
+	//  6186(  1) 0.300911621399541 2.092997030980631 3.296643516578795
+	//  6187(  1) 0.301099024684809 2.093206997903869 3.297603096643102
+	//  6188(  1) 0.301286430408546 2.093416956433560 3.298562678067746
+	//  6189(  1) 0.301473838569076 2.093626906575416 3.299522260851721
+	//  6190(  1) 0.301661249164722 2.093836848335139 3.300481844994026
+	//  6191(  1) 0.301848662193808 2.094046781718429 3.301441430493661
+	//  6192(  1) 0.302036077654661 2.094256706730981 3.302401017349625
+	//  6193(  1) 0.302223495545609 2.094466623378482 3.303360605560918
+	//  6194(  1) 0.302410915864982 2.094676531666617 3.304320195126544
+	//  6195(  1) 0.302598338611110 2.094886431601064 3.305279786045506
+	//  6196(  1) 0.302785763782327 2.095096323187497 3.306239378316806
+	//  6197(  1) 0.302973191376967 2.095306206431583 3.307198971939450
+	//  6198(  1) 0.303160621393365 2.095516081338986 3.308158566912445
+	//  6199(  1) 0.303348053829858 2.095725947915362 3.309118163234796
+	//  6200(  1) 0.303535488684787 2.095935806166366 3.310077760905512
+	//  6201(  1) 0.303722925956490 2.096145656097644 3.311037359923602
+	//  6202(  1) 0.303910365643309 2.096355497714838 3.311996960288075
+	//  6203(  1) 0.304097807743589 2.096565331023587 3.312956561997944
+	//  6204(  1) 0.304285252255674 2.096775156029522 3.313916165052218
+	//  6205(  1) 0.304472699177911 2.096984972738270 3.314875769449912
+	//  6206(  1) 0.304660148508647 2.097194781155453 3.315835375190040
+	//  6207(  1) 0.304847600246232 2.097404581286688 3.316794982271616
+	//  6208(  1) 0.305035054389017 2.097614373137586 3.317754590693656
+	//  6209(  1) 0.305222510935356 2.097824156713754 3.318714200455176
+	//  6210(  1) 0.305409969883600 2.098033932020793 3.319673811555195
+	//  6211(  1) 0.305597431232108 2.098243699064301 3.320633423992731
+	//  6212(  1) 0.305784894979234 2.098453457849867 3.321593037766804
+	//  6213(  1) 0.305972361123339 2.098663208383080 3.322552652876435
+	//  6214(  1) 0.306159829662782 2.098872950669518 3.323512269320645
+	//  6215(  1) 0.306347300595924 2.099082684714759 3.324471887098458
+	//  6216(  1) 0.306534773921130 2.099292410524375 3.325431506208896
+	//  6217(  1) 0.306722249636764 2.099502128103929 3.326391126650984
+	//  6218(  1) 0.306909727741191 2.099711837458985 3.327350748423748
+	//  6219(  1) 0.307097208232779 2.099921538595098 3.328310371526214
+	//  6220(  1) 0.307284691109898 2.100131231517817 3.329269995957410
+	//  6221(  1) 0.307472176370918 2.100340916232691 3.330229621716364
+	//  6222(  1) 0.307659664014212 2.100550592745258 3.331189248802106
+	//  6223(  1) 0.307847154038153 2.100760261061057 3.332148877213666
+	//  6224(  1) 0.308034646441115 2.100969921185615 3.333108506950076
+	//  6225(  1) 0.308222141221477 2.101179573124460 3.334068138010367
+	//  6226(  1) 0.308409638377615 2.101389216883114 3.335027770393573
+	//  6227(  1) 0.308597137907909 2.101598852467090 3.335987404098729
+	//  6228(  1) 0.308784639810742 2.101808479881902 3.336947039124868
+	//  6229(  1) 0.308972144084494 2.102018099133053 3.337906675471028
+	//  6230(  1) 0.309159650727550 2.102227710226046 3.338866313136246
+	//  6231(  1) 0.309347159738296 2.102437313166376 3.339825952119559
+	//  6232(  1) 0.309534671115118 2.102646907959534 3.340785592420007
+	//  6233(  1) 0.309722184856406 2.102856494611006 3.341745234036629
+	//  6234(  1) 0.309909700960548 2.103066073126273 3.342704876968466
+	//  6235(  1) 0.310097219425937 2.103275643510811 3.343664521214561
+	//  6236(  1) 0.310284740250966 2.103485205770093 3.344624166773955
+	//  6237(  1) 0.310472263434028 2.103694759909582 3.345583813645693
+	//  6238(  1) 0.310659788973519 2.103904305934742 3.346543461828820
+	//  6239(  1) 0.310847316867838 2.104113843851029 3.347503111322381
+	//  6240(  1) 0.311034847115382 2.104323373663893 3.348462762125421
+	//  6241(  1) 0.311222379714552 2.104532895378783 3.349422414236990
+	//  6242(  1) 0.311409914663749 2.104742409001138 3.350382067656135
+	//  6243(  1) 0.311597451961377 2.104951914536397 3.351341722381906
+	//  6244(  1) 0.311784991605841 2.105161411989990 3.352301378413353
+	//  6245(  1) 0.311972533595545 2.105370901367346 3.353261035749527
+	//  6246(  1) 0.312160077928899 2.105580382673886 3.354220694389480
+	//  6247(  1) 0.312347624604310 2.105789855915027 3.355180354332266
+	//  6248(  1) 0.312535173620189 2.105999321096182 3.356140015576939
+	//  6249(  1) 0.312722724974949 2.106208778222758 3.357099678122553
+	//  6250(  1) 0.312910278667001 2.106418227300158 3.358059341968164
+	//  6251(  1) 0.313097834694762 2.106627668333780 3.359019007112829
+	//  6252(  1) 0.313285393056647 2.106837101329017 3.359978673555607
+	//  6253(  1) 0.313472953751075 2.107046526291255 3.360938341295555
+	//  6254(  1) 0.313660516776463 2.107255943225881 3.361898010331733
+	//  6255(  1) 0.313848082131233 2.107465352138271 3.362857680663202
+	//  6256(  1) 0.314035649813806 2.107674753033799 3.363817352289023
+	//  6257(  1) 0.314223219822606 2.107884145917834 3.364777025208259
+	//  6258(  1) 0.314410792156058 2.108093530795740 3.365736699419973
+	//  6259(  1) 0.314598366812588 2.108302907672876 3.366696374923228
+	//  6260(  1) 0.314785943790624 2.108512276554596 3.367656051717091
+	//  6261(  1) 0.314973523088594 2.108721637446251 3.368615729800626
+	//  6262(  1) 0.315161104704930 2.108930990353183 3.369575409172902
+	//  6263(  1) 0.315348688638063 2.109140335280735 3.370535089832986
+	//  6264(  1) 0.315536274886426 2.109349672234241 3.371494771779946
+	//  6265(  1) 0.315723863448455 2.109559001219032 3.372454455012853
+	//  6266(  1) 0.315911454322586 2.109768322240432 3.373414139530777
+	//  6267(  1) 0.316099047507257 2.109977635303764 3.374373825332789
+	//  6268(  1) 0.316286643000905 2.110186940414342 3.375333512417962
+	//  6269(  1) 0.316474240801973 2.110396237577479 3.376293200785370
+	//  6270(  1) 0.316661840908901 2.110605526798482 3.377252890434085
+	//  6271(  1) 0.316849443320134 2.110814808082651 3.378212581363185
+	//  6272(  1) 0.317037048034115 2.111024081435285 3.379172273571744
+	//  6273(  1) 0.317224655049291 2.111233346861675 3.380131967058841
+	//  6274(  1) 0.317412264364110 2.111442604367110 3.381091661823551
+	//  6275(  1) 0.317599875977020 2.111651853956872 3.382051357864954
+	//  6276(  1) 0.317787489886473 2.111861095636240 3.383011055182131
+	//  6277(  1) 0.317975106090918 2.112070329410487 3.383970753774160
+	//  6278(  1) 0.318162724588811 2.112279555284883 3.384930453640125
+	//  6279(  1) 0.318350345378604 2.112488773264690 3.385890154779106
+	//  6280(  1) 0.318537968458755 2.112697983355169 3.386849857190188
+	//  6281(  1) 0.318725593827720 2.112907185561574 3.387809560872455
+	//  6282(  1) 0.318913221483959 2.113116379889156 3.388769265824991
+	//  6283(  1) 0.319100851425931 2.113325566343160 3.389728972046882
+	//  6284(  1) 0.319288483652097 2.113534744928826 3.390688679537216
+	//  6285(  1) 0.319476118160922 2.113743915651392 3.391648388295079
+	//  6286(  1) 0.319663754950868 2.113953078516087 3.392608098319561
+	//  6287(  1) 0.319851394020403 2.114162233528139 3.393567809609751
+	//  6288(  1) 0.320039035367992 2.114371380692770 3.394527522164739
+	//  6289(  1) 0.320226678992104 2.114580520015198 3.395487235983616
+	//  6290(  1) 0.320414324891210 2.114789651500634 3.396446951065475
+	//  6291(  1) 0.320601973063780 2.114998775154289 3.397406667409409
+	//  6292(  1) 0.320789623508287 2.115207890981364 3.398366385014511
+	//  6293(  1) 0.320977276223204 2.115416998987059 3.399326103879877
+	//  6294(  1) 0.321164931207008 2.115626099176569 3.400285824004601
+	//  6295(  1) 0.321352588458175 2.115835191555081 3.401245545387781
+	//  6296(  1) 0.321540247975182 2.116044276127784 3.402205268028513
+	//  6297(  1) 0.321727909756510 2.116253352899855 3.403164991925897
+	//  6298(  1) 0.321915573800640 2.116462421876472 3.404124717079031
+	//  6299(  1) 0.322103240106052 2.116671483062806 3.405084443487015
+	//  6300(  1) 0.322290908671232 2.116880536464022 3.406044171148950
+	//  6301(  1) 0.322478579494663 2.117089582085284 3.407003900063938
+	//  6302(  1) 0.322666252574833 2.117298619931749 3.407963630231081
+	//  6303(  1) 0.322853927910228 2.117507650008569 3.408923361649483
+	//  6304(  1) 0.323041605499338 2.117716672320895 3.409883094318249
+	//  6305(  1) 0.323229285340654 2.117925686873868 3.410842828236483
+	//  6306(  1) 0.323416967432666 2.118134693672629 3.411802563403292
+	//  6307(  1) 0.323604651773868 2.118343692722311 3.412762299817782
+	//  6308(  1) 0.323792338362754 2.118552684028046 3.413722037479062
+	//  6309(  1) 0.323980027197820 2.118761667594959 3.414681776386241
+	//  6310(  1) 0.324167718277564 2.118970643428171 3.415641516538427
+	//  6311(  1) 0.324355411600483 2.119179611532799 3.416601257934731
+	//  6312(  1) 0.324543107165078 2.119388571913954 3.417561000574265
+	//  6313(  1) 0.324730804969849 2.119597524576744 3.418520744456140
+	//  6314(  1) 0.324918505013299 2.119806469526273 3.419480489579470
+	//  6315(  1) 0.325106207293933 2.120015406767638 3.420440235943368
+	//  6316(  1) 0.325293911810254 2.120224336305933 3.421399983546949
+	//  6317(  1) 0.325481618560770 2.120433258146249 3.422359732389329
+	//  6318(  1) 0.325669327543988 2.120642172293671 3.423319482469624
+	//  6319(  1) 0.325857038758419 2.120851078753277 3.424279233786952
+	//  6320(  1) 0.326044752202571 2.121059977530146 3.425238986340430
+	//  6321(  1) 0.326232467874957 2.121268868629347 3.426198740129177
+	//  6322(  1) 0.326420185774091 2.121477752055949 3.427158495152313
+	//  6323(  1) 0.326607905898486 2.121686627815014 3.428118251408960
+	//  6324(  1) 0.326795628246659 2.121895495911600 3.429078008898238
+	//  6325(  1) 0.326983352817127 2.122104356350760 3.430037767619269
+	//  6326(  1) 0.327171079608408 2.122313209137544 3.430997527571178
+	//  6327(  1) 0.327358808619023 2.122522054276998 3.431957288753088
+	//  6328(  1) 0.327546539847491 2.122730891774160 3.432917051164123
+	//  6329(  1) 0.327734273292336 2.122939721634067 3.433876814803411
+	//  6330(  1) 0.327922008952082 2.123148543861750 3.434836579670076
+	//  6331(  1) 0.328109746825253 2.123357358462237 3.435796345763247
+	//  6332(  1) 0.328297486910376 2.123566165440549 3.436756113082052
+	//  6333(  1) 0.328485229205979 2.123774964801705 3.437715881625620
+	//  6334(  1) 0.328672973710590 2.123983756550720 3.438675651393081
+	//  6335(  1) 0.328860720422741 2.124192540692602 3.439635422383565
+	//  6336(  1) 0.329048469340962 2.124401317232357 3.440595194596205
+	//  6337(  1) 0.329236220463787 2.124610086174983 3.441554968030132
+	//  6338(  1) 0.329423973789750 2.124818847525479 3.442514742684480
+	//  6339(  1) 0.329611729317387 2.125027601288835 3.443474518558383
+	//  6340(  1) 0.329799487045234 2.125236347470040 3.444434295650976
+	//  6341(  1) 0.329987246971830 2.125445086074075 3.445394073961395
+	//  6342(  1) 0.330175009095714 2.125653817105920 3.446353853488776
+	//  6343(  1) 0.330362773415427 2.125862540570549 3.447313634232256
+	//  6344(  1) 0.330550539929511 2.126071256472932 3.448273416190974
+	//  6345(  1) 0.330738308636509 2.126279964818035 3.449233199364070
+	//  6346(  1) 0.330926079534966 2.126488665610817 3.450192983750682
+	//  6347(  1) 0.331113852623428 2.126697358856238 3.451152769349951
+	//  6348(  1) 0.331301627900443 2.126906044559248 3.452112556161020
+	//  6349(  1) 0.331489405364559 2.127114722724796 3.453072344183030
+	//  6350(  1) 0.331677185014325 2.127323393357825 3.454032133415124
+	//  6351(  1) 0.331864966848293 2.127532056463277 3.454991923856447
+	//  6352(  1) 0.332052750865015 2.127740712046084 3.455951715506144
+	//  6353(  1) 0.332240537063045 2.127949360111179 3.456911508363359
+	//  6354(  1) 0.332428325440938 2.128158000663487 3.457871302427240
+	//  6355(  1) 0.332616115997250 2.128366633707932 3.458831097696933
+	//  6356(  1) 0.332803908730539 2.128575259249431 3.459790894171587
+	//  6357(  1) 0.332991703639364 2.128783877292896 3.460750691850351
+	//  6358(  1) 0.333179500722284 2.128992487843239 3.461710490732374
+	//  6359(  1) 0.333367299977861 2.129201090905363 3.462670290816807
+	//  6360(  1) 0.333555101404658 2.129409686484170 3.463630092102801
+	//  6361(  1) 0.333742905001238 2.129618274584556 3.464589894589508
+	//  6362(  1) 0.333930710766167 2.129826855211413 3.465549698276081
+	//  6363(  1) 0.334118518698011 2.130035428369628 3.466509503161674
+	//  6364(  1) 0.334306328795339 2.130243994064086 3.467469309245442
+	//  6365(  1) 0.334494141056718 2.130452552299667 3.468429116526539
+	//  6366(  1) 0.334681955480720 2.130661103081244 3.469388925004122
+	//  6367(  1) 0.334869772065915 2.130869646413689 3.470348734677348
+	//  6368(  1) 0.335057590810877 2.131078182301868 3.471308545545375
+	//  6369(  1) 0.335245411714179 2.131286710750644 3.472268357607361
+	//  6370(  1) 0.335433234774397 2.131495231764876 3.473228170862466
+	//  6371(  1) 0.335621059990108 2.131703745349416 3.474187985309849
+	//  6372(  1) 0.335808887359889 2.131912251509114 3.475147800948672
+	//  6373(  1) 0.335996716882320 2.132120750248816 3.476107617778097
+	//  6374(  1) 0.336184548555980 2.132329241573364 3.477067435797285
+	//  6375(  1) 0.336372382379452 2.132537725487593 3.478027255005400
+	//  6376(  1) 0.336560218351318 2.132746201996337 3.478987075401608
+	//  6377(  1) 0.336748056470162 2.132954671104425 3.479946896985071
+	//  6378(  1) 0.336935896734569 2.133163132816680 3.480906719754957
+	//  6379(  1) 0.337123739143127 2.133371587137923 3.481866543710431
+	//  6380(  1) 0.337311583694423 2.133580034072969 3.482826368850662
+	//  6381(  1) 0.337499430387046 2.133788473626632 3.483786195174816
+	//  6382(  1) 0.337687279219586 2.133996905803718 3.484746022682063
+	//  6383(  1) 0.337875130190636 2.134205330609030 3.485705851371573
+	//  6384(  1) 0.338062983298787 2.134413748047369 3.486665681242516
+	//  6385(  1) 0.338250838542634 2.134622158123528 3.487625512294064
+	//  6386(  1) 0.338438695920772 2.134830560842300 3.488585344525387
+	//  6387(  1) 0.338626555431798 2.135038956208470 3.489545177935660
+	//  6388(  1) 0.338814417074309 2.135247344226821 3.490505012524056
+	//  6389(  1) 0.339002280846904 2.135455724902132 3.491464848289748
+	//  6390(  1) 0.339190146748184 2.135664098239177 3.492424685231914
+	//  6391(  1) 0.339378014776750 2.135872464242727 3.493384523349727
+	//  6392(  1) 0.339565884931205 2.136080822917547 3.494344362642365
+	//  6393(  1) 0.339753757210152 2.136289174268398 3.495304203109006
+	//  6394(  1) 0.339941631612197 2.136497518300041 3.496264044748828
+	//  6395(  1) 0.340129508135946 2.136705855017226 3.497223887561010
+	//  6396(  1) 0.340317386780007 2.136914184424704 3.498183731544731
+	//  6397(  1) 0.340505267542988 2.137122506527222 3.499143576699172
+	//  6398(  1) 0.340693150423499 2.137330821329519 3.500103423023515
 }
