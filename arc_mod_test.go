@@ -180,30 +180,35 @@ func ExampleArc2() {
 		// 	# Increment starts; Set all variations=0
 		var (
 			// TODO : minimaze allocations
-			Δu           = npzeros(ndof)
-			δů           = npzeros(ndof)
-			δu           = npzeros(ndof)
-			δu1          = npzeros(ndof)
-			δu2          = npzeros(ndof)
-			dalfa        = npzeros(ndof)
-			f            = npzeros(ndof)
-			df           [][]float64
-			det          float64
-			Δλ           = 0.0
-			δλ, δλ1, δλ2 float64
+			Δu = npzeros(ndof)
+
+			// δů  []float64
+			δu  []float64
+			δu1 []float64
+			δu2 []float64
+			f   []float64
+
+			// df  [][]float64
+			det    float64
+			Δλ     float64
+			fcheck float64
+
+			δλ  float64
+			δλ1 float64
+			δλ2 float64
 		)
 
 		step := func() {
-			df = dfcn(summa(a, Δu))
-			δu = SolveLinear(df, 𝐪)
-			f = fcn(summa(a, Δu), (al + Δλ))
-			temp := SolveLinear(df, f)
-			δů = scale(-1, temp)
+			Kt := dfcn(summa(a, Δu))
+			δu = SolveLinear(Kt, 𝐪)
+			f = fcn(summa(a, Δu), (al + Δλ)) //
+			temp := SolveLinear(Kt, f)       //
+			δů := scale(-1, temp)            //
 			δλ1, δλ2 = square_root(Δu, δů, δu, Δλ, 𝐪)
 			// Formula (2.14)
 			δu1 = summa(δů, scale(δλ1, δu))
 			δu2 = summa(δů, scale(δλ2, δu))
-			det = nplinalgdet(df)
+			det = nplinalgdet(Kt)
 		}
 		step()
 
@@ -215,23 +220,22 @@ func ExampleArc2() {
 		// δu2 = summa(δů, scale(δλ2, δu))
 		// det = nplinalgdet(df)
 
-		// TODO : some code are repeat - try to minimaze code
 		if npsign(det) == npsign(δλ1) {
 			δu, δλ = δu1, δλ1
 		} else {
 			δu, δλ = δu2, δλ2
 		}
 
-		dalfa = summa(Δu, δu)
-		Δλ = Δλ + δλ // TODO: is it zero always??
+		finish := func() {
+			Δu = summa(Δu, δu)
+			Δλ = Δλ + δλ
+			f = fcn(summa(a, Δu), (al + Δλ))
+			fcheck = nplinalgnorm(f)
+		}
+		finish()
 
-		f = fcn(summa(a, dalfa), (al + Δλ))
-		fcheck := nplinalgnorm(f)
-
-		var iters int = 0 // TODO: in my point of view - it is 1
+		var iters int = 1 // TODO: in my point of view - it is 1
 		for ; fcheck > tol && iters <= maxiter; iters++ {
-
-			Δu = dalfa
 
 			step()
 
@@ -247,7 +251,6 @@ func ExampleArc2() {
 			// det = nplinalgdet(df)
 
 			daomag := npdot(Δu, Δu)
-
 			if daomag == 0. {
 				if npsign(Δλ+δλ1) == npsign(det) {
 					δu, δλ = δu1, δλ1
@@ -267,16 +270,15 @@ func ExampleArc2() {
 					δu, δλ = δu2, δλ2
 				}
 			}
-
 			if δλ1 == δλ2 {
 				δu, δλ = δu1, δλ1
 			}
 
-			dalfa = summa(Δu, δu)
-			Δλ = Δλ + δλ
-
-			f = fcn(summa(a, dalfa), (al + Δλ))
-			fcheck = nplinalgnorm(f)
+			finish()
+			// Δu = summa(Δu, δu)
+			// Δλ = Δλ + δλ
+			// f = fcn(summa(a, Δu), (al + Δλ))
+			// fcheck = nplinalgnorm(f)
 		}
 
 		if iters > maxiter {
@@ -284,11 +286,8 @@ func ExampleArc2() {
 			panic("Max iteration error")
 		}
 
-		a = summa(a, dalfa)
+		a = summa(a, Δu)
 		al += Δλ
-		//}
-		Δu = dalfa
-		// dlo = dlamda
 
 		// TODO: add visualization for steps and substeps
 		// TODO: add recorder for each step
