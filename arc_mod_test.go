@@ -141,6 +141,9 @@ func ExampleArc2() {
 		maxiter = 100
 	)
 
+	// TODO : KI : names:
+	// Lambda - load proportionality factor (LPF)
+
 	for i := 0; i < riks; i++ {
 		// TODO: add stop factors
 		if a[1] >= 3.5 {
