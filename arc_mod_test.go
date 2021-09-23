@@ -9,16 +9,17 @@ import (
 // # Returns two values as ddl1 and ddl2
 //
 // Formula (2.15)
-//	δu  is dat
-//	𝜓   is psi
-//	𝐪   is iq
-//	Δu  is da
-//	δu~ is dab
-//	Δλ  is dl
-//	Δl  is dll
-//	𝛼1  is c1
-//	𝛼2  is c2
-//	𝛼3  is c3
+//
+//	δu        is dat
+//	𝜓         is psi
+//	𝐪         is iq
+//	Δu        is da
+//	δu~ (δů)  is dab
+//	Δλ        is dl
+//	Δl        is dll
+//	𝛼1        is c1
+//	𝛼2        is c2
+//	𝛼3        is c3
 func square_root(da, dab, dat []float64, dl float64, iq []float64) (
 	ddl1, ddl2 float64) {
 
@@ -235,6 +236,8 @@ func ExampleArc2() {
 			dab = scale(-1, temp) // npdotm(dfinv, f))
 
 			ddl1, ddl2 = square_root(da, dab, dat, dlamda, iq)
+
+			// Formula (2.14)
 			dda1 = summa(dab, scale(ddl1, dat))
 			dda2 = summa(dab, scale(ddl2, dat))
 
@@ -251,14 +254,16 @@ func ExampleArc2() {
 					ddl = ddl2
 				}
 			} else {
-				aux1 := npdot(summa(da, dda1), dao)
-				aux2 := npdot(summa(da, dda2), dao)
+				// aux1 :=
+				// aux2 :=
+				// aux3 :=
+				// aux4 :=
 
-				aux3 := dlamda * (dlamda + ddl1) * npdot(iq, iq)
-				aux4 := dlamda * (dlamda + ddl2) * npdot(iq, iq)
-
-				dot1 := aux1 + math.Pow(psi, 2)*aux3
-				dot2 := aux2 + math.Pow(psi, 2)*aux4
+				// see page 14
+				dot1 := npdot(summa(da, dda1), dao) /* aux1 */ +
+					math.Pow(psi, 2)* /* aux3 */ dlamda*(dlamda+ddl1)*npdot(iq, iq)
+				dot2 := npdot(summa(da, dda2), dao) /* aux2 */ +
+					math.Pow(psi, 2)* /* aux4 */ dlamda*(dlamda+ddl2)*npdot(iq, iq)
 
 				if dot1 > dot2 {
 					dda = dda1
