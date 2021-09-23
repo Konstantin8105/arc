@@ -7,7 +7,21 @@ import (
 
 // # The arc length function solves the 2nd order equation w.r.t. ddl
 // # Returns two values as ddl1 and ddl2
-func arc2(da, dab, dat []float64, dl float64, iq []float64) (ddl1, ddl2 float64) {
+//
+// Formula (2.15)
+//	δu  is dat
+//	𝜓   is psi
+//	𝐪   is iq
+//	Δu  is da
+//	δu~ is dab
+//	Δλ  is dl
+//	Δl  is dll
+//	𝛼1  is c1
+//	𝛼2  is c2
+//	𝛼3  is c3
+func square_root(da, dab, dat []float64, dl float64, iq []float64) (
+	ddl1, ddl2 float64) {
+
 	// 	#Arc Length Parameters
 	var (
 		psi = 1.0   // TODO: hyperellipsoid ratio - input data
@@ -158,14 +172,15 @@ func ExampleArc2() {
 			dda2  = npzeros(ndof)
 			dda   = npzeros(ndof)
 			dalfa = npzeros(ndof)
-			dl    = 0.0
-			ddl   = 0.0
+			// dl    = 0.0
+			dlamda = 0.0
+			ddl    = 0.0
 		)
 
 		df /*, dfinv*/ := dfcn(summa(a, da) /* th0, al+dl,, w*/)
 		dat = SolveLinear(df, iq) // npdotm(dfinv, iq)
 
-		ddl1, ddl2 := arc2(da, dab, dat, dl, iq)
+		ddl1, ddl2 := square_root(da, dab, dat, dlamda, iq)
 		// TODO: why?? generally values are zeros
 		dda1 = summa(dab, scale(ddl1, dat))
 		dda2 = summa(dab, scale(ddl2, dat))
@@ -182,25 +197,24 @@ func ExampleArc2() {
 		}
 
 		dalfa = summa(da, dda)
-		dlamda := dl + ddl // TODO: is it zero always??
+		dlamda = dlamda + ddl // TODO: is it zero always??
 
 		f := fcn(summa(a, dalfa) /* th0, */, (al + dlamda) /*, w*/)
 
 		fcheck := nplinalgnorm(f) // math.Sqrt(npdot(f, f))
 		// var dlo float64
 		// var iloop int
+
 		var iters int = 0 // TODO: in my point of view - it is 1
-
-		//	if fcheck < tol {
-		// 			a = summa(a, dalfa)
-		// 			al = al + dlamda
-		// iout.write(str(a[1]) + ' ' + str(al) + "\n")
-		// fmt.Println("A:", a, al)
-		// dao = dalfa
-
-		// dlo = dlamda
-		//iloop = 0
-		//} else {
+		// if fcheck < tol {
+		// 	a = summa(a, dalfa)
+		// 	al = al + dlamda
+		// 	// 			iout.write(str(a[1]) + ' ' + str(al) + "\n")
+		// 	// 			fmt.Println("A:", a, al)
+		// 	dao = dalfa
+		// 	// dlo = dlamda
+		// 	// 			iloop = 0
+		// } else {
 		for ; fcheck > tol && iters <= maxiter; iters++ {
 
 			// TODO: relocate that case
@@ -210,9 +224,9 @@ func ExampleArc2() {
 			// }
 
 			da = dalfa
-			dl = dlamda
+			// dl = dlamda
 
-			f = fcn(summa(a, da) /* th0, */, (al + dl) /*, w*/)
+			f = fcn(summa(a, da) /* th0, */, (al + dlamda) /*, w*/)
 
 			df /*, dfinv */ := dfcn(summa(a, da) /* th0,  (al + dl),, w*/)
 			dat = SolveLinear(df, iq) // = npdotm(dfinv, iq)
@@ -220,7 +234,7 @@ func ExampleArc2() {
 			temp := SolveLinear(df, f)
 			dab = scale(-1, temp) // npdotm(dfinv, f))
 
-			ddl1, ddl2 = arc2(da, dab, dat, dl, iq)
+			ddl1, ddl2 = square_root(da, dab, dat, dlamda, iq)
 			dda1 = summa(dab, scale(ddl1, dat))
 			dda2 = summa(dab, scale(ddl2, dat))
 
@@ -229,7 +243,7 @@ func ExampleArc2() {
 			daomag := npdot(dao, dao)
 
 			if daomag == 0. {
-				if npsign(dl+ddl1) == npsign(det) {
+				if npsign(dlamda+ddl1) == npsign(det) {
 					dda = dda1
 					ddl = ddl1
 				} else {
@@ -240,8 +254,8 @@ func ExampleArc2() {
 				aux1 := npdot(summa(da, dda1), dao)
 				aux2 := npdot(summa(da, dda2), dao)
 
-				aux3 := dlamda * (dl + ddl1) * npdot(iq, iq)
-				aux4 := dlamda * (dl + ddl2) * npdot(iq, iq)
+				aux3 := dlamda * (dlamda + ddl1) * npdot(iq, iq)
+				aux4 := dlamda * (dlamda + ddl2) * npdot(iq, iq)
 
 				dot1 := aux1 + math.Pow(psi, 2)*aux3
 				dot2 := aux2 + math.Pow(psi, 2)*aux4
@@ -261,12 +275,13 @@ func ExampleArc2() {
 			}
 
 			dalfa = summa(da, dda)
-			dlamda = dl + ddl
+			dlamda = dlamda + ddl
 
 			f = fcn(summa(a, dalfa) /* th0, */, (al + dlamda) /* , w */)
 
 			fcheck = nplinalgnorm(f)
 		}
+		// }
 
 		if iters > maxiter {
 			// TODO: create error description
