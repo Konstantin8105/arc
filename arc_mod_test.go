@@ -15,8 +15,11 @@ import (
 //	𝐪         is iq
 //	Δu        is da
 //	δu~ (δů)  is dab
+//	δut       is dat
 //	Δλ        is dl
 //	Δl        is dll
+//	Δl1       is dll1
+//	Δl2       is dll2
 //	𝛼1        is c1
 //	𝛼2        is c2
 //	𝛼3        is c3
