@@ -89,6 +89,13 @@ func ExampleArc2() {
 	// # Define the dimensions of 'load' and 'displacement' vectors
 	var ndof int = 2
 
+	type row struct {
+		lambda float64
+		Fint   []float64
+		u      []float64
+	}
+	var data []row
+
 	// # Iq is the force distribution vector (needs to be defined explicitly)
 	𝐪 := npzeros(ndof)
 	// TODO : KI : FORCE on each direction
@@ -117,29 +124,65 @@ func ExampleArc2() {
 	al := 0.0
 
 	// # Define the b function needed for calculations
-	b := func(a1 float64) float64 {
+	b := func(a float64) float64 {
 		// TODO see formula (3.11)
 		// B(a1, th0) = 1.0 - 2*a1*sin(th0)+a1*a1
-		return 1.0 + a1*a1 - 2.0*a1*math.Sin(th0) // TODO: use formula
+		return 1.0 + a*a - 2.0*a*math.Sin(th0) // TODO: use formula
 	}
+
+	var dfcn func(a []float64) (df [][]float64)
 
 	// # Define the system of equations in the form F(u)=0
 	fcn := func(a []float64, λ float64) (f []float64) {
-		// # f is the system of equations (They need to be defined explicitly)
-		// [See Function fcn]
-		w := last_w
+
+		// усилия в глобальной системе координат
+
 		f = npzeros(ndof)
-		bb := b(a[0])
 
 		// by formula (3.4):
 		// a = u/Lo
 		// λ = P/(2*k*Lo)
+		// k = E` * Ao` / Lo //
+		// β = E  * Ao  / Lo // vertical
+		// w = β/k
+
+		// # f is the system of equations (They need to be defined explicitly)
+		// [See Function fcn]
+		w := last_w
+		bb := b(a[0])
 
 		// TODO: use correct name of variables
 		f[0] = (1./math.Sqrt(bb)-1.0)*(math.Sin(th0)-a[0]) - w*(a[1]-a[0])
 		// TODO formula (3.12)
 		f[1] = w*(a[1]-a[0]) - λ
 		// TODO formula (3.13)
+
+		//
+		//
+		// R := Fint + K * d - f = Fint + K * d - lambda * q ---> 0
+		//
+		// var Fint []float64
+		// if len(data) != 0 {
+		// 	Fint = data[len(data)-1].Fint
+		// 	// last := data[len(data)-1]
+		// 	// K := dfcn(last.a)
+		// 	// Fint = w3
+		// }
+		// K := dfcn(a)
+		// g := summa(npdotm(K, a), scale(-λ, 𝐪))
+		// // for i := range data {
+		// // 	K := dfcn(data[i].u)
+		// // 	r := summa(npdotm(K, data[i].u), scale(-data[i].lambda, 𝐪))
+		// // 	g = summa(g, scale(-1, r))
+		// // }
+		// g = summa(Fint, scale(-1, g))
+		// _ = Fint
+		// fmt.Println("> K = ", K)
+		// fmt.Println("> λ = ", λ)
+		// fmt.Println("> Fint = ", Fint)
+		// fmt.Println(">>>", g, f)
+		// f = g
+
 		return
 	}
 
@@ -147,18 +190,35 @@ func ExampleArc2() {
 	// # It contains the derivatives of the equations w.r.t the variables
 	// # The function returns both the matrix as df
 	// as well as it's inverse as dfinv
-	dfcn := func(x []float64) (df [][]float64) {
-		// (df, dfinv [][]float64)
+	dfcn = func(a []float64) (df [][]float64) {
+
+		// Typical truss matrix stiffiners
+		//
+		//  A * E    | +c*c +c*s -c*c -c*s |
+		//  -----  * | +c*s +s*s -c*s -s*s |
+		//    L      | -c*c -c*s +c*c +c*s |
+		//           | -c*s -s*s +c*s +s*s |
+		//
+		// angle = 90
+		// Ao' * E'   | +c*c +c*s |   Ao  * E    | 0 0 |       | 0 0 |
+		// -------- * | +c*s +s*s | = -------- * | 0 1 | = β * | 0 1 |
+		//    Lo                         Lo
+		//
+		// angle = th0 = acos( Lo
+		// Ao  * E    | +c*c +c*s |       | +c*c +c*s |
+		// -------- * | +c*s +s*s | = k * | +c*s +s*s |
+		//    Lo
+
 		df = npzerosm(ndof)
+
 		//dfinv = npzerosm(ndof)
-		bb := b(x[0])
-		y := th0
+		bb := b(a[0])
 		w := last_w
 		//      # Tangent Matrix
 		// TODO: look like https://en.wikipedia.org/wiki/
 		// Jacobian_matrix_and_determinant#Example_1
 		df[0][0] = (1 + w) -
-			(1.-math.Pow(math.Sin(y), 2.0))/(math.Pow(bb, 1.5))
+			(1.-math.Pow(math.Sin(th0), 2.0))/(math.Pow(bb, 1.5))
 		df[0][1] = -w
 		df[1][0] = -w
 		df[1][1] = w
@@ -176,12 +236,6 @@ func ExampleArc2() {
 
 	// TODO : KI : names:
 	// Lambda - load proportionality factor (LPF)
-
-	type row struct {
-		lambda float64
-		u      []float64
-	}
-	var data []row
 
 	for { // i := 0; i < riks; i++ {
 		// TODO: add stop factors
@@ -314,6 +368,7 @@ func ExampleArc2() {
 		// fmt.Printf("\n")
 		data = append(data, row{
 			lambda: al,
+			Fint:   fcn(a, al),
 			u:      a,
 		})
 	}
