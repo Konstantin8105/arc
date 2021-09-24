@@ -3,6 +3,7 @@ package arc_test
 import (
 	"fmt"
 	"math"
+	"os"
 )
 
 // # The arc length function solves the 2nd order equation w.r.t. ddl
@@ -176,6 +177,12 @@ func ExampleArc2() {
 	// TODO : KI : names:
 	// Lambda - load proportionality factor (LPF)
 
+	type row struct {
+		lambda float64
+		u      []float64
+	}
+	var data []row
+
 	for { // i := 0; i < riks; i++ {
 		// TODO: add stop factors
 		if a[1] >= 3.5 {
@@ -305,8 +312,26 @@ func ExampleArc2() {
 		// 	fmt.Printf(" %.12f", a[i])
 		// }
 		// fmt.Printf("\n")
+		data = append(data, row{
+			lambda: al,
+			u:      a,
+		})
 	}
 	fmt.Printf("ok\n")
+
+	// gnuplot graph
+	// plot "data.txt" using 2:1 title 'rotation',"data.txt" using 3:1 title 'vertical disp'
+	var content string
+	for _, r := range data {
+		content += fmt.Sprintf("%.12f", r.lambda)
+		for i := 0; i < ndof; i++ {
+			content += fmt.Sprintf(" %.12f", r.u[i])
+		}
+		content += fmt.Sprintf("\n")
+	}
+	if err := os.WriteFile("data.txt", []byte(content), 0644); err != nil {
+		panic(err)
+	}
 
 	// TODO : remove output data to specific file
 
