@@ -1,6 +1,7 @@
 package arc_test
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"os"
@@ -91,7 +92,6 @@ func ExampleArc2() {
 
 	type row struct {
 		lambda float64
-		Fint   []float64
 		u      []float64
 	}
 	var data []row
@@ -107,7 +107,7 @@ func ExampleArc2() {
 
 	// # a is the dimensionless ``displacement'' vector (no need to define)
 	// TODO: change to some dimention, not dimensionless
-	a := npzeros(ndof)
+	u := npzeros(ndof)
 
 	// # df is the tangent matrix to the system of equations
 	// (Contains derivatives)
@@ -121,7 +121,7 @@ func ExampleArc2() {
 	// Δu := npzeros(ndof)
 
 	// # al is the dimensionless ``load'' vector
-	al := 0.0
+	λ := 0.0
 
 	// # Define the b function needed for calculations
 	b := func(a float64) float64 {
@@ -239,7 +239,7 @@ func ExampleArc2() {
 
 	for { // i := 0; i < riks; i++ {
 		// TODO: add stop factors
-		if a[1] >= 3.5 {
+		if u[1] >= 3.5 {
 			break
 		}
 		// 	# Increment starts; Set all variations=0
@@ -251,7 +251,7 @@ func ExampleArc2() {
 			δu  []float64
 			δu1 []float64
 			δu2 []float64
-			f   []float64
+			// f   []float64 // TODO: remove
 
 			// df  [][]float64
 			det    float64
@@ -264,15 +264,18 @@ func ExampleArc2() {
 		)
 
 		step := func(isFirst bool) {
-			Kt := dfcn(summa(a, Δu))
+			Kt := dfcn(summa(u, Δu))
 			δu = SolveLinear(Kt, 𝐪)
 			var δů []float64
 			if isFirst {
 				δů = npzeros(ndof)
 			} else {
-				f = fcn(summa(a, Δu), (al + Δλ)) //
-				temp := SolveLinear(Kt, f)       //
-				δů = scale(-1, temp)             //
+				// f = fcn(summa(u, Δu), (λ + Δλ)) //
+				// temp := SolveLinear(Kt, f)      //
+				// δů = scale(-1, temp)            //
+				// fmt.Println(">", δů,
+				// 	summa(SolveLinear(Kt, scale(Δλ,  𝐪)),scale(-1,Δu)))
+				δů = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
 			}
 			δλ1, δλ2 = square_root(Δu, δů, δu, Δλ, 𝐪)
 			// Formula (2.14)
@@ -299,8 +302,10 @@ func ExampleArc2() {
 		finish := func() {
 			Δu = summa(Δu, δu)
 			Δλ = Δλ + δλ
-			f = fcn(summa(a, Δu), (al + Δλ))
-			fcheck = nplinalgnorm(f)
+			// f = fcn(summa(u, Δu), (λ + Δλ))
+			// fcheck = nplinalgnorm(f)
+			// fmt.Println(	">>>", nplinalgnorm(f), math.Max(nplinalgnorm(δu), δλ))
+			fcheck = math.Max(nplinalgnorm(δu), δλ)
 		}
 		finish()
 
@@ -350,14 +355,15 @@ func ExampleArc2() {
 			// f = fcn(summa(a, Δu), (al + Δλ))
 			// fcheck = nplinalgnorm(f)
 		}
+		// fmt.Println(">>>>>>>>>>>>>>>>>>>>>")
 
 		if iters > maxiter {
 			// TODO: create error description
 			panic("Max iteration error")
 		}
 
-		a = summa(a, Δu)
-		al += Δλ
+		u = summa(u, Δu)
+		λ += Δλ
 
 		// TODO: add visualization for steps and substeps
 		// TODO: add recorder for each step
@@ -367,29 +373,38 @@ func ExampleArc2() {
 		// }
 		// fmt.Printf("\n")
 		data = append(data, row{
-			lambda: al,
-			Fint:   fcn(a, al),
-			u:      a,
+			lambda: λ,
+			u:      u,
 		})
 	}
 	fmt.Printf("ok\n")
 
 	// gnuplot graph
 	// plot "data.txt" using 2:1 title 'rotation',"data.txt" using 3:1 title 'vertical disp'
-	var content string
+	var buf bytes.Buffer
+	var errorValue float64
 	for _, r := range data {
-		content += fmt.Sprintf("%.12f", r.lambda)
+		fmt.Fprintf(&buf, "%.12f", r.lambda)
 		for i := 0; i < ndof; i++ {
-			content += fmt.Sprintf(" %.12f", r.u[i])
+			fmt.Fprintf(&buf, " %.12f", r.u[i])
 		}
-		content += fmt.Sprintf("\n")
+		// print error
+		f := fcn(r.u, r.lambda)
+		for _, v := range f {
+			fmt.Fprintf(&buf, " %.12f", v)
+			errorValue = math.Max(errorValue, math.Abs(v))
+		}
+
+		fmt.Fprintf(&buf, "\n")
 	}
-	if err := os.WriteFile("data.txt", []byte(content), 0644); err != nil {
+	if err := os.WriteFile("data.txt", buf.Bytes(), 0644); err != nil {
 		panic(err)
 	}
+	fmt.Printf("error value = %.1e\n", errorValue)
 
 	// TODO : remove output data to specific file
 
 	// Output:
 	// ok
+	// error value = 4.8e-04
 }
