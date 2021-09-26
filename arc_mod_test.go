@@ -380,7 +380,8 @@ func ExampleArc2() {
 	fmt.Printf("ok\n")
 
 	// gnuplot graph
-	// plot "data.txt" using 2:1 title 'rotation',"data.txt" using 3:1 title 'vertical disp'
+	// plot "data.txt" using 2:1 title "rotation", \
+	//      "data.txt" using 3:1 title "vertical disp"
 	var buf bytes.Buffer
 	var errorValue float64
 	for _, r := range data {
