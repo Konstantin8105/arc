@@ -282,8 +282,9 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 				// df, dfinv = dfcn(summa(a, da), th0, (al + dl), w)
 				// dab = scale(-1, npdotm(dfinv, f))
 				//
-				δū = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
-				// δū = SolveLinear(Kt, summa(scale(λ+Δλ, 𝐪), scale(-1,npdotm(Kt, Δu))))
+				// δū = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
+				δū = SolveLinear(Kt,
+					summa(scale(Δλ, 𝐪), scale(-1, npdotm(Kt, Δu))))
 			}
 			// For formula (2.14):
 			// δut = -invert[KT](uo+Δu) * 𝐪
