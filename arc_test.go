@@ -37,6 +37,8 @@ func nplinalgdet(df [][]float64) (det float64) {
 	size := len(df)
 	// df = npzerosm(size)
 	switch size {
+	case 1:
+		return df[0][0]
 	case 2:
 		var (
 			a = df[0][0]

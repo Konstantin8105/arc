@@ -39,39 +39,17 @@ func SolveLinear(K [][]float64, f []float64) (d []float64) {
 }
 
 func ExampleArc2() {
-	// TODO: one simple initialization for all input templorary allocations for reusing
-
 	// # Input of user defined parameters
 	th0 := math.Pi / 3
 	last_w := 0.25 // w = β/k , see page 24
-	//dll := 2.5e-4
 
 	// # Define the dimensions of 'load' and 'displacement' vectors
 	var ndof int = 2
 
 	// # Iq is the force distribution vector (needs to be defined explicitly)
 	𝐪 := npzeros(ndof)
-	// TODO : KI : FORCE on each direction
-	// TODO: strange vector. What happen if ndof more 2
 	𝐪[0] = 0.
 	𝐪[1] = 1.
-	// [0] - rotation
-	// [1] - vertical displacement
-
-	// # a is the dimensionless ``displacement'' vector (no need to define)
-	// TODO: change to some dimention, not dimensionless
-	// u := npzeros(ndof)
-
-	// # df is the tangent matrix to the system of equations
-	// (Contains derivatives)
-	// # dfinv is the inverse of df
-	// # df elements need to be defined explicitly in function dfcn
-	// df := npzerosm(ndof)
-	// dfinv := npzerosm(ndof)
-
-	// # dao is an araay that stores the last converged ``displacement
-	//  correction''
-	// Δu := npzeros(ndof)
 
 	// # Define the b function needed for calculations
 	b := func(a float64) float64 {
@@ -84,20 +62,9 @@ func ExampleArc2() {
 
 	// # Define the system of equations in the form F(u)=0
 	fcn := func(a []float64, λ float64) (f []float64) {
-
-		// усилия в глобальной системе координат
-
-		f = npzeros(ndof)
-
-		// by formula (3.4):
-		// a = u/Lo
-		// λ = P/(2*k*Lo)
-		// k = E` * Ao` / Lo //
-		// β = E  * Ao  / Lo // vertical
-		// w = β/k
-
 		// # f is the system of equations (They need to be defined explicitly)
 		// [See Function fcn]
+		f = npzeros(ndof)
 		w := last_w
 		bb := b(a[0])
 
@@ -107,32 +74,6 @@ func ExampleArc2() {
 		f[1] = w*(a[1]-a[0]) - λ
 		// TODO formula (3.13)
 
-		//
-		//
-		// R := Fint + K * d - f = Fint + K * d - lambda * q ---> 0
-		//
-		// var Fint []float64
-		// if len(data) != 0 {
-		// 	Fint = data[len(data)-1].Fint
-		// 	// last := data[len(data)-1]
-		// 	// K := dfcn(last.a)
-		// 	// Fint = w3
-		// }
-		// K := dfcn(a)
-		// g := summa(npdotm(K, a), scale(-λ, 𝐪))
-		// // for i := range data {
-		// // 	K := dfcn(data[i].u)
-		// // 	r := summa(npdotm(K, data[i].u), scale(-data[i].lambda, 𝐪))
-		// // 	g = summa(g, scale(-1, r))
-		// // }
-		// g = summa(Fint, scale(-1, g))
-		// _ = Fint
-		// fmt.Println("> K = ", K)
-		// fmt.Println("> λ = ", λ)
-		// fmt.Println("> Fint = ", Fint)
-		// fmt.Println(">>>", g, f)
-		// f = g
-
 		return
 	}
 
@@ -141,30 +82,11 @@ func ExampleArc2() {
 	// # The function returns both the matrix as df
 	// as well as it's inverse as dfinv
 	dfcn = func(a []float64) (df [][]float64) {
-
-		// Typical truss matrix stiffiners
-		//
-		//  A * E    | +c*c +c*s -c*c -c*s |
-		//  -----  * | +c*s +s*s -c*s -s*s |
-		//    L      | -c*c -c*s +c*c +c*s |
-		//           | -c*s -s*s +c*s +s*s |
-		//
-		// angle = 90
-		// Ao' * E'   | +c*c +c*s |   Ao  * E    | 0 0 |       | 0 0 |
-		// -------- * | +c*s +s*s | = -------- * | 0 1 | = β * | 0 1 |
-		//    Lo                         Lo
-		//
-		// angle = th0 = acos( Lo
-		// Ao  * E    | +c*c +c*s |       | +c*c +c*s |
-		// -------- * | +c*s +s*s | = k * | +c*s +s*s |
-		//    Lo
-
 		df = npzerosm(ndof)
 
-		//dfinv = npzerosm(ndof)
 		bb := b(a[0])
 		w := last_w
-		//      # Tangent Matrix
+		// Tangent Matrix
 		// TODO: look like https://en.wikipedia.org/wiki/
 		// Jacobian_matrix_and_determinant#Example_1
 		df[0][0] = (1 + w) -
@@ -172,66 +94,8 @@ func ExampleArc2() {
 		df[0][1] = -w
 		df[1][0] = -w
 		df[1][1] = w
-		// # Inverse of Tangent Matrix
-		//dfinv = nplinalginv(df)
-		// TODO : move to separate function for FEM calcs
-		return df // , dfinv
+		return df
 	}
-
-	data := arcm(dfcn, 𝐪)
-
-	fmt.Printf("ok\n")
-
-	// gnuplot graph
-	// plot "data.txt" using 2:1 title "rotation", \
-	//      "data.txt" using 3:1 title "vertical disp"
-	var buf bytes.Buffer
-	var errorValue float64
-	for _, r := range data {
-		fmt.Fprintf(&buf, "%.12f", r.lambda)
-		for i := 0; i < ndof; i++ {
-			fmt.Fprintf(&buf, " %.12f", r.u[i])
-		}
-		// print error
-		f := fcn(r.u, r.lambda)
-		for _, v := range f {
-			fmt.Fprintf(&buf, " %.12f", v)
-			errorValue = math.Max(errorValue, math.Abs(v))
-		}
-
-		fmt.Fprintf(&buf, "\n")
-	}
-	if err := os.WriteFile("data.txt", buf.Bytes(), 0644); err != nil {
-		panic(err)
-	}
-	fmt.Printf("error value = %.1e\n", errorValue)
-
-	// TODO : remove output data to specific file
-
-	// Output:
-	// ok
-	// error value = 4.8e-04
-}
-
-type row struct {
-	lambda float64
-	u      []float64
-}
-
-// TODO : dfcn, 𝐪  dependens of u
-// TODO : Uo - initialization deformation
-func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
-
-	ndof := len(𝐪)
-	u := npzeros(ndof)
-
-	// 	#Arc Length Parameters
-	var (
-		λ = 0.0 // Lambda - load proportionality factor (LPF)
-		// # al is the dimensionless ``load'' vector
-		𝜓  = 1.0   // TODO: hyperellipsoid ratio - input data
-		Δl = 1.e-3 // TODO : radius
-	)
 
 	// TODO : break a substep
 	// TODO : break a calculation
@@ -244,12 +108,119 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 		return maxiter < substep || fcheck < tol
 	}
 
+	data := arcm(dfcn, 𝐪, stopStep, stopSubstep)
+	printData(data, "data.txt")
+
+	fmt.Printf("ok\n")
+
+	var errorValue float64
+	for _, r := range data {
+		// print error
+		f := fcn(r.u, r.lambda)
+		for _, v := range f {
+			errorValue = math.Max(errorValue, math.Abs(v))
+		}
+	}
+	fmt.Printf("error value = %.1e\n", errorValue)
+
+	// Output:
+	// ok
+	// error value = 4.8e-04
+}
+
+func printData(data []row, filename string) {
+	// gnuplot graph
+	// plot "data.txt" using 2:1 title "rotation", \
+	//      "data.txt" using 3:1 title "vertical disp"
+	var buf bytes.Buffer
+	for _, r := range data {
+		fmt.Fprintf(&buf, "%.12f", r.lambda)
+		for i := range r.u {
+			fmt.Fprintf(&buf, " %.12f", r.u[i])
+		}
+		fmt.Fprintf(&buf, "\n")
+	}
+	if err := os.WriteFile(filename, buf.Bytes(), 0644); err != nil {
+		panic(err)
+	}
+}
+
+func ExampleArc3() {
+	stopStep := func(step int, λ float64, u []float64) bool {
+		maxiter := 20000
+		return maxiter < step || 2 < λ || 20 <= u[0]
+	}
+	stopSubstep := func(substep int, fcheck float64) bool {
+		maxiter := 100
+		return maxiter < substep || fcheck < tol
+	}
+
+	q := []float64{120}
+	F := func(x []float64, lambda float64) []float64 {
+		return []float64{
+			-0.06*math.Pow(x[0], 3) + 1.2*math.Pow(x[0], 2) + 3*x[0] - lambda*q[0],
+		}
+	}
+	K := func(u []float64) [][]float64 {
+		return [][]float64{
+			{-0.06*3*math.Pow(u[0], 2) + 1.2*2*u[0] + 3},
+		}
+	}
+
+	data := arcm(K, q, stopStep, stopSubstep)
+
+	var errorValue float64
+	for _, r := range data {
+		// print error
+		f := F(r.u, r.lambda)
+		for _, v := range f {
+			errorValue = math.Max(errorValue, math.Abs(v))
+		}
+	}
+	fmt.Printf("error value = %.1e\n", errorValue)
+
+	for i := range data {
+		data[i].lambda *= q[0]
+	}
+
+	printData(data, "arc3.txt")
+	// Output:
+}
+
+type row struct {
+	lambda float64
+	u      []float64
+}
+
+// TODO : dfcn, 𝐪  dependens of u
+// TODO : Uo - initialization deformation
+func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
+	stopStep func(step int, λ float64, u []float64) bool,
+	stopSubstep func(substep int, fcheck float64) bool,
+) (data []row) {
+	// TODO : add error handling
+
+	ndof := len(𝐪)
+	u := npzeros(ndof)
+
+	// Arc Length Parameters
+	var (
+		// Lambda - load proportionality factor (LPF)
+		// the dimensionless ``load'' vector
+		λ = 0.0
+
+		// TODO: hyperellipsoid ratio - input data
+		𝜓 = 1.0
+
+		// TODO : radius
+		Δl = 1.e-3 // TODO : for ExampleArc3 and == 2.0 - somw error
+	)
+
 	for step := 0; ; step++ {
 		if stopStep(step, λ, u) {
 			break
 		}
 
-		// TODO : minimaze allocations
 		var (
 			Δu = npzeros(ndof)
 
@@ -266,18 +237,20 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 
 		begin := func(isFirst bool) {
 			Kt := Kstiff(summa(u, Δu))
-			δut := SolveLinear(Kt, 𝐪)
+			// For formula (2.14):
+			// δū = -invert[KT](uo+Δu) * (Fint*(uo+Δu)-(λo+Δλ)*𝐪)
 			var δū []float64
 			if isFirst {
 				δū = npzeros(ndof)
 			} else {
-				// f = fcn(summa(u, Δu), (λ + Δλ)) //
-				// temp := SolveLinear(Kt, f)      //
-				// δů = scale(-1, temp)            //
-				// fmt.Println(">", δů,
-				// 	summa(SolveLinear(Kt, scale(Δλ,  𝐪)),scale(-1,Δu)))
+				// δū = invert[KT](uo+Δu) * (-Fint*(uo+Δu)+(λo+Δλ)*𝐪)
+				// δū = invert[KT](uo+Δu) * ( (λo+Δλ)*𝐪-Fint*(uo+Δu))
+				// TODO : I am not sure
 				δū = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
 			}
+			// For formula (2.14):
+			// δut = -invert[KT](uo+Δu) * 𝐪
+			δut := SolveLinear(Kt, 𝐪)
 
 			// Formula (2.12):
 			// (∆u + δu)T*(∆u + δu) + ψ^2*(∆λ + δλ)^2*(𝐪T * 𝐪) = ∆l^2
@@ -316,14 +289,14 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 				D = 𝛼2*𝛼2 - 4.*𝛼1*𝛼3
 			)
 			// TODO : why if change ddl1 and ddl2 algorithm are fail??
-			if D > 0. {
+			if 0.0 < D {
 				// acceptable 2 solutions
 				δλ1 = (-𝛼2 - math.Sqrt(D)) / (2 * 𝛼1)
 				δλ2 = (-𝛼2 + math.Sqrt(D)) / (2 * 𝛼1)
 			} else {
 				panic(fmt.Errorf("not implemented: (%e,%e,%e) - %e",
 					𝛼1, 𝛼2, 𝛼3, D))
-				// TODO : check coverage for that part of code
+				// TODO : check coverage for that part of code : D < 0.0
 			}
 
 			// Formula (2.14):
@@ -352,7 +325,7 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 		finish()
 
 		// Run substeps
-		for substep := 1; ; substep++ { // TODO: in my point of view - it is 1
+		for substep := 1; ; substep++ {
 			if stopSubstep(substep, fcheck) {
 				break
 			}
@@ -360,14 +333,15 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 			begin(false)
 
 			daomag := npdot(Δu, Δu)
-			if daomag == 0. {
+			if daomag == 0.0 {
 				if npsign(Δλ+δλ1) == npsign(det) {
 					δu, δλ = δu1, δλ1
 				} else {
 					δu, δλ = δu2, δλ2
 				}
 			} else {
-				// see page 14
+				// Formula (2.16):
+				//
 				DOT1 := npdot(summa(Δu, δu1), Δu) +
 					math.Pow(𝜓, 2)*Δλ*(Δλ+δλ1)*npdot(𝐪, 𝐪)
 				DOT2 := npdot(summa(Δu, δu2), Δu) +
