@@ -10,12 +10,10 @@ import (
 // # The arc length function solves the 2nd order equation w.r.t. ddl
 // # Returns two values as ddl1 and ddl2
 //
-// Formula (2.15)
-//
 //	𝜓         is psi
 //	𝐪         is iq
 //	Δu        is da, dao
-//	δu~ (δů)  is dab
+//	δū        is dab
 //	δut       is dat
 //	Δλ        is dl
 //	δu        is dat, dda
@@ -31,44 +29,6 @@ import (
 //	𝛼1        is c1
 //	𝛼2        is c2
 //	𝛼3        is c3
-func square_root(Δu, δů, δu []float64, Δλ float64, 𝐪 []float64) (
-	δλ1, δλ2 float64) {
-
-	// 	#Arc Length Parameters
-	var (
-		𝜓  = 1.0   // TODO: hyperellipsoid ratio - input data
-		Δl = 1.e-3 // TODO : radius
-	)
-
-	// TODO: add comments for each variable
-	// TODO: rename in according to arc documentation
-
-	// 	# Calculate the coefficients of the polynomial
-	var (
-		𝛼1 = npdot(δu, δu) +
-			math.Pow(𝜓, 2.0)*npdot(𝐪, 𝐪)
-		𝛼2 = 2. * (npdot(summa(Δu, δů), δu) +
-			Δλ*math.Pow(𝜓, 2)*npdot(𝐪, 𝐪))
-		𝛼3 = npdot(summa(Δu, δů), summa(Δu, δů)) +
-			math.Pow(Δλ, 2.0)*math.Pow(𝜓, 2.0)*npdot(𝐪, 𝐪) -
-			math.Pow(Δl, 2)
-	)
-
-	// TODO : why if change ddl1 and ddl2 algorithm are fail??
-	if 𝛼2*𝛼2-4.*𝛼1*𝛼3 > 0. { // TODO: this is determinant
-		// # dls will store the 2 solutions from the 2nd order polynomial w.r.t. ddl
-		dls := nproots(𝛼1, 𝛼2, 𝛼3)
-		δλ1 = dls[0]
-		δλ2 = dls[1]
-	} else {
-		δλ1 = -𝛼2 / 2 * 𝛼1
-		δλ2 = -𝛼2 / 2 * 𝛼1
-		// TODO : check coverage for that part of code
-		fmt.Println("Possible issue in Arc Length equation")
-	}
-
-	return //  ddl1,ddl2
-}
 
 func SolveLinear(K [][]float64, f []float64) (d []float64) {
 	ndof := len(K)
@@ -84,17 +44,10 @@ func ExampleArc2() {
 	// # Input of user defined parameters
 	th0 := math.Pi / 3
 	last_w := 0.25 // w = β/k , see page 24
-	𝜓 := 1.0
 	//dll := 2.5e-4
 
 	// # Define the dimensions of 'load' and 'displacement' vectors
 	var ndof int = 2
-
-	type row struct {
-		lambda float64
-		u      []float64
-	}
-	var data []row
 
 	// # Iq is the force distribution vector (needs to be defined explicitly)
 	𝐪 := npzeros(ndof)
@@ -107,7 +60,7 @@ func ExampleArc2() {
 
 	// # a is the dimensionless ``displacement'' vector (no need to define)
 	// TODO: change to some dimention, not dimensionless
-	u := npzeros(ndof)
+	// u := npzeros(ndof)
 
 	// # df is the tangent matrix to the system of equations
 	// (Contains derivatives)
@@ -119,9 +72,6 @@ func ExampleArc2() {
 	// # dao is an araay that stores the last converged ``displacement
 	//  correction''
 	// Δu := npzeros(ndof)
-
-	// # al is the dimensionless ``load'' vector
-	λ := 0.0
 
 	// # Define the b function needed for calculations
 	b := func(a float64) float64 {
@@ -228,29 +178,95 @@ func ExampleArc2() {
 		return df // , dfinv
 	}
 
-	// # Define the maximum number of Riks increments
-	var ( // TODO: input data
-		// riks    = 20000
-		maxiter = 100
-	)
+	data := arcm(dfcn, 𝐪)
 
+	fmt.Printf("ok\n")
+
+	// gnuplot graph
+	// plot "data.txt" using 2:1 title "rotation", \
+	//      "data.txt" using 3:1 title "vertical disp"
+	var buf bytes.Buffer
+	var errorValue float64
+	for _, r := range data {
+		fmt.Fprintf(&buf, "%.12f", r.lambda)
+		for i := 0; i < ndof; i++ {
+			fmt.Fprintf(&buf, " %.12f", r.u[i])
+		}
+		// print error
+		f := fcn(r.u, r.lambda)
+		for _, v := range f {
+			fmt.Fprintf(&buf, " %.12f", v)
+			errorValue = math.Max(errorValue, math.Abs(v))
+		}
+
+		fmt.Fprintf(&buf, "\n")
+	}
+	if err := os.WriteFile("data.txt", buf.Bytes(), 0644); err != nil {
+		panic(err)
+	}
+	fmt.Printf("error value = %.1e\n", errorValue)
+
+	// TODO : remove output data to specific file
+
+	// Output:
+	// ok
+	// error value = 4.8e-04
+}
+
+type row struct {
+	lambda float64
+	u      []float64
+}
+
+// TODO : dfcn, 𝐪  dependens of u
+// TODO : Uo - initialization deformation
+func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
+
+	ndof := len(𝐪)
+
+	// # al is the dimensionless ``load'' vector
+	λ := 0.0
+	u := npzeros(ndof)
+	𝜓 := 1.0
+	// 	#Arc Length Parameters
+	// var (
+	//𝜓  = 1.0   // TODO: hyperellipsoid ratio - input data
+	Δl := 1.e-3 // TODO : radius
+	// )
+
+	// # Define the maximum number of Riks increments
+	// var ( // TODO: input data
+	// 	// riks    = 20000
+	// )
 	// TODO : KI : names:
 	// Lambda - load proportionality factor (LPF)
 
-	for { // i := 0; i < riks; i++ {
-		// TODO: add stop factors
-		if u[1] >= 3.5 {
+	stopStep := func(step int, λ float64, u []float64) bool {
+		maxiter := 20000
+		return maxiter < step || 2 < λ || 3.5 <= u[1]
+	}
+
+	// TODO : break a substep
+	// TODO : break a calculation
+	stopSubstep := func(substep int, fcheck float64) bool {
+		maxiter := 100
+		return maxiter < substep || fcheck < tol
+	}
+
+	for step := 0; ; step++ {
+		if stopStep(step, λ, u) {
 			break
 		}
+
 		// 	# Increment starts; Set all variations=0
 		var (
 			// TODO : minimaze allocations
 			Δu = npzeros(ndof)
 
 			// δů  []float64
-			δu  []float64
-			δu1 []float64
-			δu2 []float64
+			δu []float64
+			// δut       []float64
+			δu1, δu2 []float64
 			// f   []float64 // TODO: remove
 
 			// df  [][]float64
@@ -258,32 +274,92 @@ func ExampleArc2() {
 			Δλ     float64
 			fcheck float64
 
-			δλ  float64
-			δλ1 float64
-			δλ2 float64
+			δλ       float64
+			δλ1, δλ2 float64
 		)
 
-		step := func(isFirst bool) {
-			Kt := dfcn(summa(u, Δu))
-			δu = SolveLinear(Kt, 𝐪)
-			var δů []float64
+		stepa := func(isFirst bool) {
+			Kt := Kstiff(summa(u, Δu))
+			δut := SolveLinear(Kt, 𝐪)
+			var δū []float64
 			if isFirst {
-				δů = npzeros(ndof)
+				δū = npzeros(ndof)
 			} else {
 				// f = fcn(summa(u, Δu), (λ + Δλ)) //
 				// temp := SolveLinear(Kt, f)      //
 				// δů = scale(-1, temp)            //
 				// fmt.Println(">", δů,
 				// 	summa(SolveLinear(Kt, scale(Δλ,  𝐪)),scale(-1,Δu)))
-				δů = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
+				δū = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
 			}
-			δλ1, δλ2 = square_root(Δu, δů, δu, Δλ, 𝐪)
-			// Formula (2.14)
-			δu1 = summa(δů, scale(δλ1, δu))
-			δu2 = summa(δů, scale(δλ2, δu))
+			// Formula (2.15):
+			// 𝛼1*δλ^2 + 𝛼2*δλ + 𝛼3 = 0
+			//
+			{
+				// func square_root(Δu, δū, δut []float64, Δλ float64, 𝐪 []float64) (
+				// 	δλ1, δλ2 float64)
+
+				// Formula (2.12):
+				// (∆u + δu)T*(∆u + δu) + ψ^2*(∆λ + δλ)^2*(𝐪T * 𝐪) = ∆l^2
+				//
+				// Formula (2.14)
+				// δu = δū + δλ*δut
+				//
+				// symbolic math:
+				// pow(deltau + (δu_+ δλ*δut),2) + ψ2*pow(deltaλ + δλ,2)*(q2)-l2
+				//
+				// deltau*deltau + 2*deltau*δu_ + δu_*δu_ + 2*deltau*δut*δλ + \
+				// ::::::::::::::::::::::::::::::::::::::   ---------------
+				// 2*δu_*δut*δλ + δut*δut*δλ*δλ + deltaλ*deltaλ*q2*ψ2 +      \
+				// -------------  =============   :::::::::::::::::::
+				// 2*deltaλ*q2*δλ*ψ2 + q2*δλ*δλ*ψ2 - l2
+				// -----------------   ============::::
+				//
+				// 𝛼1 = δutT*δut + ψ^2*(𝐪T * 𝐪)
+				// 𝛼2 = 2*(∆u+δū)*δut+2*ψ^2*∆λ*(𝐪T * 𝐪)
+				// 𝛼3 = (∆u + δū)T*(∆u + δū)+ψ^2*∆λ^2*(𝐪T * 𝐪)-∆l^2
+				//
+				// Formula (2.15)
+				// 𝛼1*δλ^2 + 𝛼2*δλ + 𝛼3 = 0
+
+				// TODO: add comments for each variable
+				// TODO: rename in according to arc documentation
+
+				// 	# Calculate the coefficients of the polynomial
+				var (
+					𝛼1 = npdot(δut, δut) +
+						math.Pow(𝜓, 2.0)*npdot(𝐪, 𝐪)
+					𝛼2 = 2.0*npdot(summa(Δu, δū), δut) +
+						2.0*Δλ*math.Pow(𝜓, 2)*npdot(𝐪, 𝐪)
+					𝛼3 = npdot(summa(Δu, δū), summa(Δu, δū)) +
+						math.Pow(𝜓, 2.0)*math.Pow(Δλ, 2.0)*npdot(𝐪, 𝐪) -
+						math.Pow(Δl, 2)
+				)
+
+				// TODO : why if change ddl1 and ddl2 algorithm are fail??
+				if 𝛼2*𝛼2-4.*𝛼1*𝛼3 > 0. { // TODO: this is determinant
+					// # dls will store the 2 solutions from the 2nd order polynomial w.r.t. ddl
+					dls := nproots(𝛼1, 𝛼2, 𝛼3)
+					δλ1 = dls[0]
+					δλ2 = dls[1]
+				} else {
+					δλ1 = -𝛼2 / 2 * 𝛼1
+					δλ2 = -𝛼2 / 2 * 𝛼1
+					// TODO : check coverage for that part of code
+					fmt.Println("Possible issue in Arc Length equation")
+				}
+
+				// return //  ddl1,ddl2
+			}
+			// δλ1, δλ2 = // square_root(Δu, δū, δut, Δλ, 𝐪)
+			// Formula (2.14) :
+			// δu = δū + δλ*δut
+			δu1 = summa(δū, scale(δλ1, δut))
+			δu2 = summa(δū, scale(δλ2, δut))
+
 			det = nplinalgdet(Kt)
 		}
-		step(true)
+		stepa(true)
 
 		// df = dfcn(summa(a, Δu))
 		// δu = SolveLinear(df, 𝐪)
@@ -304,15 +380,21 @@ func ExampleArc2() {
 			Δλ = Δλ + δλ
 			// f = fcn(summa(u, Δu), (λ + Δλ))
 			// fcheck = nplinalgnorm(f)
-			// fmt.Println(	">>>", nplinalgnorm(f), math.Max(nplinalgnorm(δu), δλ))
-			fcheck = math.Max(nplinalgnorm(δu), δλ)
+			fcheck = math.Max(nplinalgnorm(δu), math.Abs(δλ))
 		}
 		finish()
 
-		var iters int = 1 // TODO: in my point of view - it is 1
-		for ; fcheck > tol && iters <= maxiter; iters++ {
+		// var iters int = 1 // TODO: in my point of view - it is 1
 
-			step(false)
+		// Run substeps
+		for substep := 1; ; substep++ {
+			if stopSubstep(substep, fcheck) {
+				break
+			}
+
+			// ; fcheck > tol && iters <= maxiter; iters++ {
+
+			stepa(false)
 
 			// df = dfcn(summa(a, Δu))
 			// δu = SolveLinear(df, 𝐪)
@@ -355,57 +437,23 @@ func ExampleArc2() {
 			// f = fcn(summa(a, Δu), (al + Δλ))
 			// fcheck = nplinalgnorm(f)
 		}
-		// fmt.Println(">>>>>>>>>>>>>>>>>>>>>")
 
-		if iters > maxiter {
-			// TODO: create error description
-			panic("Max iteration error")
-		}
+		// if iters > maxiter {
+		// 	// TODO: create error description
+		// 	panic("Max iteration error")
+		// }
 
 		u = summa(u, Δu)
 		λ += Δλ
 
 		// TODO: add visualization for steps and substeps
 		// TODO: add recorder for each step
-		// fmt.Printf("%.12f", al)
-		// for i := 0; i < ndof; i++ {
-		// 	fmt.Printf(" %.12f", a[i])
-		// }
-		// fmt.Printf("\n")
+
 		data = append(data, row{
 			lambda: λ,
 			u:      u,
 		})
 	}
-	fmt.Printf("ok\n")
 
-	// gnuplot graph
-	// plot "data.txt" using 2:1 title "rotation", \
-	//      "data.txt" using 3:1 title "vertical disp"
-	var buf bytes.Buffer
-	var errorValue float64
-	for _, r := range data {
-		fmt.Fprintf(&buf, "%.12f", r.lambda)
-		for i := 0; i < ndof; i++ {
-			fmt.Fprintf(&buf, " %.12f", r.u[i])
-		}
-		// print error
-		f := fcn(r.u, r.lambda)
-		for _, v := range f {
-			fmt.Fprintf(&buf, " %.12f", v)
-			errorValue = math.Max(errorValue, math.Abs(v))
-		}
-
-		fmt.Fprintf(&buf, "\n")
-	}
-	if err := os.WriteFile("data.txt", buf.Bytes(), 0644); err != nil {
-		panic(err)
-	}
-	fmt.Printf("error value = %.1e\n", errorValue)
-
-	// TODO : remove output data to specific file
-
-	// Output:
-	// ok
-	// error value = 4.8e-04
+	return
 }
