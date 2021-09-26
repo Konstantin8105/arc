@@ -292,67 +292,58 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 				// 	summa(SolveLinear(Kt, scale(Δλ,  𝐪)),scale(-1,Δu)))
 				δū = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
 			}
-			// Formula (2.15):
+
+			// Formula (2.12):
+			// (∆u + δu)T*(∆u + δu) + ψ^2*(∆λ + δλ)^2*(𝐪T * 𝐪) = ∆l^2
+			//
+			// Formula (2.14)
+			// δu = δū + δλ*δut
+			//
+			// Formula (2.15)
 			// 𝛼1*δλ^2 + 𝛼2*δλ + 𝛼3 = 0
 			//
-			{
-				// func square_root(Δu, δū, δut []float64, Δλ float64, 𝐪 []float64) (
-				// 	δλ1, δλ2 float64)
+			// symbolic math:
+			// pow(deltau+(δu_+δλ*δut),2)+ψ2*pow(deltaλ+δλ,2)*(q2)-l2
+			//
+			// deltau*deltau + 2*deltau*δu_ + δu_*δu_ + 2*deltau*δut*δλ + \
+			// ::::::::::::::::::::::::::::::::::::::   ---------------   \
+			// 2*δu_*δut*δλ + δut*δut*δλ*δλ + deltaλ*deltaλ*q2*ψ2 +       \
+			// -------------  =============   :::::::::::::::::::         \
+			// 2*deltaλ*q2*δλ*ψ2 + q2*δλ*δλ*ψ2 - l2                       \
+			// -----------------   ============::::                       \
+			//
+			// 𝛼1 = δutT*δut + ψ^2*(𝐪T * 𝐪)
+			// 𝛼2 = 2*(∆u+δū)*δut+2*ψ^2*∆λ*(𝐪T * 𝐪)
+			// 𝛼3 = (∆u + δū)T*(∆u + δū)+ψ^2*∆λ^2*(𝐪T * 𝐪)-∆l^2
+			//
+			var (
+				// calculate the coefficients of the polynomial
+				𝛼1 = npdot(δut, δut) +
+					math.Pow(𝜓, 2.0)*npdot(𝐪, 𝐪)
+				𝛼2 = 2.0*npdot(summa(Δu, δū), δut) +
+					2.0*Δλ*math.Pow(𝜓, 2.0)*npdot(𝐪, 𝐪)
+				𝛼3 = npdot(summa(Δu, δū), summa(Δu, δū)) +
+					math.Pow(𝜓, 2.0)*math.Pow(Δλ, 2.0)*npdot(𝐪, 𝐪) -
+					math.Pow(Δl, 2.0)
 
-				// Formula (2.12):
-				// (∆u + δu)T*(∆u + δu) + ψ^2*(∆λ + δλ)^2*(𝐪T * 𝐪) = ∆l^2
-				//
-				// Formula (2.14)
-				// δu = δū + δλ*δut
-				//
-				// symbolic math:
-				// pow(deltau + (δu_+ δλ*δut),2) + ψ2*pow(deltaλ + δλ,2)*(q2)-l2
-				//
-				// deltau*deltau + 2*deltau*δu_ + δu_*δu_ + 2*deltau*δut*δλ + \
-				// ::::::::::::::::::::::::::::::::::::::   ---------------
-				// 2*δu_*δut*δλ + δut*δut*δλ*δλ + deltaλ*deltaλ*q2*ψ2 +      \
-				// -------------  =============   :::::::::::::::::::
-				// 2*deltaλ*q2*δλ*ψ2 + q2*δλ*δλ*ψ2 - l2
-				// -----------------   ============::::
-				//
-				// 𝛼1 = δutT*δut + ψ^2*(𝐪T * 𝐪)
-				// 𝛼2 = 2*(∆u+δū)*δut+2*ψ^2*∆λ*(𝐪T * 𝐪)
-				// 𝛼3 = (∆u + δū)T*(∆u + δū)+ψ^2*∆λ^2*(𝐪T * 𝐪)-∆l^2
-				//
-				// Formula (2.15)
-				// 𝛼1*δλ^2 + 𝛼2*δλ + 𝛼3 = 0
-
-				// TODO: add comments for each variable
-				// TODO: rename in according to arc documentation
-
-				// 	# Calculate the coefficients of the polynomial
-				var (
-					𝛼1 = npdot(δut, δut) +
-						math.Pow(𝜓, 2.0)*npdot(𝐪, 𝐪)
-					𝛼2 = 2.0*npdot(summa(Δu, δū), δut) +
-						2.0*Δλ*math.Pow(𝜓, 2)*npdot(𝐪, 𝐪)
-					𝛼3 = npdot(summa(Δu, δū), summa(Δu, δū)) +
-						math.Pow(𝜓, 2.0)*math.Pow(Δλ, 2.0)*npdot(𝐪, 𝐪) -
-						math.Pow(Δl, 2)
-				)
-
-				// TODO : why if change ddl1 and ddl2 algorithm are fail??
-				if 𝛼2*𝛼2-4.*𝛼1*𝛼3 > 0. { // TODO: this is determinant
-					// # dls will store the 2 solutions from the 2nd order polynomial w.r.t. ddl
-					dls := nproots(𝛼1, 𝛼2, 𝛼3)
-					δλ1 = dls[0]
-					δλ2 = dls[1]
-				} else {
-					δλ1 = -𝛼2 / 2 * 𝛼1
-					δλ2 = -𝛼2 / 2 * 𝛼1
-					// TODO : check coverage for that part of code
-					fmt.Println("Possible issue in Arc Length equation")
-				}
-
-				// return //  ddl1,ddl2
+				// determinant
+				D = 𝛼2*𝛼2 - 4.*𝛼1*𝛼3
+			)
+			// TODO : why if change ddl1 and ddl2 algorithm are fail??
+			if D > 0. {
+				// acceptable 2 solutions
+				δλ1 = (-𝛼2 - math.Sqrt(D)) / (2 * 𝛼1)
+				δλ2 = (-𝛼2 + math.Sqrt(D)) / (2 * 𝛼1)
+			} else {
+				panic(fmt.Errorf("not implemented: (%e,%e,%e) - %e",
+					𝛼1, 𝛼2, 𝛼3, D))
+				// δλ1 = -𝛼2 / 2 * 𝛼1
+				// δλ2 = -𝛼2 / 2 * 𝛼1
+				// // TODO : check coverage for that part of code
+				// fmt.Println("Possible issue in Arc Length equation")
 			}
-			// δλ1, δλ2 = // square_root(Δu, δū, δut, Δλ, 𝐪)
-			// Formula (2.14) :
+
+			// Formula (2.14):
 			// δu = δū + δλ*δut
 			δu1 = summa(δū, scale(δλ1, δut))
 			δu2 = summa(δū, scale(δλ2, δut))
