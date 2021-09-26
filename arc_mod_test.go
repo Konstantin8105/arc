@@ -223,31 +223,22 @@ type row struct {
 func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 
 	ndof := len(𝐪)
-
-	// # al is the dimensionless ``load'' vector
-	λ := 0.0
 	u := npzeros(ndof)
-	𝜓 := 1.0
+
 	// 	#Arc Length Parameters
-	// var (
-	//𝜓  = 1.0   // TODO: hyperellipsoid ratio - input data
-	Δl := 1.e-3 // TODO : radius
-	// )
+	var (
+		λ = 0.0 // Lambda - load proportionality factor (LPF)
+		// # al is the dimensionless ``load'' vector
+		𝜓  = 1.0   // TODO: hyperellipsoid ratio - input data
+		Δl = 1.e-3 // TODO : radius
+	)
 
-	// # Define the maximum number of Riks increments
-	// var ( // TODO: input data
-	// 	// riks    = 20000
-	// )
-	// TODO : KI : names:
-	// Lambda - load proportionality factor (LPF)
-
+	// TODO : break a substep
+	// TODO : break a calculation
 	stopStep := func(step int, λ float64, u []float64) bool {
 		maxiter := 20000
 		return maxiter < step || 2 < λ || 3.5 <= u[1]
 	}
-
-	// TODO : break a substep
-	// TODO : break a calculation
 	stopSubstep := func(substep int, fcheck float64) bool {
 		maxiter := 100
 		return maxiter < substep || fcheck < tol
@@ -258,18 +249,13 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 			break
 		}
 
-		// 	# Increment starts; Set all variations=0
+		// TODO : minimaze allocations
 		var (
-			// TODO : minimaze allocations
 			Δu = npzeros(ndof)
 
-			// δů  []float64
-			δu []float64
-			// δut       []float64
+			δu       []float64
 			δu1, δu2 []float64
-			// f   []float64 // TODO: remove
 
-			// df  [][]float64
 			det    float64
 			Δλ     float64
 			fcheck float64
@@ -278,7 +264,7 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 			δλ1, δλ2 float64
 		)
 
-		stepa := func(isFirst bool) {
+		begin := func(isFirst bool) {
 			Kt := Kstiff(summa(u, Δu))
 			δut := SolveLinear(Kt, 𝐪)
 			var δū []float64
@@ -337,28 +323,20 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 			} else {
 				panic(fmt.Errorf("not implemented: (%e,%e,%e) - %e",
 					𝛼1, 𝛼2, 𝛼3, D))
-				// δλ1 = -𝛼2 / 2 * 𝛼1
-				// δλ2 = -𝛼2 / 2 * 𝛼1
-				// // TODO : check coverage for that part of code
-				// fmt.Println("Possible issue in Arc Length equation")
+				// TODO : check coverage for that part of code
 			}
 
 			// Formula (2.14):
 			// δu = δū + δλ*δut
+			//
 			δu1 = summa(δū, scale(δλ1, δut))
 			δu2 = summa(δū, scale(δλ2, δut))
 
+			// calculate determinant matrix of stiffiners
+			//
 			det = nplinalgdet(Kt)
 		}
-		stepa(true)
-
-		// df = dfcn(summa(a, Δu))
-		// δu = SolveLinear(df, 𝐪)
-		// δλ1, δλ2 = square_root(Δu, δů, δu, Δλ, 𝐪)
-		// TODO: why?? generally values are zeros
-		// δu1 = summa(δů, scale(δλ1, δu))
-		// δu2 = summa(δů, scale(δλ2, δu))
-		// det = nplinalgdet(df)
+		begin(true)
 
 		if npsign(det) == npsign(δλ1) {
 			δu, δλ = δu1, δλ1
@@ -369,34 +347,17 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 		finish := func() {
 			Δu = summa(Δu, δu)
 			Δλ = Δλ + δλ
-			// f = fcn(summa(u, Δu), (λ + Δλ))
-			// fcheck = nplinalgnorm(f)
 			fcheck = math.Max(nplinalgnorm(δu), math.Abs(δλ))
 		}
 		finish()
 
-		// var iters int = 1 // TODO: in my point of view - it is 1
-
 		// Run substeps
-		for substep := 1; ; substep++ {
+		for substep := 1; ; substep++ { // TODO: in my point of view - it is 1
 			if stopSubstep(substep, fcheck) {
 				break
 			}
 
-			// ; fcheck > tol && iters <= maxiter; iters++ {
-
-			stepa(false)
-
-			// df = dfcn(summa(a, Δu))
-			// δu = SolveLinear(df, 𝐪)
-			// f = fcn(summa(a, Δu), (al + Δλ))
-			// temp := SolveLinear(df, f)
-			// δů = scale(-1, temp)
-			// δλ1, δλ2 = square_root(Δu, δů, δu, Δλ, 𝐪)
-			// Formula (2.14)
-			// δu1 = summa(δů, scale(δλ1, δu))
-			// δu2 = summa(δů, scale(δλ2, δu))
-			// det = nplinalgdet(df)
+			begin(false)
 
 			daomag := npdot(Δu, Δu)
 			if daomag == 0. {
@@ -423,16 +384,7 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64) (data []row) {
 			}
 
 			finish()
-			// Δu = summa(Δu, δu)
-			// Δλ = Δλ + δλ
-			// f = fcn(summa(a, Δu), (al + Δλ))
-			// fcheck = nplinalgnorm(f)
 		}
-
-		// if iters > maxiter {
-		// 	// TODO: create error description
-		// 	panic("Max iteration error")
-		// }
 
 		u = summa(u, Δu)
 		λ += Δλ
