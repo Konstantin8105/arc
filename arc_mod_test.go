@@ -108,7 +108,7 @@ func ExampleArc2() {
 		return maxiter < substep || fcheck < tol
 	}
 
-	data := arcm(dfcn, 𝐪, stopStep, stopSubstep)
+	data := arcm(dfcn, 𝐪, stopStep, stopSubstep, nil)
 	printData(data, "data.txt")
 
 	fmt.Printf("ok\n")
@@ -167,7 +167,9 @@ func ExampleArc3() {
 		}
 	}
 
-	data := arcm(K, q, stopStep, stopSubstep)
+	c := DefaultConfig()
+	c.Radius = 2.0e-0
+	data := arcm(K, q, stopStep, stopSubstep, c)
 
 	var errorValue float64
 	for _, r := range data {
@@ -185,6 +187,7 @@ func ExampleArc3() {
 
 	printData(data, "arc3.txt")
 	// Output:
+	// error value = 1.8e+01
 }
 
 type row struct {
@@ -192,11 +195,28 @@ type row struct {
 	u      []float64
 }
 
+type Config struct {
+	// TODO: hyperellipsoid ratio - input data
+	Ksi float64
+
+	// TODO : radius
+	Radius float64 // TODO : for ExampleArc3 and == 2.0 - somw error
+}
+
+func DefaultConfig() *Config {
+	c := Config{
+		Ksi:    1.0,
+		Radius: 1e-3,
+	}
+	return &c
+}
+
 // TODO : dfcn, 𝐪  dependens of u
 // TODO : Uo - initialization deformation
 func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 	stopStep func(step int, λ float64, u []float64) bool,
 	stopSubstep func(substep int, fcheck float64) bool,
+	c *Config,
 ) (data []row) {
 	// TODO : add error handling
 
@@ -204,17 +224,26 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 	u := npzeros(ndof)
 
 	// Arc Length Parameters
-	var (
-		// Lambda - load proportionality factor (LPF)
-		// the dimensionless ``load'' vector
-		λ = 0.0
 
-		// TODO: hyperellipsoid ratio - input data
-		𝜓 = 1.0
+	// Lambda - load proportionality factor (LPF)
+	// the dimensionless ``load'' vector
+	var λ float64
+	var 𝜓, Δl float64
+	if c == nil {
+		c = DefaultConfig()
+	}
+	𝜓, Δl = c.Ksi, c.Radius
+	if 𝜓 <= 0 {
+		panic("1")
+	}
+	if Δl <= 0 {
+		panic("2")
+	}
 
-		// TODO : radius
-		Δl = 1.e-3 // TODO : for ExampleArc3 and == 2.0 - somw error
-	)
+	data = append(data, row{
+		lambda: λ,
+		u:      u,
+	})
 
 	for step := 0; ; step++ {
 		if stopStep(step, λ, u) {
@@ -243,10 +272,18 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 			if isFirst {
 				δū = npzeros(ndof)
 			} else {
+				//
 				// δū = invert[KT](uo+Δu) * (-Fint*(uo+Δu)+(λo+Δλ)*𝐪)
 				// δū = invert[KT](uo+Δu) * ( (λo+Δλ)*𝐪-Fint*(uo+Δu))
+				//
 				// TODO : I am not sure
+				//
+				// f = fcn(summa(a, da), th0, (al + dl), w)
+				// df, dfinv = dfcn(summa(a, da), th0, (al + dl), w)
+				// dab = scale(-1, npdotm(dfinv, f))
+				//
 				δū = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
+				// δū = SolveLinear(Kt, summa(scale(λ+Δλ, 𝐪), scale(-1,npdotm(Kt, Δu))))
 			}
 			// For formula (2.14):
 			// δut = -invert[KT](uo+Δu) * 𝐪
@@ -291,11 +328,13 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 			// TODO : why if change ddl1 and ddl2 algorithm are fail??
 			if 0.0 < D {
 				// acceptable 2 solutions
-				δλ1 = (-𝛼2 - math.Sqrt(D)) / (2 * 𝛼1)
-				δλ2 = (-𝛼2 + math.Sqrt(D)) / (2 * 𝛼1)
+				δλ1 = (-𝛼2 - math.Sqrt(D)) / (2.0 * 𝛼1)
+				δλ2 = (-𝛼2 + math.Sqrt(D)) / (2.0 * 𝛼1)
 			} else {
-				panic(fmt.Errorf("not implemented: (%e,%e,%e) - %e",
-					𝛼1, 𝛼2, 𝛼3, D))
+				δλ1 = -𝛼2 / (2.0 * 𝛼1)
+				δλ2 = -𝛼2 / (2.0 * 𝛼1)
+				panic((fmt.Errorf("not implemented: (%e,%e,%e) - %e",
+					𝛼1, 𝛼2, 𝛼3, D)))
 				// TODO : check coverage for that part of code : D < 0.0
 			}
 
