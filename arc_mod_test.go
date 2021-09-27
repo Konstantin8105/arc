@@ -109,7 +109,7 @@ func ExampleArc2() {
 	}
 
 	data := arcm(dfcn, 𝐪, stopStep, stopSubstep, nil)
-	printData(data, "data.txt")
+	printData(data, "data.txt", 𝐪, dfcn, fcn)
 
 	fmt.Printf("ok\n")
 
@@ -128,15 +128,30 @@ func ExampleArc2() {
 	// error value = 4.8e-04
 }
 
-func printData(data []row, filename string) {
+func printData(data []row, filename string,
+	q []float64,
+	Kt func(a []float64) (df [][]float64),
+	F func(x []float64, lambda float64) []float64) {
 	// gnuplot graph
 	// plot "data.txt" using 2:1 title "rotation", \
 	//      "data.txt" using 3:1 title "vertical disp"
 	var buf bytes.Buffer
-	for _, r := range data {
+	yintegral := make([]float64, len(q))
+	for index, r := range data {
 		fmt.Fprintf(&buf, "%.12f", r.lambda)
 		for i := range r.u {
 			fmt.Fprintf(&buf, " %.12f", r.u[i])
+		}
+		if F != nil {
+			ys := F(r.u, 0) // r.lambda)
+			if 0 < index {
+				yintegral = summa(
+					yintegral,
+					npdotm(Kt(r.u), summa(data[index].u, scale(-1, data[index-1].u))))
+			}
+			for i := range ys {
+				fmt.Fprintf(&buf, " %.12f %.12f", yintegral[i], ys[i])
+			}
 		}
 		fmt.Fprintf(&buf, "\n")
 	}
@@ -162,9 +177,10 @@ func ExampleArc3() {
 		}
 	}
 	K := func(u []float64) [][]float64 {
-		return [][]float64{
+		k := [][]float64{
 			{-0.06*3*math.Pow(u[0], 2) + 1.2*2*u[0] + 3},
 		}
+		return k
 	}
 
 	c := DefaultConfig()
@@ -185,7 +201,7 @@ func ExampleArc3() {
 		data[i].lambda *= q[0]
 	}
 
-	printData(data, "arc3.txt")
+	printData(data, "arc3.txt", q, K, F)
 	// Output:
 	// error value = 1.8e+01
 }
@@ -268,24 +284,35 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 			Kt := Kstiff(summa(u, Δu))
 			// For formula (2.14):
 			// δū = -invert[KT](uo+Δu) * (Fint*(uo+Δu)-(λo+Δλ)*𝐪)
-			var δū []float64
-			if isFirst {
-				δū = npzeros(ndof)
-			} else {
-				//
-				// δū = invert[KT](uo+Δu) * (-Fint*(uo+Δu)+(λo+Δλ)*𝐪)
-				// δū = invert[KT](uo+Δu) * ( (λo+Δλ)*𝐪-Fint*(uo+Δu))
-				//
-				// TODO : I am not sure
-				//
-				// f = fcn(summa(a, da), th0, (al + dl), w)
-				// df, dfinv = dfcn(summa(a, da), th0, (al + dl), w)
-				// dab = scale(-1, npdotm(dfinv, f))
-				//
-				// δū = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
-				δū = SolveLinear(Kt,
-					summa(scale(Δλ, 𝐪), scale(-1, npdotm(Kt, Δu))))
+			// var δū []float64
+			// if isFirst {
+			// 	δū = npzeros(ndof)
+			// } else {
+			//
+			// δū = invert[KT](uo+Δu) * (-Fint*(uo+Δu)+(λo+Δλ)*𝐪)
+			// δū = invert[KT](uo+Δu) * ( (λo+Δλ)*𝐪-Fint*(uo+Δu))
+			//
+			// TODO : I am not sure
+			//
+			// f = fcn(summa(a, da), th0, (al + dl), w)
+			// df, dfinv = dfcn(summa(a, da), th0, (al + dl), w)
+			// dab = scale(-1, npdotm(dfinv, f))
+			//
+			// δū = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
+			δū := npzeros(ndof)
+			{
+				Ktold := Kstiff(u)
+				δū = scale(-1,
+					SolveLinear(
+						Kt,
+						summa(
+							npdotm(Ktold, Δu),
+							scale(-1, scale(Δλ, 𝐪)),
+						),
+					),
+				)
 			}
+			// }
 			// For formula (2.14):
 			// δut = -invert[KT](uo+Δu) * 𝐪
 			δut := SolveLinear(Kt, 𝐪)
