@@ -108,7 +108,9 @@ func ExampleArc2() {
 		return maxiter < substep || fcheck < tol
 	}
 
-	data := arcm(dfcn, 𝐪, stopStep, stopSubstep, nil)
+	c := DefaultConfig()
+	// c.Radius = 2.0e-3
+	data := arcm(dfcn, 𝐪, stopStep, stopSubstep, c)
 	printData(data, "data.txt", 𝐪, dfcn, fcn)
 
 	fmt.Printf("ok\n")
@@ -203,7 +205,7 @@ func ExampleArc3() {
 
 	printData(data, "arc3.txt", q, K, F)
 	// Output:
-	// error value = 1.8e+01
+	// error value = 5.1e+00
 }
 
 type row struct {
@@ -284,37 +286,11 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 			Kt := Kstiff(summa(u, Δu))
 			// For formula (2.14):
 			// δū = -invert[KT](uo+Δu) * (Fint*(uo+Δu)-(λo+Δλ)*𝐪)
-			// var δū []float64
-			// if isFirst {
-			// 	δū = npzeros(ndof)
-			// } else {
-			//
-			// δū = invert[KT](uo+Δu) * (-Fint*(uo+Δu)+(λo+Δλ)*𝐪)
-			// δū = invert[KT](uo+Δu) * ( (λo+Δλ)*𝐪-Fint*(uo+Δu))
-			//
-			// TODO : I am not sure
-			//
-			// f = fcn(summa(a, da), th0, (al + dl), w)
-			// df, dfinv = dfcn(summa(a, da), th0, (al + dl), w)
-			// dab = scale(-1, npdotm(dfinv, f))
-			//
-			// δū = summa(SolveLinear(Kt, scale(Δλ, 𝐪)), scale(-1, Δu))
+			// value of Fint is precision value and for we cannot find them
+			// only by Jacobi matrix.
+			// Fint*(uo+Δu)-(λo+Δλ)*𝐪 is equal R(uo+Δu), but
+			// theoretically R(uo+Δu) = 0, then vector is zero always:
 			δū := npzeros(ndof)
-			{
-				Ktold := Kstiff(u)
-				δū = scale(-1,
-					SolveLinear(
-						Kt,
-						summa(
-							npdotm(Ktold, Δu),
-							scale(-1, scale(Δλ, 𝐪)),
-						),
-					),
-				)
-			}
-			// }
-			// For formula (2.14):
-			// δut = -invert[KT](uo+Δu) * 𝐪
 			δut := SolveLinear(Kt, 𝐪)
 
 			// Formula (2.12):
