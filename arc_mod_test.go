@@ -290,7 +290,7 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 			// only by Jacobi matrix.
 			// Fint*(uo+Δu)-(λo+Δλ)*𝐪 is equal R(uo+Δu), but
 			// theoretically R(uo+Δu) = 0, then vector is zero always:
-			δū := npzeros(ndof)
+			δū := npzeros(ndof) // TODO  main problem find this
 			δut := SolveLinear(Kt, 𝐪)
 
 			// Formula (2.12):
