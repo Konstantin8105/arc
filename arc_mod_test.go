@@ -53,9 +53,9 @@ func ExampleArc2() {
 
 	// # Define the b function needed for calculations
 	b := func(a float64) float64 {
-		// TODO see formula (3.11)
+		// see formula (3.11)
 		// B(a1, th0) = 1.0 - 2*a1*sin(th0)+a1*a1
-		return 1.0 + a*a - 2.0*a*math.Sin(th0) // TODO: use formula
+		return 1.0 + a*a - 2.0*a*math.Sin(th0) // use formula
 	}
 
 	var dfcn func(a []float64) (df [][]float64)
@@ -68,11 +68,11 @@ func ExampleArc2() {
 		w := last_w
 		bb := b(a[0])
 
-		// TODO: use correct name of variables
+		// use correct name of variables
 		f[0] = (1./math.Sqrt(bb)-1.0)*(math.Sin(th0)-a[0]) - w*(a[1]-a[0])
-		// TODO formula (3.12)
+		// formula (3.12)
 		f[1] = w*(a[1]-a[0]) - λ
-		// TODO formula (3.13)
+		// formula (3.13)
 
 		return
 	}
@@ -87,7 +87,7 @@ func ExampleArc2() {
 		bb := b(a[0])
 		w := last_w
 		// Tangent Matrix
-		// TODO: look like https://en.wikipedia.org/wiki/
+		// look like https://en.wikipedia.org/wiki/
 		// Jacobian_matrix_and_determinant#Example_1
 		df[0][0] = (1 + w) -
 			(1.-math.Pow(math.Sin(th0), 2.0))/(math.Pow(bb, 1.5))
@@ -113,8 +113,6 @@ func ExampleArc2() {
 	data := arcm(dfcn, 𝐪, stopStep, stopSubstep, c)
 	printData(data, "data.txt", 𝐪, dfcn, fcn)
 
-	fmt.Printf("ok\n")
-
 	var errorValue float64
 	for _, r := range data {
 		// print error
@@ -123,10 +121,9 @@ func ExampleArc2() {
 			errorValue = math.Max(errorValue, math.Abs(v))
 		}
 	}
-	fmt.Printf("error value = %.1e\n", errorValue)
+	fmt.Fprintf(os.Stdout, "error value = %.1e\n", errorValue)
 
 	// Output:
-	// ok
 	// error value = 4.8e-04
 }
 
@@ -197,7 +194,7 @@ func ExampleArc3() {
 			errorValue = math.Max(errorValue, math.Abs(v))
 		}
 	}
-	fmt.Printf("error value = %.1e\n", errorValue)
+	fmt.Fprintf(os.Stdout, "error value = %.1e\n", errorValue)
 
 	for i := range data {
 		data[i].lambda *= q[0]
@@ -218,7 +215,7 @@ type Config struct {
 	Ksi float64
 
 	// TODO : radius
-	Radius float64 // TODO : for ExampleArc3 and == 2.0 - somw error
+	Radius float64
 }
 
 func DefaultConfig() *Config {
@@ -291,6 +288,7 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 			// Fint*(uo+Δu)-(λo+Δλ)*𝐪 is equal R(uo+Δu), but
 			// theoretically R(uo+Δu) = 0, then vector is zero always:
 			δū := npzeros(ndof) // TODO  main problem find this
+			// TODO : find the solution
 			δut := SolveLinear(Kt, 𝐪)
 
 			// Formula (2.12):
@@ -329,7 +327,6 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 				// determinant
 				D = 𝛼2*𝛼2 - 4.*𝛼1*𝛼3
 			)
-			// TODO : why if change ddl1 and ddl2 algorithm are fail??
 			if 0.0 < D {
 				// acceptable 2 solutions
 				δλ1 = (-𝛼2 - math.Sqrt(D)) / (2.0 * 𝛼1)
@@ -341,6 +338,8 @@ func arcm(Kstiff func([]float64) [][]float64, 𝐪 []float64,
 					𝛼1, 𝛼2, 𝛼3, D)))
 				// TODO : check coverage for that part of code : D < 0.0
 			}
+			// After checking - acceptable swap the results, but no need
+			// δλ2, δλ1 = δλ1, δλ2
 
 			// Formula (2.14):
 			// δu = δū + δλ*δut
