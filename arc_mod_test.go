@@ -186,12 +186,12 @@ func ExampleArc3() {
 	c.Radius = 2.0e-0
 	data := arcm(K, q, stopStep, stopSubstep, c)
 
-	var errorValue float64
+	var errorValue float64 = 10.0
 	for _, r := range data {
 		// print error
 		f := F(r.u, r.lambda)
 		for _, v := range f {
-			errorValue = math.Max(errorValue, math.Abs(v))
+			errorValue = math.Min(errorValue, math.Abs(v))
 		}
 	}
 	fmt.Fprintf(os.Stdout, "error value = %.1e\n", errorValue)
@@ -203,6 +203,61 @@ func ExampleArc3() {
 	printData(data, "arc3.txt", q, K, F)
 	// Output:
 	// error value = 5.1e+00
+}
+
+func ExampleArc4() {
+	stopStep := func(step int, λ float64, u []float64) bool {
+		maxiter := 20000
+		return maxiter < step || 1.0 < λ // 2 < λ// || 20 <= u[0]
+	}
+	stopSubstep := func(substep int, fcheck float64) bool {
+		maxiter := 10000
+		return maxiter < substep || fcheck < tol
+	}
+
+	q := []float64{40, 15}
+	F := func(x []float64, lambda float64) []float64 {
+		return []float64{
+			10*x[0] + 0.4*math.Pow(x[1], 3) - 5*math.Pow(x[1], 2) - lambda*q[0],
+			0.4*math.Pow(x[0], 3) - 3*math.Pow(x[0], 2) + 10*x[1] - lambda*q[1],
+		}
+	}
+	K := func(u []float64) [][]float64 {
+		k := [][]float64{
+			{10, 1.2*math.Pow(u[1], 2) - 10*u[1]},
+			{1.2*math.Pow(u[0], 2) - 6*u[0], 10},
+		}
+		return k
+	}
+
+	c := DefaultConfig()
+	c.Radius = 1.0e-02
+	data := arcm(K, q, stopStep, stopSubstep, c)
+
+	var errorValue float64 = 10.0
+	for _, r := range data {
+		if r.lambda < 0.9 {
+			continue
+		}
+		// print error
+		f := F(r.u, r.lambda)
+		for _, v := range f {
+			errorValue = math.Min(errorValue, math.Abs(v))
+		}
+	}
+	fmt.Fprintf(os.Stdout, "result      = %.6e\n", data[len(data)-1].u)
+	fmt.Fprintf(os.Stdout, "lambda      = %.6e\n", data[len(data)-1].lambda)
+	fmt.Fprintf(os.Stdout, "error value = %.3e\n", errorValue)
+	// 6.861661 2.70218
+	// for i := range data {
+	// 	data[i].lambda *= q[0]
+	// }
+
+	printData(data, "arc4.txt", q, K, F)
+	// Output:
+	// result      = [6.862128e+00 2.703502e+00]
+	// lambda      = 1.000182e+00
+	// error value = 1.723e-02
 }
 
 type row struct {
