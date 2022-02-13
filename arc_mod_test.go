@@ -207,8 +207,8 @@ func ExampleArc3() {
 
 func ExampleArc4() {
 	stopStep := func(step int, λ float64, u []float64) bool {
-		maxiter := 20000
-		return maxiter < step || 1.0 < λ // 2 < λ// || 20 <= u[0]
+		maxiter := 200000
+		return maxiter < step || λ < -6 // || 1.0 < λ // 2 < λ// || 20 <= u[0]
 	}
 	stopSubstep := func(substep int, fcheck float64) bool {
 		maxiter := 10000
@@ -231,22 +231,30 @@ func ExampleArc4() {
 	}
 
 	c := DefaultConfig()
-	c.Radius = 1.0e-02
+	c.Radius = 1.0e-01
 	data := arcm(K, q, stopStep, stopSubstep, c)
 
 	var errorValue float64 = 10.0
-	for _, r := range data {
-		if r.lambda < 0.9 {
+	index := 0
+	for i, r := range data {
+		if r.lambda < 0.95 || 1.05 < r.lambda {
 			continue
 		}
 		// print error
 		f := F(r.u, r.lambda)
+		var e float64
 		for _, v := range f {
-			errorValue = math.Min(errorValue, math.Abs(v))
+			e += v * v
+		}
+		e = math.Sqrt(e)
+		if e < errorValue {
+			errorValue = e
+			index = i
 		}
 	}
-	fmt.Fprintf(os.Stdout, "result      = %.6e\n", data[len(data)-1].u)
-	fmt.Fprintf(os.Stdout, "lambda      = %.6e\n", data[len(data)-1].lambda)
+
+	fmt.Fprintf(os.Stdout, "result      = %.6e\n", data[index].u)
+	fmt.Fprintf(os.Stdout, "lambda      = %.6e\n", data[index].lambda)
 	fmt.Fprintf(os.Stdout, "error value = %.3e\n", errorValue)
 	// 6.861661 2.70218
 	// for i := range data {
