@@ -207,11 +207,11 @@ func ExampleArc3() {
 
 func ExampleArc4() {
 	stopStep := func(step int, λ float64, u []float64) bool {
-		maxiter := 200000
+		maxiter := 20000000
 		return maxiter < step || λ < -6 // || 1.0 < λ // 2 < λ// || 20 <= u[0]
 	}
 	stopSubstep := func(substep int, fcheck float64) bool {
-		maxiter := 10000
+		maxiter := 10000000000
 		return maxiter < substep || fcheck < tol
 	}
 
@@ -253,9 +253,20 @@ func ExampleArc4() {
 		}
 	}
 
-	fmt.Fprintf(os.Stdout, "result      = %.6e\n", data[index].u)
-	fmt.Fprintf(os.Stdout, "lambda      = %.6e\n", data[index].lambda)
-	fmt.Fprintf(os.Stdout, "error value = %.3e\n", errorValue)
+	fmt.Fprintf(os.Stdout, "result      at lambda 1.0 = %.6e\n", data[index].u)
+	fmt.Fprintf(os.Stdout, "lambda      at lambda 1.0 = %.6e\n", data[index].lambda)
+	fmt.Fprintf(os.Stdout, "error value at lambda 1.0 = %.3e\n", errorValue)
+
+	r := data[len(data)-1]
+	f := F(r.u, r.lambda)
+	var e float64
+	for _, v := range f {
+		e += v * v
+	}
+	e = math.Sqrt(e)
+	fmt.Fprintf(os.Stdout, "result      at lambda     = %.6e\n", data[len(data)-1].u)
+	fmt.Fprintf(os.Stdout, "lambda      at lambda     = %.6e\n", data[len(data)-1].lambda)
+	fmt.Fprintf(os.Stdout, "error value at lambda     = %.3e\n", e)
 	// 6.861661 2.70218
 	// for i := range data {
 	// 	data[i].lambda *= q[0]
@@ -263,9 +274,12 @@ func ExampleArc4() {
 
 	printData(data, "arc4.txt", q, K, F)
 	// Output:
-	// result      = [6.862128e+00 2.703502e+00]
-	// lambda      = 1.000182e+00
-	// error value = 1.723e-02
+	// result      at lambda 1.0 = [6.774992e+00 2.775623e+00]
+	// lambda      at lambda 1.0 = 9.512645e-01
+	// error value at lambda 1.0 = 3.203e-01
+	// result      at lambda     = [-2.916245e+00 -5.431232e+00]
+	// lambda      at lambda     = -6.000545e+00
+	// error value at lambda     = 7.632e-01
 }
 
 type row struct {
